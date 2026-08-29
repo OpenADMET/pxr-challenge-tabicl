@@ -1,0 +1,75 @@
+data:
+  output_dir: results/feat_observed_2task
+  plan:
+    input_csv: data/moal_plan_state.csv
+    output_csv: pxr_feat_observed_2task_predictions.csv
+    smiles_column: smiles
+    relation_column: relation
+    value_column: value
+    weight_column: weight
+    log2fc_columns:
+    - log2fc_8.251e-06
+    - log2fc_3.300e-05
+    is_canonical: true
+seed: 42
+oracle:
+  cost_ps: 1.0
+  cost_drc: 10.0
+  ps_threshold: 4.0
+  upper_bound: 11.0
+  activity_threshold: 6.0
+acquisition:
+  ps_threshold: 4.0
+  target_threshold: 6.0
+  tau: 0.1
+  embedding_provenance_discount: 1.0
+model:
+  ffn_hidden_dim: 512
+  ffn_num_layers: 3
+  freeze_epochs: 2
+  mpnn_lr: 0.001
+  ffn_lr: 0.001
+  sigma: 0.5
+  from_foundation: chemeleon
+  fast: false
+auxiliary_model:
+  from_foundation: chemeleon
+  ffn_hidden_dim: 512
+  ffn_num_layers: 2
+  freeze_epochs: 2
+  lr: 0.001
+  use_observed_readout: true
+  checkpoint_path: null
+  use_predicted_readout: false
+trainer:
+  max_epochs: 50
+  accelerator: gpu
+  enable_progress_bar: false
+  enable_model_summary: false
+  val_fraction: 0.2
+  split_seed: 42
+  num_workers: 0
+  log_every_n_steps: 1
+  gradient_clip_val: 1.0
+  gradient_clip_algorithm: norm
+  early_stopping: true
+  early_stopping_monitor: val_loss
+  early_stopping_patience: 10
+  early_stopping_mode: min
+  early_stopping_min_delta: 0.001
+auxiliary_trainer:
+  max_epochs: 50
+  accelerator: gpu
+  enable_progress_bar: false
+  enable_model_summary: false
+  val_fraction: 0.2
+  split_seed: 42
+  num_workers: 0
+  log_every_n_steps: 1
+  gradient_clip_val: 1.0
+  gradient_clip_algorithm: norm
+  early_stopping: true
+  early_stopping_monitor: aux_val_loss
+  early_stopping_patience: 10
+  early_stopping_mode: min
+  early_stopping_min_delta: 0.001

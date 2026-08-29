@@ -1,0 +1,84 @@
+data:
+  train_resource: data/pxr-challenge_TRAIN_split80.csv
+  val_resource: data/pxr-challenge_TRAIN_split20.csv
+  test_resource: data/pxr-challenge_TEST_PHASE_2_UNBLINDED.csv
+  type: intake
+  input_col: SMILES
+  target_cols:
+  - pEC50
+  dropna: true
+
+metadata:
+  authors: Sean Colby
+  email: seanmcolby@gmail.com
+  biotargets:
+  - PXR
+  build_number: 0
+  description: Single-task CheMeleon regression model for PXR activation pEC50
+  driver: pytorch
+  name: chemeleon_pxr_pec50
+  tag: chemeleon-pxr-pec50
+  tags:
+  - openadmet
+  - chemeleon
+  - pxr
+  - pec50
+  version: v1
+
+procedure:
+  random_seed: 42
+
+  feat:
+    type: ChemPropFeaturizer
+    params:
+      batch_size: 128
+      normalize_targets: true
+      n_jobs: 4
+      shuffle: true
+      random_seed: 42
+
+  model:
+    type: ChemPropModel
+    params:
+      random_seed: 42
+      ffn_hidden_dim: 1024
+      ffn_num_layers: 3
+      mpnn_lr: 1.0e-3
+      ffn_lr: 1.0e-3
+      mpnn_weight_decay: 0
+      ffn_weight_decay: 1.0e-4
+      dropout: 0.1
+      batch_norm: false
+      scheduler: plateau
+      reduce_lr_patience: 5
+      reduce_lr_factor: 0.5
+      n_tasks: 1
+      from_foundation: chemeleon
+
+  # unused: train/val/test come from fixed resources in data:, but split is a required field
+  split:
+    type: ShuffleSplitter
+    params:
+      random_seed: 42
+      train_size: 0.7
+      val_size: 0.1
+      test_size: 0.2
+
+  train:
+    type: LightningTrainer
+    params:
+      accelerator: gpu
+      monitor_metric: val_loss
+      gradient_clip_val: 0.5
+      early_stopping: true
+      early_stopping_patience: 20
+      early_stopping_mode: min
+      early_stopping_min_delta: 0.001
+      max_epochs: 100
+      use_wandb: false
+      wandb_project: openadmet
+
+report:
+  eval:
+  - type: RegressionMetrics
+    params: {}

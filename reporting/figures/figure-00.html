@@ -1,0 +1,617 @@
+<style>.pxr-post {
+    --bg: #282a36;
+    --bg-raised: #343746;
+    --ink: #f8f8f2;
+    --ink-soft: #a4a8c7;
+    --line: #44475a;
+    --accent: #ffb86c;
+    --accent-ink: #ffcb94;
+    --sage: #50fa7b;
+    --gray: #b8bcc8;
+    --plum: #bd93f9;
+    --track: #21222c;
+    --target: #ff5555;
+    --target-ink: #ff8080;
+    --blue: #8be9fd;
+    --magenta: #ff6ac1;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {.pxr-post {
+      --bg: #282a36;
+      --bg-raised: #343746;
+      --ink: #f8f8f2;
+      --ink-soft: #a4a8c7;
+      --line: #44475a;
+      --accent: #ffb86c;
+      --accent-ink: #ffcb94;
+      --sage: #50fa7b;
+      --gray: #b8bcc8;
+      --plum: #bd93f9;
+      --track: #21222c;
+      --target: #ff5555;
+      --target-ink: #ff8080;
+      --blue: #8be9fd;
+      --magenta: #ff6ac1;
+    }
+  }.pxr-post[data-theme="dark"] {
+    --bg: #282a36;
+    --bg-raised: #343746;
+    --ink: #f8f8f2;
+    --ink-soft: #a4a8c7;
+    --line: #44475a;
+    --accent: #ffb86c;
+    --accent-ink: #ffcb94;
+    --sage: #50fa7b;
+    --gray: #b8bcc8;
+    --plum: #bd93f9;
+    --track: #21222c;
+    --target: #ff5555;
+    --target-ink: #ff8080;
+    --blue: #8be9fd;
+    --magenta: #ff6ac1;
+  }.pxr-post[data-theme="light"] {
+    --bg: #282a36;
+    --bg-raised: #343746;
+    --ink: #f8f8f2;
+    --ink-soft: #a4a8c7;
+    --line: #44475a;
+    --accent: #ffb86c;
+    --accent-ink: #ffcb94;
+    --sage: #50fa7b;
+    --gray: #b8bcc8;
+    --plum: #bd93f9;
+    --track: #21222c;
+    --target: #ff5555;
+    --target-ink: #ff8080;
+    --blue: #8be9fd;
+    --magenta: #ff6ac1;
+  }.pxr-post, .pxr-post * { box-sizing: border-box; }.pxr-post {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.55;
+    margin: 0;
+    padding: 4.5rem 1.5rem 6rem;
+  }.pxr-post {
+    max-width: 780px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3.5rem;
+  }.pxr-post header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 2rem;
+  }.pxr-post .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sage);
+  }.pxr-post h1 {
+    font-size: 2rem;
+    font-weight: 650;
+    margin: 0;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }.pxr-post .subhead {
+    color: var(--ink-soft);
+    font-size: 1.05rem;
+  }.pxr-post .meta {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.4rem;
+  }.pxr-post section {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }.pxr-post .section-head {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }.pxr-post .section-num {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--sage);
+    letter-spacing: 0.06em;
+  }.pxr-post h2 {
+    font-size: 1.35rem;
+    margin: 0;
+    text-wrap: balance;
+  }.pxr-post .lede {
+    color: var(--ink-soft);
+    font-size: 0.98rem;
+  }.pxr-post .chart {
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.6rem 1.6rem 1.3rem;
+  }.pxr-post .axis-ref {
+    display: grid;
+    grid-template-columns: 15rem 1fr 4.2rem;
+    gap: 0.6rem;
+    margin-bottom: 0.4rem;
+  }.pxr-post .axis-ticks {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+  }.pxr-post .rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }.pxr-post .row {
+    display: grid;
+    grid-template-columns: 15rem 1fr 4.2rem;
+    align-items: center;
+    gap: 0.6rem;
+    /* Fixed to the two-line (label + sub) height so bar-to-bar spacing
+       stays even whether or not a given row's sub label is present; the
+       label column is widened to keep every sub on one line, so no row
+       needs a third line */
+    min-height: 1.9rem;
+  }.pxr-post .row-label {
+    font-size: 0.86rem;
+    text-align: right;
+    color: var(--ink);
+  }.pxr-post .row-label .sub {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+  }.pxr-post .track {
+    position: relative;
+    height: 1.6rem;
+    background: var(--track);
+    border-radius: 4px;
+    overflow: hidden;
+  }.pxr-post .bar {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background-color: var(--gray);
+    border-radius: 4px;
+  }.pxr-post .bar.win {
+    background-color: var(--accent);
+  }.pxr-post .bar.reused {
+    background-image: repeating-linear-gradient(
+      135deg,
+      rgba(0, 0, 0, 0.32) 0 6px,
+      transparent 6px 12px
+    );
+  }.pxr-post /* Real measured range only: seed-to-seed min-max, .pxr-post or a split-to-split range; absent means single-run */
+  .err-whisker {
+    position: absolute;
+    top: 0.15rem;
+    bottom: 0.15rem;
+    border-left: 1.5px solid rgb(255, 255, 255);
+    border-right: 1.5px solid rgb(255, 255, 255);
+    opacity: 0.9;
+  }.pxr-post .err-whisker::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    border-top: 1.5px solid rgb(255, 255, 255);
+  }.pxr-post .mini-track .err-whisker {
+    top: 0.1rem;
+    bottom: 0.1rem;
+  }.pxr-post .row.winner .row-label {
+    font-weight: 650;
+    color: var(--accent-ink);
+  }.pxr-post .mae-val {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.86rem;
+    text-align: right;
+    color: var(--ink);
+  }.pxr-post .row.winner .mae-val {
+    font-weight: 650;
+    color: var(--accent-ink);
+  }.pxr-post .row.ref-divider {
+    padding-bottom: 0.55rem;
+    margin-bottom: 0.1rem;
+    border-bottom: 1px dashed var(--line);
+  }.pxr-post .bar.target-bar {
+    background-color: var(--target);
+  }.pxr-post .row.target .row-label {
+    font-style: italic;
+    color: var(--target-ink);
+  }.pxr-post .row.target .mae-val {
+    color: var(--target-ink);
+    font-weight: 650;
+  }.pxr-post .bar.context-bar {
+    background: repeating-linear-gradient(
+      135deg,
+      var(--target) 0 6px,
+      color-mix(in srgb, var(--target) 70%, transparent) 6px 12px
+    );
+  }.pxr-post .row.context .row-label {
+    font-style: italic;
+    color: var(--target-ink);
+  }.pxr-post .row.context .mae-val {
+    color: var(--target-ink);
+    font-weight: 650;
+  }.pxr-post .bar.floor-bar {
+    background-color: var(--plum);
+  }.pxr-post .row.floor .row-label {
+    font-style: italic;
+    color: var(--plum);
+  }.pxr-post .row.floor .mae-val {
+    color: var(--plum);
+    font-weight: 650;
+  }.pxr-post .row.single_best .row-label {
+    color: var(--blue);
+  }.pxr-post .row.single_best .mae-val {
+    color: var(--blue);
+    font-weight: 650;
+  }.pxr-post .row.sweepbest .row-label {
+    color: var(--sage);
+  }.pxr-post .row.sweepbest .mae-val {
+    color: var(--sage);
+    font-weight: 650;
+  }.pxr-post .row.chemeleon .row-label {
+    color: var(--magenta);
+  }.pxr-post .row.chemeleon .mae-val {
+    color: var(--magenta);
+    font-weight: 650;
+  }.pxr-post .chips {
+    display: flex;
+    gap: 0.3rem;
+    justify-content: flex-end;
+    margin-top: 0.15rem;
+  }.pxr-post .chip {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.02em;
+    padding: 0.05rem 0.36rem;
+    border-radius: 3px;
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+  }.pxr-post .chip.on {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 600;
+  }.pxr-post .callout {
+    font-size: 0.88rem;
+    color: var(--ink-soft);
+    border-left: 2px solid var(--sage);
+    padding: 0.15rem 0 0.15rem 0.9rem;
+  }.pxr-post .callout strong { color: var(--ink); }.pxr-post .support-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.4rem;
+  }
+  @media (max-width: 620px) {.pxr-post .support-grid { grid-template-columns: 1fr; }.pxr-post .row { grid-template-columns: 10rem 1fr 3.6rem; }.pxr-post .row-label { font-size: 0.78rem; }.pxr-post .axis-ref { grid-template-columns: 10rem 1fr 3.6rem; }
+  }.pxr-post .limitation-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }.pxr-post .limitation {
+    border-left: 2px solid var(--line);
+    padding: 0.1rem 0 0.1rem 0.9rem;
+  }.pxr-post .limitation h3 {
+    font-size: 0.94rem;
+    margin: 0 0 0.3rem;
+    color: var(--ink);
+  }.pxr-post .limitation p {
+    font-size: 0.88rem;
+    color: var(--ink-soft);
+    margin: 0;
+  }.pxr-post .scatter-wrap {
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.3rem 1.4rem;
+  }.pxr-post .scatter-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }.pxr-post .scatter-grid {
+    stroke: var(--line);
+    stroke-width: 1;
+  }.pxr-post .scatter-axis {
+    stroke: var(--ink-soft);
+    stroke-width: 1;
+  }.pxr-post .scatter-tick {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-variant-numeric: tabular-nums;
+    fill: var(--ink-soft);
+  }.pxr-post .scatter-axis-label {
+    font-family: var(--sans);
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    fill: var(--ink-soft);
+  }.pxr-post .scatter-points circle {
+    fill: color-mix(in srgb, var(--plum) 55%, transparent);
+  }.pxr-post .calib-diagonal {
+    stroke: var(--ink-soft);
+    stroke-width: 1;
+    stroke-dasharray: 4 3;
+  }.pxr-post .calib-area {
+    fill: color-mix(in srgb, var(--target) 22%, transparent);
+    stroke: none;
+  }.pxr-post .calib-curve {
+    fill: none;
+    stroke: var(--target);
+    stroke-width: 2;
+  }.pxr-post .calib-points circle {
+    fill: var(--target);
+  }.pxr-post .mini-chart {
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.3rem 1.4rem;
+  }.pxr-post .mini-title {
+    font-size: 0.92rem;
+    font-weight: 650;
+    margin: 0 0 0.9rem;
+  }.pxr-post .mini-row {
+    display: grid;
+    grid-template-columns: 5.2rem 1fr 3.4rem;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }.pxr-post .mini-row:last-child { margin-bottom: 0; }.pxr-post .mini-label {
+    font-size: 0.8rem;
+    color: var(--ink);
+  }.pxr-post .mini-track {
+    height: 1.1rem;
+    background: var(--track);
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+  }.pxr-post .mini-bar {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 3px;
+  }.pxr-post .mini-tick {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    background: var(--ink);
+  }.pxr-post .mini-val {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    text-align: right;
+  }.pxr-post table.grid-table {
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    width: 100%;
+  }.pxr-post table.grid-table caption {
+    text-align: left;
+    font-size: 0.92rem;
+    font-weight: 650;
+    margin-bottom: 0.7rem;
+  }.pxr-post table.grid-table th, .pxr-post table.grid-table td {
+    border: 1px solid var(--line);
+    padding: 0.5rem 0.7rem;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }.pxr-post table.grid-table th:first-child, .pxr-post table.grid-table td:first-child {
+    text-align: left;
+    font-family: var(--sans);
+  }.pxr-post table.grid-table td.best {
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
+    font-weight: 650;
+    color: var(--accent-ink);
+  }.pxr-post footer {
+    border-top: 1px solid var(--line);
+    padding-top: 1.6rem;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+    font-family: var(--mono);
+  }
+
+  .pxr-post { padding: 0; max-width: none; margin: 0; }
+</style>
+<div class="pxr-post">
+<div class="chart">
+ <div class="axis-ref">
+  <div>
+  </div>
+  <div class="axis-ticks">
+   <span>
+    0.30
+   </span>
+   <span>
+    0.50
+   </span>
+   <span>
+    0.70
+   </span>
+  </div>
+  <div>
+  </div>
+ </div>
+ <div class="rows">
+  <!-- PANEL:00:START -->
+  <div class="row context">
+   <div class="row-label">
+    N283T ensemble
+    <span class="sub">
+     context only, not our pipeline
+    </span>
+   </div>
+   <div class="track">
+    <div class="bar context-bar" style="width: 27.0%;">
+    </div>
+   </div>
+   <div class="mae-val">
+    ~0.408
+   </div>
+  </div>
+  <div class="row target">
+   <div class="row-label">
+    N283T report target
+    <span class="sub">
+     frozen ChemProp embedding + TabPFN
+    </span>
+   </div>
+   <div class="track">
+    <div class="bar target-bar" style="width: 34.3%;">
+    </div>
+   </div>
+   <div class="mae-val">
+    0.437
+   </div>
+  </div>
+  <div class="row winner ref-divider">
+   <div class="row-label">
+    Our best overall
+    <span class="sub">
+     CheMeleon embedding + log
+     <sub>
+      2
+     </sub>
+     FC readout, TabICL 2.1.1
+    </span>
+   </div>
+   <div class="track">
+    <div class="bar win" style="width: 33.9%;">
+    </div>
+    <div class="err-whisker" style="left: 32.6%; width: 2.9%;">
+    </div>
+   </div>
+   <div class="mae-val">
+    0.4356
+   </div>
+  </div>
+  <div class="row floor">
+   <div class="row-label">
+    Concatenation architecture
+    <span class="sub">
+     best of 18-config freeze/width/clip sweep
+    </span>
+   </div>
+   <div class="track">
+    <div class="bar floor-bar" style="width: 54.4%;">
+    </div>
+    <div class="err-whisker" style="left: 48.0%; width: 10.5%;">
+    </div>
+   </div>
+   <div class="mae-val">
+    0.5176
+   </div>
+  </div>
+  <div class="row chemeleon">
+   <div class="row-label">
+    CheMeleon baseline
+    <span class="sub">
+     no log
+     <sub>
+      2
+     </sub>
+     FC pretraining, single-stage
+    </span>
+   </div>
+   <div class="track">
+    <div class="bar" style="width: 55.4%; background-color: var(--magenta);">
+    </div>
+    <div class="err-whisker" style="left: 51.4%; width: 8.7%;">
+    </div>
+   </div>
+   <div class="mae-val">
+    0.5215
+   </div>
+  </div>
+  <div class="row">
+   <div class="row-label">
+    Fine-tuned log
+    <sub>
+     2
+    </sub>
+    FC encoder
+    <span class="sub">
+     full model, dose-response only
+    </span>
+   </div>
+   <div class="track">
+    <div class="bar" style="width: 58.5%;">
+    </div>
+    <div class="err-whisker" style="left: 52.6%; width: 20.6%;">
+    </div>
+   </div>
+   <div class="mae-val">
+    0.5339
+   </div>
+  </div>
+  <div class="row">
+   <div class="row-label">
+    Frozen log
+    <sub>
+     2
+    </sub>
+    FC encoder
+    <span class="sub">
+     FFN only, dose-response + primary screen
+    </span>
+   </div>
+   <div class="track">
+    <div class="bar" style="width: 61.6%;">
+    </div>
+    <div class="err-whisker" style="left: 57.4%; width: 8.4%;">
+    </div>
+   </div>
+   <div class="mae-val">
+    0.5464
+   </div>
+  </div>
+  <div class="row">
+   <div class="row-label">
+    Fine-tuned log
+    <sub>
+     2
+    </sub>
+    FC encoder
+    <span class="sub">
+     full model, dose-response + primary screen
+    </span>
+   </div>
+   <div class="track">
+    <div class="bar" style="width: 64.3%;">
+    </div>
+    <div class="err-whisker" style="left: 60.2%; width: 7.6%;">
+    </div>
+   </div>
+   <div class="mae-val">
+    0.5573
+   </div>
+  </div>
+  <div class="row">
+   <div class="row-label">
+    Frozen log
+    <sub>
+     2
+    </sub>
+    FC encoder
+    <span class="sub">
+     FFN-tuned, dose-response only
+    </span>
+   </div>
+   <div class="track">
+    <div class="bar" style="width: 71.2%;">
+    </div>
+    <div class="err-whisker" style="left: 54.6%; width: 32.8%;">
+    </div>
+   </div>
+   <div class="mae-val">
+    0.5849
+   </div>
+  </div>
+  <!-- PANEL:00:END -->
+ </div>
+</div>
+</div>

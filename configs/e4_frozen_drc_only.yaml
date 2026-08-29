@@ -1,0 +1,66 @@
+# PXR challenge — E4 (Buterez et al. 2024), permanent-freeze variant, DRC-only training
+# Same as e4_frozen.yaml, except the main model trains on DRC ('==') records only
+# (data/moal_plan_state_drc_only.csv, from make_drc_only_state.py), dropping PS
+# records rather than mixing them in via the Tobit loss. This isolates whether
+# the Tobit-censored PS signal helps or hurts once the encoder is already
+# log2FC-pretrained, and matches what the E3 concatenation architecture's main
+# model already does (DRC-only), for an apples-to-apples comparison.
+#
+# Run with:
+#   moal plan --config pxr-challenge/configs/e4_frozen_drc_only.yaml --output-dir pxr-challenge/results/e4_frozen_drc_only
+
+data:
+  output_dir: results/e4_frozen_drc_only
+  plan:
+    input_csv: data/moal_plan_state_drc_only.csv
+    output_csv: pxr_e4_frozen_drc_only_predictions.csv
+    smiles_column: smiles
+    relation_column: relation
+    value_column: value
+    weight_column: weight
+    log2fc_columns:
+      - log2fc_8.251e-06
+      - log2fc_3.300e-05
+    is_canonical: true
+
+seed: 42
+
+oracle:
+  cost_ps: 1.0
+  cost_drc: 10.0
+  ps_threshold: 4.0
+  upper_bound: 11.0
+  activity_threshold: 6.0
+
+acquisition:
+  ps_threshold: 4.0
+  target_threshold: 6.0
+  tau: 0.1
+  embedding_provenance_discount: 1.0
+
+model:
+  ffn_hidden_dim: 512
+  ffn_num_layers: 3
+  freeze_epochs: 50                   # >= trainer.max_epochs: body never unfreezes
+  mpnn_lr: 1.0e-3
+  ffn_lr: 1.0e-3
+  sigma: 0.5
+  from_foundation: e4_log2fc_pretrain/log2fc_mp.pt
+  fast: false
+
+trainer:
+  max_epochs: 50
+  accelerator: gpu
+  enable_progress_bar: false
+  enable_model_summary: false
+  val_fraction: 0.2
+  split_seed: 42
+  num_workers: 0
+  log_every_n_steps: 1
+  gradient_clip_val: 1.0
+  gradient_clip_algorithm: norm
+  early_stopping: true
+  early_stopping_monitor: val_loss
+  early_stopping_patience: 10
+  early_stopping_mode: min
+  early_stopping_min_delta: 0.001
