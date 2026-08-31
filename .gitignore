@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+.DS_Store
 
 # Generated run artifacts, checkpoints, and caches (large, reproducible from code)
 data/
