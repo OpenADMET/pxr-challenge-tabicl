@@ -2,25 +2,51 @@
 
 # Are tabular foundation models all you need?
 
-Lessons from the PXR Blind Challenge.
+What the PXR blind challenge taught us about featurization, and about one paper we ended up barely using.
 
 n = 513 blind compounds &middot; 4139 dose-response training records &middot; lower MAE (mean absolute error) is better &middot; same train/blind split throughout
 
 ---
 
-**00 — before tabular foundation models**
+## The challenge has closed
 
-## Where the non-tabular-foundation-model routes land, for scale
+The PXR blind challenge is over. We (the OMSF contingent of OpenADMET) ran it from April through July 2026: hand every team the same PXR induction assay data, hold out a 513-compound analog set, and score predicted pEC<sub>50</sub> against the unblinded truth. The field was crowded. At the Phase 1 handover, a paired-bootstrap analysis could not separate the top ten entries, and no single architecture ran away with it.
 
-Every reference point below reads features through something other than a tabular foundation model: a directly fine-tuned CheMeleon encoder, or a graph neural network (GNN) whose body is initialized from a log<sub>2</sub>FC-pretraining checkpoint (E4, Buterez et al. 2024) rather than staying a tabular foundation model downstream. The four log<sub>2</sub>FC rows below cross frozen vs. fine-tuned body against dose-response-only vs. dose-response-plus-primary-screen training data; none of them uses the separate auxiliary-encoder concatenation architecture (E3) that a fifth config in this repo implements, since that run was never completed. None of these routes approaches even the weakest tabular-foundation-model configuration shown in the panels that follow.
+Our own model catalog was never going to top that leaderboard. The CheMeleon baselines we ship in `openadmet-models` land around 0.51 to 0.52 MAE on the challenge's blind set (panel 00), well short of the roughly 0.41 the leading entries reached. So we read the model reports of the teams that beat us.
 
-*(paste `reporting/figures/figure-00.html` here as an HTML card)*
+## What we were looking for
 
-> "Concatenation architecture" is the best-of-18 winner (freeze_epochs=2, 512-dim hidden, no gradient clipping) from a sweep over freeze_epochs × hidden width × gradient clip on the E3 auxiliary-encoder-plus-concatenation design (Buterez et al. 2024): a 5-seed mean of 0.5176 (range 0.4919-0.5339), now the floor for this whole panel. Every other log<sub>2</sub>FC-encoder row below it is CheMeleon-initialized but skips that auxiliary concatenation step entirely (E4: the log<sub>2</sub>FC-pretrained checkpoint is reused as the main model's init, nothing more). Among those, the "CheMeleon baseline" skips log<sub>2</sub>FC pretraining too and fits straight to pEC<sub>50</sub>: a 5-seed mean of 0.5215 (range 0.5058-0.5407), beating the fine-tuned-dose-response-only row (0.5215 vs. 0.5339) but not the concatenation architecture. On the primary-screen + dose-response data, freezing the encoder beats letting it keep adapting (0.5464 vs. 0.5573). On dose-response-only data, the direction is opposite: fine-tuning beats freezing (0.5339 vs. 0.5849). Freezing the encoder is not consistently better; it depends on the training-data regime. Even so, every row on this panel trails the weakest tabular-foundation-model combination that includes descriptors by at least 0.0566 MAE (0.5176 vs. 0.4610, panel 2). "Dose-response-only" and "primary-screen + dose-response" above describe only what the main model is directly supervised on: the frozen, CheMeleon-initialized log<sub>2</sub>FC encoder is always pretrained on primary-screen data, and its 2-column predicted log<sub>2</sub>FC readout reaches the main model in both variants, so primary-screen information is never fully excluded.
+We were not shopping for the single lowest score. We wanted a configuration we could adopt: a method disclosed in enough detail to reproduce, and one that would run as a YAML-defined pipeline in `openadmet-models` without a massive ensemble or a bespoke, hand-tuned stack behind it. A nine-member ensemble like N283T's is a fine way to place in a challenge and an awkward thing to maintain: five frozen graph-encoder members, two Boltz-2 structural members, and two tabular members, each with its own weights, dependencies, and featurization to reproduce, plus a Caruana-weighted blend over all of them. That is a lot of moving parts to package, version, and rerun as a YAML pipeline, for an edge that the leaderboard's bootstrap noise (SD around 0.02 MAE) already swamps.
+
+That pointed us at participant **N283T** ([model report](https://n283t.github.io/openadmet-pxr-model-report/)), who finished 4th (0.4113 MAE on Phase 2, per their report) and clearly documented the pipeline. Their citation of **Buterez et al. 2024** ([Nature Communications](https://www.nature.com/articles/s41467-024-45566-8)) caught our eye. It is a multi-fidelity transfer-learning paper: use cheap, abundant low-fidelity labels as a proxy to sharpen predictions on the scarce, expensive high-fidelity target. That maps cleanly onto the PXR assay funnel, where thousands of single-concentration log<sub>2</sub>FC primary-screen readings sit upstream of a few thousand dose-response pEC<sub>50</sub> values. We assumed the paper's architecture was carrying the gain and set out to reproduce it.
+
+## The paper was not the winning ingredient
+
+Reading the report closely, then reproducing the pieces ourselves, we found the Buterez paper informed exactly one thing: an auxiliary encoder that turns primary-screen data into a predicted log<sub>2</sub>FC readout. None of the paper's own architectural configurations, the frozen-versus-fine-tuned GNN bodies swept in panel 00, carried the gain. Every one of those routes lands worse than the weakest tabular-foundation-model configuration we tried.
+
+The gain came from where those predicted log<sub>2</sub>FC columns went next: into a tabular foundation model (TabPFN first, then TabICL) alongside a molecular embedding. The N283T report reaches the same conclusion, that the predicted log<sub>2</sub>FC readout was its single strongest feature. The paper gave us a way to manufacture that feature. The tabular foundation model read it well.
+
+## Why write this up
+
+The featurization-plus-tabular-foundation-model combination moved our numbers from roughly 0.51 to roughly 0.44 MAE on this split, and it is simple enough to support as a first-class configuration in `openadmet-models`. The rest of this post is the ablation that convinced us: what each ingredient is worth alone, how the ingredients combine, which tabular model reads them best, and where the setup could still be fooling us.
+
+Every panel below is scored on the challenge's own blind set, the same 513 compounds the leaderboard used, so the numbers are comparable across panels and line up with the challenge leaderboard. Our best here is a 5-seed mean of 0.4356 MAE.
 
 ---
 
-**01 — solo components**
+**00: before tabular foundation models**
+
+## Where the non-tabular-foundation-model routes land, for scale
+
+Every reference point below reads features through something other than a tabular foundation model: a directly fine-tuned CheMeleon encoder, or a graph neural network (GNN) whose body is initialized from a log<sub>2</sub>FC-pretraining checkpoint (following Buterez et al. 2024) rather than staying a tabular foundation model downstream. The four log<sub>2</sub>FC rows below cross frozen vs. fine-tuned body against dose-response-only vs. dose-response-plus-primary-screen training data; none of them uses the separate auxiliary-encoder concatenation architecture that a fifth config in this repo implements, since that run was never completed. None of these routes approaches even the weakest tabular-foundation-model configuration shown in the panels that follow.
+
+*(paste `reporting/figures/figure-00.html` here as an HTML card)*
+
+> "Concatenation architecture" is the best-of-18 winner (freeze_epochs=2, 512-dim hidden, no gradient clipping) from a sweep over freeze_epochs × hidden width × gradient clip on the auxiliary-encoder-plus-concatenation design (Buterez et al. 2024): a 5-seed mean of 0.5176 (range 0.4919-0.5339), now the floor for this whole panel. Every other log<sub>2</sub>FC-encoder row below it is CheMeleon-initialized but skips that auxiliary concatenation step entirely (the log<sub>2</sub>FC-pretrained checkpoint is reused as the main model's init, nothing more). Among those, the "CheMeleon baseline" skips log<sub>2</sub>FC pretraining too and fits straight to pEC<sub>50</sub>: a 5-seed mean of 0.5215 (range 0.5058-0.5407), beating the fine-tuned-dose-response-only row (0.5215 vs. 0.5339) but not the concatenation architecture. On the primary-screen + dose-response data, freezing the encoder beats letting it keep adapting (0.5464 vs. 0.5573). On dose-response-only data, the direction is opposite: fine-tuning beats freezing (0.5339 vs. 0.5849). Freezing the encoder is not consistently better; it depends on the training-data regime. Even so, every row on this panel trails the weakest tabular-foundation-model combination that includes descriptors by at least 0.0566 MAE (0.5176 vs. 0.4610, panel 2). "Dose-response-only" and "primary-screen + dose-response" above describe only what the main model is directly supervised on: the frozen, CheMeleon-initialized log<sub>2</sub>FC encoder is always pretrained on primary-screen data, and its 2-column predicted log<sub>2</sub>FC readout reaches the main model in both variants, so primary-screen information is never fully excluded.
+
+---
+
+**01: solo components**
 
 ## Does each ingredient carry signal on its own?
 
@@ -32,7 +58,7 @@ Four candidate feature blocks, each fit through a tabular foundation model compl
 
 ---
 
-**02 — the path to the best performer**
+**02: the path to the best performer**
 
 ## All seven combinations of embedding, readout, and descriptors
 
@@ -44,7 +70,7 @@ Every non-empty subset of the three ingredients was measured directly, holding t
 
 ---
 
-**03 — same features, different regressor**
+**03: same features, different regressor**
 
 ## Which tabular foundation model reads the featureset best?
 
@@ -56,7 +82,7 @@ Not a feature ablation: every row here holds a featureset fixed and swaps only t
 
 ---
 
-**04 — the PCA compression sweep**
+**04: the PCA compression sweep**
 
 ## Why the descriptor block is PCA-compressed at all
 
@@ -68,7 +94,7 @@ Raw Mordred descriptors run to about 1,613 columns and RDKit adds another 217; C
 
 ---
 
-**05 — out-of-fold isotonic calibration**
+**05: out-of-fold isotonic calibration**
 
 ## Repeating the N283T report's post-hoc calibration step
 
@@ -80,7 +106,7 @@ Per the N283T report, fitting an isotonic map on out-of-fold predictions and app
 
 ---
 
-**06 — is TabPFN's uncertainty trustworthy?**
+**06: is TabPFN's uncertainty trustworthy?**
 
 ## Checking the predicted distribution against actual error
 
@@ -92,7 +118,7 @@ TabPFN doesn't just return a point estimate: <code>output_type="full"</code> exp
 
 ---
 
-**07 — limitations**
+**07: limitations**
 
 ## Where this comparison could be misleading us
 
