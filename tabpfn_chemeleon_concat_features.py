@@ -156,6 +156,21 @@ def main() -> None:
         "library default (8), which this featureset's width needs unlike the leaner "
         "no-embedding featureset tabpfn_concat_features.py defaults to batch_size=2 for",
     )
+    parser.add_argument(
+        "--tabfm-max-rows",
+        type=int,
+        default=500,
+        help="max_num_rows for --regressor tabfm (ignored otherwise); 0 means uncapped "
+        "(fits on the full training context), reproducing the blog's row-count OOM",
+    )
+    parser.add_argument(
+        "--device",
+        choices=["auto", "cuda", "cpu"],
+        default="auto",
+        help="Device for both the CheMeleon embedding extraction and the tabular-foundation-"
+        "model regressor (ignored for lgbm/xgboost); 'auto' is the library default (GPU if "
+        "visible). Use 'cpu' to reproduce the blog's GPU-OOM claims on CPU",
+    )
     args = parser.parse_args()
 
     cfg = PipelineConfig.from_yaml(args.config)
@@ -204,7 +219,8 @@ def main() -> None:
         learnable_sigma=cfg.model.learnable_sigma,
         from_foundation=cfg.model.from_foundation,
     )
-    if torch.cuda.is_available():
+    use_cuda = torch.cuda.is_available() if args.device == "auto" else args.device == "cuda"
+    if use_cuda:
         model = model.to("cuda")
 
     train_embed_raw = model.embed_smiles(train_smiles)
@@ -215,7 +231,8 @@ def main() -> None:
     # GPU memory before TabPFN's own pass claims the device
     del model
     gc.collect()
-    torch.cuda.empty_cache()
+    if use_cuda:
+        torch.cuda.empty_cache()
 
     train_embed, test_embed = _pca_compress(
         train_embed_raw,
@@ -258,6 +275,8 @@ def main() -> None:
         train_features.shape[1],
         tabfm_n_estimators=args.tabfm_n_estimators,
         tabicl_batch_size=args.tabicl_batch_size,
+        device=args.device,
+        tabfm_max_rows=None if args.tabfm_max_rows == 0 else args.tabfm_max_rows,
     )
     regressor.fit(train_features, train_true)
     test_predictions = regressor.predict(test_features)

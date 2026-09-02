@@ -158,6 +158,8 @@ def _build_regressor(
     n_features: int,
     tabfm_n_estimators: int = 32,
     tabicl_batch_size: int | None = 2,
+    device: str = "auto",
+    tabfm_max_rows: int | None = 500,
 ):
     """Build the final regressor fit on the assembled feature matrix.
 
@@ -186,6 +188,16 @@ def _build_regressor(
         some wider featuresets need instead: batch_size doesn't reliably
         trade off against peak memory here, so a narrower value isn't a safe
         default for every featureset and should be checked per call site.
+    device : str, optional
+        Device to fit the regressor on: ``"auto"`` (library default, GPU if
+        one is visible), ``"cuda"``, or ``"cpu"``. Ignored for `lgbm`/
+        `xgboost`, which don't take a device. Forcing `"cpu"` here is how the
+        blog's GPU-OOM claims get reproduced, or not, on CPU.
+    tabfm_max_rows : int or None, optional
+        `max_num_rows` passed to `TabFMRegressor` when `name == "tabfm"`;
+        ignored otherwise. Default 500 (the cap this repo's GPU runs needed);
+        `None` fits on the full training context, reproducing the row-count
+        OOM the blog describes.
     """
     if name == "tabpfn":
         return TabPFNRegressor(
@@ -193,6 +205,7 @@ def _build_regressor(
             memory_saving_mode=True,
             fit_mode="low_memory",
             ignore_pretraining_limits=n_features > 2000,
+            device=device,
         )
     if name in ("tabpfn-v2.6", "tabpfn-v3"):
         version = ModelVersion.V2_6 if name == "tabpfn-v2.6" else ModelVersion.V3
@@ -202,6 +215,7 @@ def _build_regressor(
             memory_saving_mode=True,
             fit_mode="low_memory",
             ignore_pretraining_limits=n_features > 2000,
+            device=device,
         )
     if name == "lgbm":
         from lightgbm import LGBMRegressor
@@ -224,24 +238,26 @@ def _build_regressor(
         # featuresets here; callers on a new featureset should check both
         # before assuming this default transfers.
         kwargs = {} if tabicl_batch_size is None else {"batch_size": tabicl_batch_size}
-        return TabICLRegressor(random_state=seed, **kwargs)
+        tabicl_device = None if device == "auto" else device
+        return TabICLRegressor(random_state=seed, device=tabicl_device, **kwargs)
     from tabfm import TabFMRegressor, tabfm_v1_0_0_pytorch
 
     # TabFM ships pretrained weights under a separate non-commercial license
     # (`tabfm-non-commercial-v1.0`) distinct from the Apache-licensed package
     # code; auto-downloads from Hugging Face (google/tabfm-1.0.0-pytorch) on
     # first use
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = tabfm_v1_0_0_pytorch.load(model_type="regression", device=device)
+    tabfm_device = device if device != "auto" else ("cuda" if torch.cuda.is_available() else "cpu")
+    model = tabfm_v1_0_0_pytorch.load(model_type="regression", device=tabfm_device)
 
     # the full 4139-row training context OOMs this GPU's attention pass (rows
     # enter the same between-items attention as TabPFN); capping the in-context
     # rows per ensemble member keeps memory bounded without dropping the block.
     # 2000 OOM'd (17.65 GiB allocated, tried to allocate 8.51 GiB more); 1000
     # still OOM'd on an otherwise-idle GPU (18.25 GiB allocated, tried to
-    # allocate 5.12 GiB more), so cap tighter at 500
+    # allocate 5.12 GiB more), so cap tighter at 500 by default; callers can
+    # override via tabfm_max_rows (None reproduces the uncapped GPU OOM)
     return TabFMRegressor(
-        model=model, random_state=seed, max_num_rows=500, n_estimators=tabfm_n_estimators
+        model=model, random_state=seed, max_num_rows=tabfm_max_rows, n_estimators=tabfm_n_estimators
     )
 
 
@@ -299,6 +315,21 @@ def main() -> None:
         type=int,
         default=32,
         help="Ensemble size for --regressor tabfm (ignored otherwise); library default is 32",
+    )
+    parser.add_argument(
+        "--tabfm-max-rows",
+        type=int,
+        default=500,
+        help="max_num_rows for --regressor tabfm (ignored otherwise); 0 means uncapped "
+        "(fits on the full training context), reproducing the blog's row-count OOM",
+    )
+    parser.add_argument(
+        "--device",
+        choices=["auto", "cuda", "cpu"],
+        default="auto",
+        help="Device for the tabular-foundation-model regressor (ignored for lgbm/xgboost); "
+        "'auto' is the library default (GPU if visible). Use 'cpu' to reproduce the blog's "
+        "GPU-OOM claims on CPU",
     )
     parser.add_argument(
         "--seed",
@@ -375,8 +406,13 @@ def main() -> None:
     logger.info("Extracted %s concatenated feature matrix for blind targets", test_features.shape)
 
     regressor = _build_regressor(
-    args.regressor, cfg.seed, train_features.shape[1], tabfm_n_estimators=args.tabfm_n_estimators
-)
+        args.regressor,
+        cfg.seed,
+        train_features.shape[1],
+        tabfm_n_estimators=args.tabfm_n_estimators,
+        device=args.device,
+        tabfm_max_rows=None if args.tabfm_max_rows == 0 else args.tabfm_max_rows,
+    )
     regressor.fit(train_features, train_true)
     test_predictions = regressor.predict(test_features)
 
