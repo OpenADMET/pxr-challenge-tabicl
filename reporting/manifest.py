@@ -101,18 +101,22 @@ EXPERIMENTS: list[Experiment] = [
     # Our best overall (TabICL regressor), anchor row in panels 00, 01, 02, 03.
     # Its own category ("tabular-best-overall" rather than "tabular-multiple")
     # keeps it out of panel 02's sweepbest peer comparison (it's a different
-    # regressor track, not part of the TabPFN-only combo sweep). This is the
-    # joint optimum over both single-axis sweeps (features-fixed-regressor in
-    # panel 02, regressor-fixed-features in panel 03), not the winner of
-    # either sweep individually: panel 02 crowns chemeleon_readout_descriptors
-    # (386 columns, descriptors included) as its best combo, but TabICL OOMs
-    # at that width (confirmed on GPU and, via a CPU rerun, on CPU too, where
-    # it grows to ~30 GB RSS before the kernel OOM-killer stops it), so panel
-    # 03's whole regressor sweep instead runs every regressor, TabICL
-    # included, on chemeleon_readout_only (258 columns, no descriptors) to
-    # keep the comparison apples-to-apples. TabICL still comes out ahead
-    # there, which is why this row (our overall winner) is sourced from that
-    # featureset too.
+    # regressor track, not part of the TabPFN-only combo sweep). Earlier we
+    # believed TabICL OOMs on panel 02's winning featureset
+    # (chemeleon_readout_descriptors, 386 columns, descriptors included), so
+    # panel 03's regressor sweep ran on the leaner chemeleon_readout_only (258
+    # columns) instead. That premise was wrong on the hardware this project
+    # actually runs on: a complete, valid 5-seed GPU run at 386 columns
+    # exists (mean MAE 0.4382), so panel 03 now runs every regressor,
+    # including TabICL, on chemeleon_readout_descriptors, matching panel 02's
+    # own winning combo directly. TabICL only OOMs there on CPU (confirmed via
+    # a CPU rerun, growing to ~30 GB RSS before the kernel OOM-killer stops
+    # it), which doesn't affect the GPU runs this page reports. TabICL still
+    # wins that apples-to-apples sweep. Separately, the single best number
+    # found anywhere in this project remains this row: TabICL on the leaner
+    # chemeleon_readout_only featureset (0.4356), which is why it's sourced
+    # from there rather than from panel 03's own 386-column sweep, and why
+    # panel 03 shows it too, as a hashed reference row outside that sweep.
     Experiment(
         key="our_best_overall",
         base_dir="tabicl_chemeleon_readout_only",
@@ -121,7 +125,7 @@ EXPERIMENTS: list[Experiment] = [
         category="tabular-best-overall",
         panels=("00", "01", "02"),
         role="winner",
-        native_panels=("03",),
+        native_panels=("00", "01", "02"),
     ),
     # Panel 00: pre-tabular-foundation-model reference points.
     # "CheMeleon baseline" is the point of departure from a pretrained,
@@ -285,10 +289,6 @@ EXPERIMENTS: list[Experiment] = [
         category="tabular-multiple",
         panels=("02",),
     ),
-    # Reused in panel 03 (relabeled "TabPFN v2.5" via LABEL_OVERRIDE) as that
-    # panel's TabPFN v2.5 regressor-sweep row, since panel 03 shares this
-    # featureset (chemeleon_readout_only) across every regressor rather than
-    # panel 02's own descriptors-included combo.
     Experiment(
         key="chemeleon_readout",
         base_dir="tabpfn_chemeleon_readout_only",
@@ -296,7 +296,7 @@ EXPERIMENTS: list[Experiment] = [
         sub="CheMeleon embedding, no descriptors",
         category="tabular-multiple",
         panels=("02",),
-        native_panels=("02", "03"),
+        native_panels=("02",),
     ),
 ]
 
@@ -352,17 +352,19 @@ EXPERIMENTS.extend(
             panels=("02",),
             native_panels=("01", "02"),
         ),
-        # Panel 03: every regressor here runs on chemeleon_readout_only
-        # (embedding + readout, no descriptors, 258 columns), not panel 02's
-        # own best combo (chemeleon_readout_descriptors, 386 columns).
-        # TabICL OOMs on the wider featureset (confirmed on both GPU and
-        # CPU), so rather than read TabICL alone from a narrower featureset
-        # than its five siblings, every regressor here shares the featureset
-        # TabICL can fit: an apples-to-apples regressor comparison, not a
-        # features-fixed-at-panel-02's-winner one.
+        # Panel 03: every regressor here runs on chemeleon_readout_descriptors
+        # (embedding + readout + descriptors, 386 columns), panel 02's own
+        # best combo, TabICL included. TabICL was previously thought to OOM
+        # at this width; a complete, valid 5-seed GPU run at 386 columns
+        # (mean MAE 0.4382) shows it doesn't, so every regressor here shares
+        # panel 02's own winning featureset directly, an apples-to-apples
+        # regressor comparison on the featureset the rest of the page already
+        # crowns. TabICL still wins. Its even-better result on the leaner
+        # chemeleon_readout_only featureset (0.4356, our_best_overall) is
+        # shown here too, as a hashed reference row outside this sweep.
         Experiment(
             key="tabicl_v211",
-            base_dir="tabicl_chemeleon_readout_only",
+            base_dir="tabicl_chemeleon_readout_descriptors",
             label="TabICL v2.1.1",
             sub="",
             category="tabular-multiple",
@@ -370,7 +372,7 @@ EXPERIMENTS.extend(
         ),
         Experiment(
             key="tabpfn_v26",
-            base_dir="tabpfn-v2.6_chemeleon_readout_only",
+            base_dir="tabpfn-v2.6_chemeleon_readout_descriptors",
             label="TabPFN v2.6",
             sub="",
             category="tabular-multiple",
@@ -378,7 +380,7 @@ EXPERIMENTS.extend(
         ),
         Experiment(
             key="tabpfn_v3",
-            base_dir="tabpfn-v3_chemeleon_readout_only",
+            base_dir="tabpfn-v3_chemeleon_readout_descriptors",
             label="TabPFN v3",
             sub="",
             category="tabular-multiple",
@@ -386,7 +388,7 @@ EXPERIMENTS.extend(
         ),
         Experiment(
             key="tabfm_v1",
-            base_dir="tabfm_n32_chemeleon_readout_only",
+            base_dir="tabfm_n32_chemeleon_readout_descriptors",
             label="TabFM v1.0.0",
             sub="max_num_rows=500",
             category="tabular-multiple",
@@ -394,7 +396,7 @@ EXPERIMENTS.extend(
         ),
         Experiment(
             key="lgbm",
-            base_dir="lgbm_chemeleon_readout_only",
+            base_dir="lgbm_chemeleon_readout_descriptors",
             label="LightGBM",
             sub="",
             category="tabular-multiple",
@@ -402,7 +404,7 @@ EXPERIMENTS.extend(
         ),
         Experiment(
             key="xgboost",
-            base_dir="xgboost_chemeleon_readout_only",
+            base_dir="xgboost_chemeleon_readout_descriptors",
             label="XGBoost",
             sub="",
             category="tabular-multiple",
@@ -547,34 +549,32 @@ PANEL_SORT_FROM: dict[str, int] = {
 # Cosmetic-only role recoloring for rows reused in a second panel with a
 # different meaning there than their Experiment.role implies. Not checked by
 # check_roles (that reads exp.role, not this map): these aren't "beats its
-# peers" claims. chemeleon_readout keeps panels=("02",) on its own
-# Experiment entry (panel 02's own combo-sweep role, "single_best" territory
-# via its plain, un-declared role there) and is reused here purely for
-# display: its panel 03 appearance is the same underlying data as panel 02's
-# "Embedding + readout" row, now that panel 03 crowns the same featureset
-# every other regressor in this panel shares. It is not extended to
-# panels=("02", "03") directly because TabPFN v3's mean on this featureset
-# (0.4453) is a statistical dead heat with TabPFN v2.5's (0.4444), and
-# check_roles would trip on that hair's-width gap if this were a checked
-# claim on panel 03 too. tabicl_v211 is painted as the winner because it's
-# the same results directory as our_best_overall, just shown in-sweep
-# instead of in the fixed header.
+# peers" claims. Colors are identity tags, not per-panel medals: once a
+# configuration earns a color as some panel's winner, every later reuse of
+# that exact configuration keeps the color, whether or not it wins the panel
+# it's reused in. chemeleon_readout_descriptors needs no override here: its
+# panel 03 appearance is the same 386-column combo that won panel 02, so it
+# stays green (sweepbest) via its own declared role, matching Figure 2.
+# tabicl_v211 is overridden to "winner" (gold, the color already used
+# elsewhere for our_best_overall) since it's a genuinely new win here, on a
+# featureset none of the other gold or green rows share.
 ROLE_OVERRIDE: dict[tuple[str, str], str] = {
-    ("03", "chemeleon_readout"): "sweepbest",
     ("03", "tabicl_v211"): "winner",
     ("05", "calib_blind_uncalibrated"): "winner",
 }
 
 # Cosmetic-only label override for panel 03's TabPFN v2.5 row.
-# chemeleon_readout reads as "TabPFN v2.5" alongside its regressor-sweep
-# siblings ("TabPFN v2.6", "LightGBM", ...), with its original panel 02
-# label ("Embedding + readout") replaced so the row reads as a regressor
-# name like its neighbors; its sub is blank there too, same as theirs.
-# tabicl_v211 needs no override here: it now runs on the same featureset as
-# every other panel 03 row, so its own label/sub (set on the Experiment
-# itself) already read like its neighbors.
+# chemeleon_readout_descriptors reads as "TabPFN v2.5" alongside its
+# regressor-sweep siblings ("TabPFN v2.6", "LightGBM", ...), with its
+# original panel 02 label ("Embedding + readout + descriptors") replaced so
+# the row reads as a regressor name like its neighbors; its sub is blank
+# there too, same as theirs. tabicl_v211 needs no override here: it now runs
+# on the same featureset as every other panel 03 row, so its own label/sub
+# (set on the Experiment itself) already read like its neighbors.
+# our_best_overall needs no override either: its own label ("Our best
+# overall") and sub already explain why it's a hashed outlier here.
 LABEL_OVERRIDE: dict[tuple[str, str], tuple[str, str]] = {
-    ("03", "chemeleon_readout"): ("TabPFN v2.5", ""),
+    ("03", "chemeleon_readout_descriptors"): ("TabPFN v2.5", ""),
     ("05", "calib_blind_uncalibrated"): (
         "Uncalibrated",
         "CheMeleon embedding + log<sub>2</sub>FC readout, TabICL 2.1.1",
@@ -633,12 +633,13 @@ PANEL_ORDER: dict[str, list[str]] = {
         "n283t_ensemble",
         "n283t_target",
         "tabicl_v211",
-        "tabpfn_v26",
-        "chemeleon_readout",
+        "chemeleon_readout_descriptors",
         "tabpfn_v3",
+        "tabpfn_v26",
         "tabfm_v1",
         "lgbm",
         "xgboost",
+        "our_best_overall",
         "best_gnn_baseline",
         "chemeleon_baseline",
         "best_single_ingredient",
