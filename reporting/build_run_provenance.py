@@ -42,8 +42,8 @@ Run it from the repo root:
 
     python reporting/build_run_provenance.py
 
-Output lands at `results/run_provenance.parquet` (or `.csv` if pyarrow is
-unavailable).
+Output lands at `reporting/results.parquet` (or `.csv` if pyarrow is
+unavailable), the single table `figures.py` and `verify_stats.py` both read.
 """
 
 from __future__ import annotations
@@ -61,8 +61,11 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = REPO_ROOT / "results"
 CONFIGS_DIR = REPO_ROOT / "configs"
-OUTPUT_PARQUET = RESULTS_DIR / "run_provenance.parquet"
-OUTPUT_CSV = RESULTS_DIR / "run_provenance.csv"
+REPORTING_DIR = REPO_ROOT / "reporting"
+# The build writes straight into the tracked table figures.py and verify_stats.py
+# read, so there is no separate provenance file to hand-copy into reporting/
+OUTPUT_PARQUET = REPORTING_DIR / "results.parquet"
+OUTPUT_CSV = REPORTING_DIR / "results.csv"
 
 # The CheMeleon->pEC50 baseline runs use the anvil-recipe pipeline (openadmet
 # standard models) instead of this challenge's own seeded sweep scripts, so

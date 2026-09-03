@@ -34,7 +34,7 @@ So, as far as this directory's code and logs show, the tabular-foundation-model 
 
 ## 2. Numbers that check out
 
-I cross-checked the blog's cited MAE (mean absolute error) values against `reporting/manifest.py` + `reporting/build_results_table.py --dry-run` (the script that computes each experiment's 5-seed mean/min/max directly from `results/<dir>_seed{0-4}/eval_out.csv`, i.e. the actual scored predictions). Every number below matched to the last reported digit:
+I cross-checked the blog's cited MAE (mean absolute error) values against `reporting/results.parquet` (the run index `build_run_provenance.py` writes from each `results/<dir>_seed{0-4}/eval_out.csv`, i.e. the actual scored predictions, and the table `verify_stats.py` now gates against). Every number below matched to the last reported digit:
 
 - Figure 00: concatenation-architecture floor 0.5176 (range 0.4919-0.5339), CheMeleon baseline 0.5348 (single `openadmet-models` anvil run, count-weighted over the two blind phases; no seed range), frozen/fine-tuned log<sub>2</sub>FC-encoder rows on primary-screen+DRC data (dose-response curve) (0.5464, 0.5573) and on DRC-only data (0.5339, 0.5849), all match.
 - Figure 01: log<sub>2</sub>FC-trained Chemprop embedding 0.4780, pretrained CheMeleon embedding 0.5002, RDKit descriptors 0.5312, predicted log<sub>2</sub>FC readout 0.5410, Mordred descriptors 0.5784 (range 0.5751-0.5804), all match.

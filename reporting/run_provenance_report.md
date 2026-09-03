@@ -1,6 +1,6 @@
 # Run provenance audit
 
-Built by `reporting/build_run_provenance.py`, output at `results/run_provenance.parquet`
+Built by `reporting/build_run_provenance.py`, output at `reporting/results.parquet`
 (419 rows: one per `results/<base_dir>_seed{n}/` sweep directory, plus one combined row for
 the anvil-recipe CheMeleon->pEC50 baseline, ingested from `pxr_baseline_predictions_phase{1,2}`
 (see "Fifth pass" below). `seed` is `-1` for a run with no explicit seed pin, see
@@ -355,8 +355,7 @@ these directories) their provenance cannot be pinned without guessing.
 
 ## Quarantine list
 
-Full per-row list (`run_dir`, `unknown_axes`) is in `results/run_provenance.parquet` /
-`.csv`.
+Full per-row list (`run_dir`, `unknown_axes`) is in `reporting/results.parquet`.
 
 ## Fingerprint consistency check
 
@@ -364,10 +363,12 @@ Grouping by `config_fingerprint` and checking `nunique()==1` on every critical c
 each group: **0 violations**, same as before (fingerprints are hashed directly from those
 column values, so a violation would indicate a hashing bug, not found here).
 
-## `base_dir` → `config_fingerprint` mapping (against `reporting/manifest.py`)
+## `base_dir` → `config_fingerprint` mapping (historical, against the retired manifest)
 
-33 distinct `base_dir` values appear in `manifest.py`'s `EXPERIMENTS` list; **all 33 have
-matching run directories** in this table (no manifest base_dir was missing).
+The `reporting/manifest.py` hand catalog this section cross-checked against has since been
+retired: `figures.py` and `verify_stats.py` now both read this table directly. At the time of
+the check, 33 distinct `base_dir` values appeared in the manifest's `EXPERIMENTS` list, and
+**all 33 had matching run directories** in this table (no manifest base_dir was missing).
 
 **21 base_dirs now resolve to 2 distinct fingerprints each** (up from 1 flagged case before),
 all following the same shape: an unresolved, unseeded directory (one of the 54 orphans above)
@@ -409,7 +410,7 @@ corrected directory names, no change made.
 session's fix (each reads its own per-invocation encoder, not the shared
 `data/auxiliary_embedding_cache.parquet`, and is "not part of the shared cache, not rerun"):
 `tabpfn_pec50_scratch_mordred_pca128`, `tabpfn_pec50_chemeleon`, `tabpfn_chemeleon_static`,
-`tabpfn_chemeleon_log2fc_mordred_pca128`. Querying `results/run_provenance.parquet` for each:
+`tabpfn_chemeleon_log2fc_mordred_pca128`. Querying `reporting/results.parquet` for each:
 
 - `tabpfn_pec50_scratch_mordred_pca128` and `tabpfn_chemeleon_static` and
   `tabpfn_pec50_chemeleon` and `tabpfn_chemeleon_log2fc_mordred_pca128` (the unseeded

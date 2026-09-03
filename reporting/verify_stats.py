@@ -1,15 +1,20 @@
-"""Verify the comparative claims in ``blogpost.md`` against the result CSVs.
+"""Verify the comparative claims in ``blogpost.md`` against the results table.
 
-Every seed-swept experiment in ``manifest.py`` shares the same 5 seeds
-(0-4) over the same fixed 513-compound blind set, so a comparison between
-two experiments' per-seed MAE arrays is naturally paired by seed and
-``scipy.stats.ttest_rel`` is the right instrument. The two N283T report
-numbers (``n283t_ensemble``, ``n283t_target``) have no seed data of their
-own; where the manuscript compares one of our 5-seed distributions against
-one of those fixed external values, a one-sample ``ttest_1samp`` is used
-instead. The CheMeleon->pEC50 baseline is likewise a single ``openadmet-models``
-anvil run with no seed sweep, so panel 00 tests the concatenation architecture's
-5 seeds against its pooled MAE one-sample as well.
+Reads ``reporting/results.parquet`` (the run index ``build_run_provenance.py``
+writes) rather than re-deriving runs from a hand catalog, so this gate checks
+the same published table ``figures.py`` renders. Every seed-swept run carries
+one row per seed (0-4) over the same fixed 513-compound blind set, so a
+comparison between two runs' per-seed overall MAE is naturally paired by seed and
+``scipy.stats.ttest_rel`` is the right instrument. A fixed reference with no seed
+distribution of its own is tested one-sample instead (``ttest_1samp``): the two
+N283T report numbers (``n283t_ensemble``, ``n283t_target``, read from
+``reference.csv``), and the CheMeleon->pEC50 baseline, a single
+``openadmet-models`` anvil run whose pooled MAE the table already carries.
+
+The published table holds only the ``overall`` split, so the one non-overall
+check (panel 05's potent subset) reads that subset straight from the per-seed
+``eval_out.csv``, and panel 06's per-compound Spearman correlation reads a
+scored-prediction CSV directly. Every other number comes from the table.
 
 Every number quoted in blogpost.md is asserted through :func:`check`,
 :func:`check_below`, or :func:`check_atleast`, so this is a gate, not a
@@ -21,38 +26,80 @@ any claim that has drifted past its tolerance. Run from the repo root::
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from scipy import stats
 
-from manifest import EXPERIMENTS
-
-RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
+HERE = Path(__file__).resolve().parent
+RESULTS_DIR = HERE.parent / "results"
+RESULTS_PARQUET = HERE / "results.parquet"
+REFERENCE_CSV = HERE / "reference.csv"
 SEEDS = range(5)
-ANVIL_BASELINE_DIRS = ("pxr_baseline_predictions_phase1", "pxr_baseline_predictions_phase2")
+
+# base_dir of the ingested CheMeleon->pEC50 anvil baseline in the results table
+BASELINE_BASE_DIR = "pxr_baseline_chemeleon_pec50"
+
+# Each comparison below names a run by a readable key; this maps the key to its
+# base_dir in the results table. It lives here, next to the comparisons that use
+# it, now that the manifest catalog it used to come from has been retired.
+KEY_TO_BASE_DIR: dict[str, str] = {
+    "concat_architecture": "freeze2_hd512_clipoff",
+    "frozen_log2fc_full": "e4_frozen",
+    "fine_tuned_log2fc_full": "e4_finetune",
+    "frozen_log2fc_drc_only": "e4_frozen_drc_only",
+    "fine_tuned_log2fc_drc_only": "e4_finetune_drc_only",
+    "rdkit_descriptors": "tabpfn_rdkit_only_pca128_no_embed_no_readout",
+    "predicted_readout": "tabpfn_readout_only_no_embed",
+    "mordred_descriptors": "tabpfn_mordred_only_pca128_no_embed_no_readout",
+    "chemeleon_embedding": "tabpfn_chemeleon_embed_only",
+    "log2fc_embedding": "tabpfn_embed_only_no_readout",
+    "chemeleon_readout_descriptors": "tabpfn_chemeleon_readout_descriptors",
+    "embed_readout_descriptors": "tabpfn_embed_readout_mordred_pca128",
+    "readout_descriptors": "tabpfn_readout_mordred_pca128_no_embed",
+    "embed_descriptors": "tabpfn_embed_mordred_pca128_no_readout",
+    "chemeleon_readout": "tabpfn_chemeleon_readout_only",
+    "chemeleon_descriptors": "tabpfn_chemeleon_descriptors_only",
+    "tabicl_v211": "tabicl_chemeleon_readout_descriptors",
+    "tabpfn_v3": "tabpfn-v3_chemeleon_readout_descriptors",
+    "our_best_overall": "tabicl_chemeleon_readout_only",
+    "mordred_pca64": "tabpfn_embed_readout_mordred_pca64",
+    "mordred_pca256": "tabpfn_embed_readout_mordred_pca256",
+    "rdkit_mordred_pca64": "tabpfn_concat_pca64",
+    "rdkit_mordred_pca128": "tabpfn_concat_small_embed",
+    "rdkit_mordred_pca256": "tabpfn_concat_pca256",
+    "calib_blind_uncalibrated": "tabicl_chemeleon_readout_only",
+    "calib_blind_calibrated": "tabicl_chemeleon_readout_only_calibrated",
+}
+
+_RUNS = pd.read_parquet(RESULTS_PARQUET)
 
 
 # ── loading ──────────────────────────────────────────────────────────────────
 
 
 def seed_mae(key: str, subset: str = "overall") -> np.ndarray:
-    """Return one experiment's per-seed MAE on a given ``eval_out.csv`` subset.
+    """Return one run's per-seed MAE, ordered by seed (0-4).
 
-    Ordered by seed (0-4), so two calls with different ``key``s line up
-    for a paired test: seed ``i`` in one array was evaluated under the
-    same conditions as seed ``i`` in the other.
+    The ``overall`` split comes from the results table. Every other subset (only
+    panel 05's potent slice) is not carried there and is read from the per-seed
+    ``eval_out.csv`` instead. Ordering by seed lets two calls line up for a paired
+    test: seed ``i`` here was evaluated under the same conditions as seed ``i`` in
+    the other array.
     """
-    exp = next(e for e in EXPERIMENTS if e.key == key)
-    if exp.base_dir is None:
-        raise ValueError(f"{key!r} has no seed data (fixed_mae={exp.fixed_mae}); use fixed_value")
+    base_dir = KEY_TO_BASE_DIR[key]
+    if subset == "overall":
+        rows = _RUNS[(_RUNS["base_dir"] == base_dir) & (_RUNS["seed"].isin(SEEDS))]
+        if len(rows) != len(SEEDS):
+            raise ValueError(f"{key!r} ({base_dir}) has {len(rows)} seed rows, expected {len(SEEDS)}")
+        return rows.sort_values("seed")["mae"].to_numpy()
+
     values: list[float] = []
     for seed in SEEDS:
-        eval_csv = RESULTS_DIR / f"{exp.base_dir}_seed{seed}" / "eval_out.csv"
+        eval_csv = RESULTS_DIR / f"{base_dir}_seed{seed}" / "eval_out.csv"
         if not eval_csv.exists():
-            raise FileNotFoundError(f"Missing {eval_csv} for experiment {key!r}")
+            raise FileNotFoundError(f"Missing {eval_csv} for run {key!r}")
         row = pd.read_csv(eval_csv).query("subset == @subset")
         if len(row) != 1:
             raise ValueError(f"{eval_csv} has no unique {subset!r} row")
@@ -61,33 +108,24 @@ def seed_mae(key: str, subset: str = "overall") -> np.ndarray:
 
 
 def fixed_value(key: str) -> float:
-    """Return an external, non-reproducible fixed MAE (e.g. an N283T report number)."""
-    exp = next(e for e in EXPERIMENTS if e.key == key)
-    if exp.fixed_mae is None:
-        raise ValueError(f"{key!r} has no fixed_mae; use seed_mae instead")
-    return exp.fixed_mae
+    """Return an external, non-reproducible fixed MAE from ``reference.csv``."""
+    ref = pd.read_csv(REFERENCE_CSV).query("id == @key")
+    if len(ref) != 1:
+        raise ValueError(f"{key!r} is not a unique row in {REFERENCE_CSV.name}")
+    return float(ref["mae"].iloc[0])
 
 
-def anvil_baseline_mae() -> float:
-    """Return the CheMeleon->pEC50 anvil baseline's pooled MAE over the blind set.
+def baseline_mae() -> float:
+    """Return the CheMeleon->pEC50 anvil baseline's pooled MAE from the table.
 
     The baseline is one directly-fine-tuned CheMeleon model scored on the two
-    blind phases separately, each with its own ``regression_metrics.json``. MAE is
-    a mean of absolute errors, so the pooled value is the per-phase MAEs weighted
-    by compound count, matching ``build_run_provenance._combine_baseline_metrics``.
-    Derived from source here rather than read from the results table so the gate
-    stays self-contained and reproducible.
+    blind phases and ingested as a single combined row (no seed sweep), so panel
+    00 tests it one-sample rather than paired.
     """
-    total_n = 0
-    sum_abs = 0.0
-    for name in ANVIL_BASELINE_DIRS:
-        run_dir = RESULTS_DIR / name
-        metrics = json.loads((run_dir / "regression_metrics.json").read_text())
-        target = next(k for k in metrics if k != "tag")
-        n = len(pd.read_csv(run_dir / "data" / "y_test.csv"))
-        sum_abs += n * metrics[target]["mae"]["value"]
-        total_n += n
-    return sum_abs / total_n
+    rows = _RUNS[_RUNS["base_dir"] == BASELINE_BASE_DIR]
+    if len(rows) != 1:
+        raise ValueError(f"expected exactly one {BASELINE_BASE_DIR} row, found {len(rows)}")
+    return float(rows["mae"].iloc[0])
 
 
 # ── reporting ────────────────────────────────────────────────────────────────
@@ -169,7 +207,7 @@ def main() -> None:
     # single anvil run with no seed distribution, so this is a one-sample test
     # of the concat 5-seed MAE against its fixed pooled value, not a paired one.
     concat = seed_mae("concat_architecture")
-    base_mae = anvil_baseline_mae()
+    base_mae = baseline_mae()
     m_concat, m_chemeleon, p = report(
         "[00] concat_architecture vs CheMeleon->pEC50 anvil baseline (one-sample)",
         concat,
