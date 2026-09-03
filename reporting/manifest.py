@@ -92,7 +92,7 @@ EXPERIMENTS: list[Experiment] = [
         key="n283t_target",
         base_dir=None,
         label="N283T report target",
-        sub="frozen ChemProp embedding + TabPFN",
+        sub="frozen Chemprop embedding + TabPFN",
         category="n283t",
         panels=("00", "01", "02"),
         role="target",
@@ -217,7 +217,7 @@ EXPERIMENTS: list[Experiment] = [
     Experiment(
         key="predicted_readout",
         base_dir="tabpfn_readout_only_no_embed",
-        label="Predicted log<sub>2</sub>FC readout",
+        label="log<sub>2</sub>FC readout",
         sub="encoder's own prediction, 2 columns",
         category="tabular-single",
         panels=("01",),
@@ -234,7 +234,7 @@ EXPERIMENTS: list[Experiment] = [
     Experiment(
         key="readout_descriptors",
         base_dir="tabpfn_readout_mordred_pca128_no_embed",
-        label="Readout + descriptors",
+        label="log<sub>2</sub>FC readout + descriptors",
         sub="no embedding",
         category="tabular-multiple",
         panels=("02",),
@@ -242,7 +242,7 @@ EXPERIMENTS: list[Experiment] = [
     Experiment(
         key="embed_readout_descriptors",
         base_dir="tabpfn_embed_readout_mordred_pca128",
-        label="Embedding + readout + descriptors",
+        label="Embedding + log<sub>2</sub>FC readout + descriptors",
         sub="log<sub>2</sub>FC embedding",
         category="tabular-multiple",
         panels=("02",),
@@ -251,14 +251,14 @@ EXPERIMENTS: list[Experiment] = [
         key="embed_descriptors",
         base_dir="tabpfn_embed_mordred_pca128_no_readout",
         label="Embedding + descriptors",
-        sub="log<sub>2</sub>FC embedding, no readout",
+        sub="log<sub>2</sub>FC embedding, no log<sub>2</sub>FC readout",
         category="tabular-multiple",
         panels=("02",),
     ),
     Experiment(
         key="embed_readout",
         base_dir="tabpfn_small_embed",
-        label="Embedding + readout",
+        label="Embedding + log<sub>2</sub>FC readout",
         sub="log<sub>2</sub>FC embedding, no descriptors",
         category="tabular-multiple",
         panels=("02",),
@@ -274,7 +274,7 @@ EXPERIMENTS: list[Experiment] = [
     Experiment(
         key="chemeleon_readout_descriptors",
         base_dir="tabpfn_chemeleon_readout_descriptors",
-        label="Embedding + readout + descriptors",
+        label="Embedding + log<sub>2</sub>FC readout + descriptors",
         sub="CheMeleon embedding",
         category="tabular-multiple",
         panels=("02",),
@@ -285,14 +285,14 @@ EXPERIMENTS: list[Experiment] = [
         key="chemeleon_descriptors",
         base_dir="tabpfn_chemeleon_descriptors_only",
         label="Embedding + descriptors",
-        sub="CheMeleon embedding, no readout",
+        sub="CheMeleon embedding, no log<sub>2</sub>FC readout",
         category="tabular-multiple",
         panels=("02",),
     ),
     Experiment(
         key="chemeleon_readout",
         base_dir="tabpfn_chemeleon_readout_only",
-        label="Embedding + readout",
+        label="Embedding + log<sub>2</sub>FC readout",
         sub="CheMeleon embedding, no descriptors",
         category="tabular-multiple",
         panels=("02",),
@@ -337,7 +337,7 @@ EXPERIMENTS.extend(
         Experiment(
             key="readout_alone",
             base_dir="tabpfn_readout_only_no_embed",
-            label="Readout alone",
+            label="log<sub>2</sub>FC readout alone",
             sub="no embedding, no descriptors",
             category="tabular-single",
             panels=("02",),
@@ -347,7 +347,7 @@ EXPERIMENTS.extend(
             key="descriptors_alone",
             base_dir="tabpfn_mordred_only_pca128_no_embed_no_readout",
             label="Descriptors alone",
-            sub="Mordred, no embedding, no readout",
+            sub="Mordred, no embedding, no log<sub>2</sub>FC readout",
             category="tabular-single",
             panels=("02",),
             native_panels=("01", "02"),
@@ -501,7 +501,7 @@ EXPERIMENTS.extend(
 MINI_CHARTS: list[MiniChart] = [
     MiniChart(
         panel="04",
-        title="Embed + readout (fixed, raw) + descriptors, by PCA width",
+        title="Embedding + log<sub>2</sub>FC readout (fixed, raw) + descriptors, by PCA width",
         rows=(
             ("mordred_pca64", "Mordred, 64"),
             ("embed_readout_descriptors", "Mordred, 128"),
@@ -566,7 +566,7 @@ ROLE_OVERRIDE: dict[tuple[str, str], str] = {
 # Cosmetic-only label override for panel 03's TabPFN v2.5 row.
 # chemeleon_readout_descriptors reads as "TabPFN v2.5" alongside its
 # regressor-sweep siblings ("TabPFN v2.6", "LightGBM", ...), with its
-# original panel 02 label ("Embedding + readout + descriptors") replaced so
+# original panel 02 label ("Embedding + log<sub>2</sub>FC readout + descriptors") replaced so
 # the row reads as a regressor name like its neighbors; its sub is blank
 # there too, same as theirs. tabicl_v211 needs no override here: it now runs
 # on the same featureset as every other panel 03 row, so its own label/sub
