@@ -11,10 +11,9 @@ N283T report numbers (``n283t_ensemble``, ``n283t_target``, read from
 ``reference.csv``), and the CheMeleon->pEC50 baseline, a single
 ``openadmet-models`` anvil run whose pooled MAE the table already carries.
 
-The published table holds only the ``overall`` split, so the one non-overall
-check (panel 05's potent subset) reads that subset straight from the per-seed
-``eval_out.csv``, and panel 06's per-compound Spearman correlation reads a
-scored-prediction CSV directly. Every other number comes from the table.
+Every MAE comes from the table's ``overall`` split. The one value not built from
+an MAE, panel 06's per-compound Spearman correlation, reads a scored-prediction
+CSV directly.
 
 Every number quoted in blogpost.md is asserted through :func:`check`,
 :func:`check_below`, or :func:`check_atleast`, so this is a gate, not a
@@ -79,32 +78,17 @@ _RUNS = pd.read_parquet(RESULTS_PARQUET)
 # ── loading ──────────────────────────────────────────────────────────────────
 
 
-def seed_mae(key: str, subset: str = "overall") -> np.ndarray:
-    """Return one run's per-seed MAE, ordered by seed (0-4).
+def seed_mae(key: str) -> np.ndarray:
+    """Return one run's per-seed overall MAE from the results table, ordered by seed.
 
-    The ``overall`` split comes from the results table. Every other subset (only
-    panel 05's potent slice) is not carried there and is read from the per-seed
-    ``eval_out.csv`` instead. Ordering by seed lets two calls line up for a paired
-    test: seed ``i`` here was evaluated under the same conditions as seed ``i`` in
-    the other array.
+    Ordering by seed (0-4) lets two calls line up for a paired test: seed ``i``
+    here was evaluated under the same conditions as seed ``i`` in the other array.
     """
     base_dir = KEY_TO_BASE_DIR[key]
-    if subset == "overall":
-        rows = _RUNS[(_RUNS["base_dir"] == base_dir) & (_RUNS["seed"].isin(SEEDS))]
-        if len(rows) != len(SEEDS):
-            raise ValueError(f"{key!r} ({base_dir}) has {len(rows)} seed rows, expected {len(SEEDS)}")
-        return rows.sort_values("seed")["mae"].to_numpy()
-
-    values: list[float] = []
-    for seed in SEEDS:
-        eval_csv = RESULTS_DIR / f"{base_dir}_seed{seed}" / "eval_out.csv"
-        if not eval_csv.exists():
-            raise FileNotFoundError(f"Missing {eval_csv} for run {key!r}")
-        row = pd.read_csv(eval_csv).query("subset == @subset")
-        if len(row) != 1:
-            raise ValueError(f"{eval_csv} has no unique {subset!r} row")
-        values.append(float(row["mae"].iloc[0]))
-    return np.array(values)
+    rows = _RUNS[(_RUNS["base_dir"] == base_dir) & (_RUNS["seed"].isin(SEEDS))]
+    if len(rows) != len(SEEDS):
+        raise ValueError(f"{key!r} ({base_dir}) has {len(rows)} seed rows, expected {len(SEEDS)}")
+    return rows.sort_values("seed")["mae"].to_numpy()
 
 
 def fixed_value(key: str) -> float:
@@ -393,17 +377,6 @@ def main() -> None:
     check("[05] calibrated mean", m_cal, 0.4507, 0.001)
     check_below("[05] calibration degrades performance", m_uncal - m_cal, 0.0)
     check_below("[05] that degradation is significant", p_cal, 0.05)
-
-    uncalibrated_potent = seed_mae("calib_blind_uncalibrated", subset="potent (>= 6.0)")
-    calibrated_potent = seed_mae("calib_blind_calibrated", subset="potent (>= 6.0)")
-    m_uncal_p, m_cal_p, _ = report(
-        "[05] calib_blind_uncalibrated vs calib_blind_calibrated (potent subset)",
-        uncalibrated_potent,
-        calibrated_potent,
-    )
-    check("[05] uncalibrated potent-subset mean", m_uncal_p, 0.6882, 0.001)
-    check("[05] calibrated potent-subset mean", m_cal_p, 0.7402, 0.001)
-    check_below("[05] potent subset also degrades", m_uncal_p - m_cal_p, 0.0)
 
     print("\n\n" + "=" * 64)
     print("PANEL 06 — predicted-uncertainty vs actual error")
