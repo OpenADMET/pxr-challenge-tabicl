@@ -64,11 +64,16 @@ CONFIGS_DIR = REPO_ROOT / "configs"
 OUTPUT_PARQUET = RESULTS_DIR / "run_provenance.parquet"
 OUTPUT_CSV = RESULTS_DIR / "run_provenance.csv"
 
-# Directories that are external baseline predictions (a different pipeline,
-# anvil-recipe based) rather than per-seed sweep runs of this challenge's own
-# scripts. They carry no config/encoder axes comparable to the rest of the
-# table, so they are excluded from the row set entirely (see report).
-EXCLUDED_DIRS = {"pxr_baseline_predictions_phase1", "pxr_baseline_predictions_phase2"}
+# The CheMeleon->pEC50 baseline runs use the anvil-recipe pipeline (openadmet
+# standard models) instead of this challenge's own seeded sweep scripts, so
+# they carry no config_used.yaml/eval_out.csv and are skipped by the normal
+# per-dir loop. They are not dropped: their axes come from anvil_recipe.yaml and
+# their metrics from regression_metrics.json, ingested as one combined row by
+# build_anvil_baseline_spec (the two dirs are one model scored on the two blind
+# test phases separately, recombined here into the same overall split the sweep
+# rows report). Anything genuinely outside the table stays in EXCLUDED_DIRS.
+ANVIL_BASELINE_DIRS = ("pxr_baseline_predictions_phase1", "pxr_baseline_predictions_phase2")
+EXCLUDED_DIRS = set(ANVIL_BASELINE_DIRS)
 
 SEED_RE = re.compile(r"^(?P<base>.+)_seed(?P<seed>\d+)$")
 
@@ -235,6 +240,114 @@ def load_eval_metrics(run_dir: Path) -> dict[str, float | None]:
     row = overall.iloc[0]
     return {col: (row[col] if col in row.index else None) for col in METRIC_COLUMNS}
 
+
+# Synthetic base_dir for the combined CheMeleon->pEC50 baseline. It is not a
+# directory on disk: the two per-phase anvil runs recombine into this one row.
+ANVIL_BASELINE_BASE_DIR = "pxr_baseline_chemeleon_pec50"
+
+
+def _resolve_anvil_axes(recipe: dict[str, Any]) -> dict[str, Any]:
+    """Resolve the critical axes for an anvil-recipe ChemProp/CheMeleon baseline run.
+
+    Only the CheMeleon->pEC50 baseline shape is understood here; a recipe that
+    does not match it raises, so a new anvil run cannot be ingested with silently
+    wrong axes.
+    """
+    model = recipe["procedure"]["model"]
+    params = model["params"]
+    from_foundation = params.get("from_foundation")
+
+    # guard: this resolver only knows the single-task CheMeleon->pEC50 baseline
+    if model["type"] != "ChemPropModel" or from_foundation != "chemeleon":
+        raise ValueError(f"unrecognized anvil model shape: type={model['type']!r} from_foundation={from_foundation!r}")
+    if recipe["data"]["target_cols"] != ["pEC50"] or params.get("n_tasks") != 1:
+        raise ValueError(f"unexpected anvil target: {recipe['data']['target_cols']!r} n_tasks={params.get('n_tasks')!r}")
+
+    # ChemProp end-to-end model initialized from the CheMeleon foundation and
+    # trained straight to the pEC50 endpoint: no downstream tabular regressor,
+    # so the feature-composition flags mirror the freeze/width/clip sweep's
+    # end-to-end rows (embedding present, no separate readout, no descriptors)
+    # and n_features is a category error (n_features_inapplicable).
+    return {
+        "encoder_family": "chemprop",
+        "encoder_init": "chemeleon_pretrained",
+        "encoder_target": "pec50",
+        "has_embedding": True,
+        "has_readout": False,
+        "has_descriptors": False,
+        "descriptor_sources": "",
+        "regressor": "N/A",
+        # dose-response pEC50 targets only, with no primary-screen/log2FC augmentation
+        "train_data": "drc_only",
+        "ffn_hidden_dim": int(params["ffn_hidden_dim"]),
+        # freeze_weights null means the encoder trains from the first epoch (full
+        # fine-tune), the freeze_epochs=0 end of the sweep's freeze schedule
+        "freeze_epochs": 0 if model.get("freeze_weights") is None else None,
+        "gradient_clip_val": float(recipe["procedure"]["train"]["params"]["gradient_clip_val"]),
+    }
+
+
+def _combine_baseline_metrics(phase_dirs: list[Path]) -> dict[str, float | None]:
+    """Recombine per-phase anvil metrics into the sweep's combined 'overall' split.
+
+    MAE and RMSE recombine exactly from the per-phase summaries (they are means of
+    absolute and squared errors, so the pooled value is the count-weighted mean).
+    The rank and relative-error metrics (r2, rae, kendall_tau, spearman_rho) need
+    per-compound predictions, which the anvil runs do not persist, so they are left
+    null rather than approximated.
+    """
+    total_n = 0
+    sum_abs = 0.0
+    sum_sq = 0.0
+    for d in phase_dirs:
+        metrics = json.loads((d / "regression_metrics.json").read_text())
+        target = next(k for k in metrics if k != "tag")
+        n = len(pd.read_csv(d / "data" / "y_test.csv"))
+        sum_abs += n * metrics[target]["mae"]["value"]
+        sum_sq += n * metrics[target]["mse"]["value"]
+        total_n += n
+    return {
+        "mae": sum_abs / total_n,
+        "n": total_n,
+        "rmse": (sum_sq / total_n) ** 0.5,
+        "rae": None,
+        "r2": None,
+        "kendall_tau": None,
+        "spearman_rho": None,
+    }
+
+
+def build_anvil_baseline_spec() -> RunSpec | None:
+    """Build the single combined RunSpec for the CheMeleon->pEC50 anvil baseline.
+
+    Returns None if the baseline directories are absent. Requires every present
+    phase to share one model recipe, so a divergent recipe fails loudly rather
+    than collapsing two different models into one row.
+    """
+    phase_dirs = [RESULTS_DIR / name for name in ANVIL_BASELINE_DIRS if (RESULTS_DIR / name).is_dir()]
+    if not phase_dirs:
+        return None
+
+    axes = None
+    for d in phase_dirs:
+        recipe = yaml.safe_load((d / "anvil_recipe.yaml").read_text())
+        resolved = _resolve_anvil_axes(recipe)
+        if axes is None:
+            axes = resolved
+        elif resolved != axes:
+            raise ValueError(f"anvil baseline phases disagree on axes: {d.name} -> {resolved} vs {axes}")
+
+    spec = RunSpec(
+        base_dir=ANVIL_BASELINE_BASE_DIR,
+        seed=UNPINNED_SEED,
+        run_dir=str(phase_dirs[0]),
+        spec_source="anvil_recipe",
+        n_features_inapplicable=True,
+    )
+    for col, value in axes.items():
+        setattr(spec, col, value)
+    spec.metrics = _combine_baseline_metrics(phase_dirs)
+    return spec
 
 
 # Directive 3, third pass: base_dirs whose header comment in configs/<stem>.yaml
@@ -1169,6 +1282,9 @@ def build_table() -> pd.DataFrame:
     """Build the full one-row-per-run provenance dataframe."""
     run_dirs = discover_run_dirs()
     specs = [build_run_spec(d) for d in run_dirs]
+    baseline_spec = build_anvil_baseline_spec()
+    if baseline_spec is not None:
+        specs.append(baseline_spec)
     rows = [spec_to_row(s) for s in specs]
     df = pd.DataFrame(rows)
     # seed is never null: split_base_and_seed always assigns either an

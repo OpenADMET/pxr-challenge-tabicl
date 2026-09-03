@@ -12,8 +12,8 @@ Every MAE, whisker, bar width, panel order, divider position, and role color is
 computed here from that data. No number is hand-entered. The panel definitions
 near the bottom are the only editorial surface: each drawn slot selects its run
 by a spec predicate (never a base_dir string) and carries the label text, which
-encodes distinctions the provenance columns do not (for example "FFN only"
-versus "FFN-tuned"). Roles are declared per slot and then cross-checked against
+encodes distinctions the provenance columns do not (for example "head only"
+versus "encoder + head"). Roles are declared per slot and then cross-checked against
 the data-derived category extrema, so a stale annotation raises rather than
 drawing a wrong color.
 
@@ -524,7 +524,10 @@ def load_configs() -> pd.DataFrame:
     how the 17 unevaluated members of the GNN sweep fall away on their own.
     """
     runs = pd.read_parquet(RESULTS_PATH)
-    runs = runs[runs["seed"].isin(SEEDS)]
+    # keep the canonical 5-seed sweep runs, dropping stray unpinned duplicates;
+    # additionally admit the anvil-recipe baseline, which is a single run with no
+    # seed sweep (seed=UNPINNED_SEED) and so would otherwise fall through the filter
+    runs = runs[runs["seed"].isin(SEEDS) | (runs["spec_source"] == "anvil_recipe")]
     scored = runs[runs["mae"].notna()].copy()
 
     spec_cols = [
@@ -565,13 +568,17 @@ def classify(spec: pd.Series) -> str:
         bool(spec["has_descriptors"])
     )
 
+    # single-stage CheMeleon baseline: the CheMeleon-init encoder trained
+    # end-to-end straight to pEC50 (no log2FC pretraining, no downstream
+    # regressor). Checked before the gnn branch, which would otherwise claim it,
+    # and gated on is_end2end so the tabular pEC50-on-CheMeleon variants (which
+    # regress a frozen embedding) do not fall in here.
+    if is_end2end and spec["encoder_init"] == "chemeleon_pretrained" and spec["encoder_target"] == "pec50":
+        return "chemeleon_baseline"
+
     # end-to-end GNN readout heads: the concatenation sweep winner and the e4 encoders
     if is_end2end and not bool(spec["has_readout"]) and not bool(spec["has_descriptors"]):
         return "gnn"
-
-    # single-stage CheMeleon baseline: pretrained encoder trained on pEC50, not log2FC
-    if spec["encoder_init"] == "chemeleon_pretrained" and spec["encoder_target"] == "pec50":
-        return "chemeleon_baseline"
 
     # tabular regressors on a canonical featureset
     if reg == "tabpfn" and spec["encoder_target"] != "pec50":
@@ -701,10 +708,10 @@ def build_panels() -> tuple[list[Panel], MiniPanel]:
     )
     chemeleon_base = Slot(
         "CheMeleon baseline",
-        "no log<sub>2</sub>FC pretraining, single-stage",
+        "encoder + head, dose-response only",
         "chemeleon",
         native=False,
-        select={"encoder_init": "chemeleon_pretrained", "encoder_target": "pec50"},
+        select={"encoder_init": "chemeleon_pretrained", "encoder_target": "pec50", "regressor": "N/A"},
     )
     best_single = Slot(
         "Best single-ingredient",
@@ -737,7 +744,7 @@ def build_panels() -> tuple[list[Panel], MiniPanel]:
             Slot(**{**chemeleon_base.__dict__, "native": True}),
             Slot(
                 "Fine-tuned log<sub>2</sub>FC encoder",
-                "full model, dose-response only",
+                "encoder + head, dose-response only",
                 select={
                     "encoder_init": "log2fc_checkpoint_pretrained",
                     "freeze_epochs": 2,
@@ -746,7 +753,7 @@ def build_panels() -> tuple[list[Panel], MiniPanel]:
             ),
             Slot(
                 "Frozen log<sub>2</sub>FC encoder",
-                "FFN only, dose-response + primary screen",
+                "head only, dose-response + primary screen",
                 select={
                     "encoder_init": "log2fc_checkpoint_pretrained",
                     "freeze_epochs": 50,
@@ -755,7 +762,7 @@ def build_panels() -> tuple[list[Panel], MiniPanel]:
             ),
             Slot(
                 "Fine-tuned log<sub>2</sub>FC encoder",
-                "full model, dose-response + primary screen",
+                "encoder + head, dose-response + primary screen",
                 select={
                     "encoder_init": "log2fc_checkpoint_pretrained",
                     "freeze_epochs": 2,
@@ -764,7 +771,7 @@ def build_panels() -> tuple[list[Panel], MiniPanel]:
             ),
             Slot(
                 "Frozen log<sub>2</sub>FC encoder",
-                "FFN-tuned, dose-response only",
+                "head only, dose-response only",
                 select={
                     "encoder_init": "log2fc_checkpoint_pretrained",
                     "freeze_epochs": 50,

@@ -1,9 +1,10 @@
 # Run provenance audit
 
 Built by `reporting/build_run_provenance.py`, output at `results/run_provenance.parquet`
-(418 rows, one per `results/<base_dir>_seed{n}/` directory; the two anvil-recipe baseline
-dirs `pxr_baseline_predictions_phase{1,2}` are deliberately excluded. `seed` is `-1` for a run
-with no explicit seed pin, see "Third pass changes" below).
+(419 rows: one per `results/<base_dir>_seed{n}/` sweep directory, plus one combined row for
+the anvil-recipe CheMeleon->pEC50 baseline, ingested from `pxr_baseline_predictions_phase{1,2}`
+(see "Fifth pass" below). `seed` is `-1` for a run with no explicit seed pin, see
+"Third pass changes" below).
 
 ## Fourth pass: convention-layer orphan resolution
 
@@ -33,7 +34,8 @@ axis resolvers as the launch tier. These rows are stamped `spec_source = "conven
 **Resolution rate: 226/417 -> 281/418 fully resolved (67%).** All 54 formerly-orphaned rows now
 resolve every critical axis (`unknown_axes == ""`); the "all 14 axes unknown" group is empty and
 no row has a null `spec_source`. `spec_source` now breaks down as launch_script 227,
-parsed_config 113, convention 54, parsed_config+yaml_comment 24. Zero in-run-vs-launch
+parsed_config 113, convention 54, parsed_config+yaml_comment 24, anvil_recipe 1 (the fifth-pass
+baseline, which brings the current totals to 282/419 fully resolved). Zero in-run-vs-launch
 disagreements remain.
 
 Three honest caveats travel with the convention tier:
@@ -193,6 +195,34 @@ sample) and each invoked script's own argparse definitions resolves every critic
 already resolved from `config_used.yaml`, **226 of 417 rows (54%) are now fully resolved**,
 up from 0.
 
+## Fifth pass: CheMeleon->pEC50 baseline ingestion
+
+The `pxr_baseline_predictions_phase{1,2}` directories are the CheMeleon->pEC50 baseline
+(openadmet standard `ChemPropModel`, anvil-recipe pipeline), previously excluded because they
+carry `anvil_recipe.yaml` + `regression_metrics.json` instead of the sweep's
+`config_used.yaml` + `eval_out.csv`. Excluding them left the figures with no genuine baseline
+row, so the CheMeleon-baseline slot was resolving to the unrelated `tabpfn_pec50_chemeleon`
+run (a TabPFN regressor over a frozen CheMeleon embedding). This pass ingests the real baseline.
+
+Axes resolve from `anvil_recipe.yaml` (`_resolve_anvil_axes`): `from_foundation: chemeleon`
+gives `encoder_init = chemeleon_pretrained` and `encoder_family = chemprop`; the single-task
+`pEC50` target gives `encoder_target = pec50`; the end-to-end `ChemPropModel` (no downstream
+regressor) gives `regressor = N/A`, `has_embedding = True`, no readout, no descriptors, and
+`n_features` inapplicable, mirroring the freeze/width/clip sweep's end-to-end rows;
+`freeze_weights: null` (encoder trains from the first epoch) maps to `freeze_epochs = 0`;
+`ffn_hidden_dim = 1024` and `gradient_clip_val = 0.5` come straight from the recipe;
+`train_data = drc_only` records that it trains on the dose-response pEC50 targets with no
+primary-screen augmentation. A recipe that does not match this shape raises rather than
+ingesting with wrong axes.
+
+The two directories are one model scored on the two blind test phases separately (phase1 n=253,
+phase2 n=260), so `_combine_baseline_metrics` recombines them into the same overall split the
+sweep rows report (n=513). MAE and RMSE recombine exactly as count-weighted means of the
+per-phase values; the rank and relative-error metrics (`r2`, `rae`, `kendall_tau`,
+`spearman_rho`) need per-compound predictions the anvil runs do not persist, so they are left
+null rather than approximated. The result is one row, `base_dir = pxr_baseline_chemeleon_pec50`,
+`seed = -1`, `spec_source = anvil_recipe`, MAE 0.5348, all critical axes resolved.
+
 ## Evidence sources consulted
 
 | source | what it pins | rows it applies to |
@@ -202,8 +232,9 @@ up from 0.
 | launch script + config + argparse defaults | every critical axis: encoder family/init/target, embedding/readout/descriptor composition, regressor, train_data, n_features | 226 rows (see below) |
 | launch script (`moal plan` route) | encoder_family, encoder_init, train_data — a cross-check against the 137 `config_used.yaml` rows, not a new source for them | 362 rows total matched a launch-script invocation (226 tabular + 136 moal cross-check overlapping the `config_used.yaml` set, 2 OOM cases never produced a run dir) |
 
-`results/pxr_baseline_predictions_phase1` and `results/pxr_baseline_predictions_phase2` remain
-excluded (different pipeline, no comparable axes); `.DS_Store` is skipped.
+`results/pxr_baseline_predictions_phase1` and `results/pxr_baseline_predictions_phase2` are the
+anvil-recipe CheMeleon->pEC50 baseline, now ingested as one combined row (see "Fifth pass"
+below) rather than excluded; `.DS_Store` is skipped.
 
 ## Launch scripts parsed
 

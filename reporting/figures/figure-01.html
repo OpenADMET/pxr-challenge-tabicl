@@ -461,32 +461,32 @@
         <div class="mae-val">0.5176</div>
       </div>
 
-      <div class="row chemeleon">
-        <div class="row-label">CheMeleon baseline<span class="sub">no log<sub>2</sub>FC pretraining, single-stage</span></div>
-        <div class="track"><div class="bar" style="width: 55.4%; background-color: var(--magenta);"></div><div class="err-whisker" style="left: 51.4%; width: 8.7%;"></div></div>
-        <div class="mae-val">0.5215</div>
-      </div>
-
       <div class="row">
-        <div class="row-label">Fine-tuned log<sub>2</sub>FC encoder<span class="sub">full model, dose-response only</span></div>
+        <div class="row-label">Fine-tuned log<sub>2</sub>FC encoder<span class="sub">encoder + head, dose-response only</span></div>
         <div class="track"><div class="bar" style="width: 58.5%;"></div><div class="err-whisker" style="left: 52.6%; width: 20.6%;"></div></div>
         <div class="mae-val">0.5339</div>
       </div>
 
+      <div class="row chemeleon">
+        <div class="row-label">CheMeleon baseline<span class="sub">encoder + head, dose-response only</span></div>
+        <div class="track"><div class="bar" style="width: 58.7%; background-color: var(--magenta);"></div><div class="err-whisker" style="left: 58.7%; width: 0.0%;"></div></div>
+        <div class="mae-val">0.5348</div>
+      </div>
+
       <div class="row">
-        <div class="row-label">Frozen log<sub>2</sub>FC encoder<span class="sub">FFN only, dose-response + primary screen</span></div>
+        <div class="row-label">Frozen log<sub>2</sub>FC encoder<span class="sub">head only, dose-response + primary screen</span></div>
         <div class="track"><div class="bar" style="width: 61.6%;"></div><div class="err-whisker" style="left: 57.4%; width: 8.4%;"></div></div>
         <div class="mae-val">0.5464</div>
       </div>
 
       <div class="row">
-        <div class="row-label">Fine-tuned log<sub>2</sub>FC encoder<span class="sub">full model, dose-response + primary screen</span></div>
+        <div class="row-label">Fine-tuned log<sub>2</sub>FC encoder<span class="sub">encoder + head, dose-response + primary screen</span></div>
         <div class="track"><div class="bar" style="width: 64.3%;"></div><div class="err-whisker" style="left: 60.2%; width: 7.6%;"></div></div>
         <div class="mae-val">0.5573</div>
       </div>
 
       <div class="row">
-        <div class="row-label">Frozen log<sub>2</sub>FC encoder<span class="sub">FFN-tuned, dose-response only</span></div>
+        <div class="row-label">Frozen log<sub>2</sub>FC encoder<span class="sub">head only, dose-response only</span></div>
         <div class="track"><div class="bar" style="width: 71.2%;"></div><div class="err-whisker" style="left: 54.6%; width: 32.8%;"></div></div>
         <div class="mae-val">0.5849</div>
       </div>
