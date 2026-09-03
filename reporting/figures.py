@@ -8,14 +8,16 @@ Reads two data files and nothing else:
 - ``reporting/reference.csv`` : borrowed external numbers with no run of ours
   behind them (the N283T challenge report figures).
 
-Every MAE, whisker, bar width, panel order, divider position, and role color is
-computed here from that data. No number is hand-entered. The panel definitions
-near the bottom are the only editorial surface: each drawn slot selects its run
-by a spec predicate (never a base_dir string) and carries the label text, which
-encodes distinctions the provenance columns do not (for example "head only"
-versus "encoder + head"). Roles are declared per slot and then cross-checked against
-the data-derived category extrema, so a stale annotation raises rather than
-drawing a wrong color.
+Every MAE, whisker, bar width, panel membership, row order, divider position,
+and role color is computed here from that data. No number is hand-entered, and
+no panel enumerates its rows. Each ``PanelSpec`` in ``build_panels`` names a
+swept run family by a spec predicate (never a base_dir string), the axis it
+varies along, and a few borrowed comparison rows drawn from computed role
+holders; membership, order, the reused-bar flag, and role color all fall out of
+the data. The one thing not computed is label text, which encodes distinctions
+the provenance columns do not (for example "head only" versus "encoder + head");
+it lives in the declared ``LABELS`` registry, resolved per run so the renderer
+never invents it.
 
 Run ``python reporting/figures.py`` to rewrite ``figures/figure-01.html`` ..
 ``figures/figure-06.html``.
@@ -25,6 +27,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 
@@ -564,8 +567,10 @@ def classify(spec: pd.Series) -> str:
     """
     reg = spec["regressor"]
     is_end2end = reg == "N/A" or pd.isna(reg)
-    ingredients = int(bool(spec["has_embedding"])) + int(bool(spec["has_readout"])) + int(
-        bool(spec["has_descriptors"])
+    ingredients = (
+        int(bool(spec["has_embedding"]))
+        + int(bool(spec["has_readout"]))
+        + int(bool(spec["has_descriptors"]))
     )
 
     # single-stage CheMeleon baseline: the CheMeleon-init encoder trained
@@ -573,11 +578,19 @@ def classify(spec: pd.Series) -> str:
     # regressor). Checked before the gnn branch, which would otherwise claim it,
     # and gated on is_end2end so the tabular pEC50-on-CheMeleon variants (which
     # regress a frozen embedding) do not fall in here.
-    if is_end2end and spec["encoder_init"] == "chemeleon_pretrained" and spec["encoder_target"] == "pec50":
+    if (
+        is_end2end
+        and spec["encoder_init"] == "chemeleon_pretrained"
+        and spec["encoder_target"] == "pec50"
+    ):
         return "chemeleon_baseline"
 
     # end-to-end GNN readout heads: the concatenation sweep winner and the e4 encoders
-    if is_end2end and not bool(spec["has_readout"]) and not bool(spec["has_descriptors"]):
+    if (
+        is_end2end
+        and not bool(spec["has_readout"])
+        and not bool(spec["has_descriptors"])
+    ):
         return "gnn"
 
     # tabular regressors on a canonical featureset
@@ -585,7 +598,8 @@ def classify(spec: pd.Series) -> str:
         if ingredients == 1:
             return "single_ingredient"
         canonical_desc = (not bool(spec["has_descriptors"])) or (
-            spec["descriptor_sources"] == "mordred" and spec["descriptor_pca_width"] == 128
+            spec["descriptor_sources"] == "mordred"
+            and spec["descriptor_pca_width"] == 128
         )
         if ingredients >= 2 and canonical_desc:
             return "combination"
@@ -594,395 +608,416 @@ def classify(spec: pd.Series) -> str:
 
 
 # ---------------------------------------------------------------------------
-# slot selection by spec predicate
+# selection by spec predicate
 # ---------------------------------------------------------------------------
 
+# the spec columns that make two runs the same experiment; runs identical across
+# all of these are launch-duplicates and collapse to their lowest-MAE representative
+SIGNATURE_COLS = [
+    "encoder_family",
+    "encoder_init",
+    "encoder_target",
+    "has_embedding",
+    "has_readout",
+    "has_descriptors",
+    "descriptor_sources",
+    "descriptor_pca_width",
+    "embedding_pca_dim",
+    "regressor",
+    "train_data",
+    "n_features",
+    "freeze_epochs",
+    "_calibrated",
+]
 
-def select_one(configs: pd.DataFrame, predicate: dict[str, object]) -> pd.Series:
-    """Resolve a spec predicate to exactly one config, the lowest-MAE match.
 
-    Spec-identical runs (a config launched twice) match the same predicate; the
-    lowest mean MAE wins, so the better run draws and its twin stays unplotted.
-    Raises when nothing matches, which catches a panel that references a config
-    the data no longer contains.
-    """
+def match(configs: pd.DataFrame, predicate: dict[str, object]) -> pd.DataFrame:
+    """Return every config matching each ``column == value`` in the predicate."""
     mask = pd.Series(True, index=configs.index)
     for col, want in predicate.items():
         mask &= configs[col] == want
-    hits = configs[mask]
-    if hits.empty:
-        raise ValueError(f"no config matches predicate {predicate}")
-    best = hits["mae_mean"].idxmin()
-    row = configs.loc[best].copy()
-    row.name = best
-    return row
+    return configs[mask]
+
+
+def dedup_min(frame: pd.DataFrame) -> pd.DataFrame:
+    """Collapse spec-identical launch-duplicates to their lowest-MAE representative.
+
+    A config launched twice produces two rows with the same spec signature and
+    different MAEs; the better run draws and its twin stays unplotted, matching
+    what a lowest-MAE predicate resolution did when panels named single slots.
+    """
+    keep = (
+        frame.sort_values("mae_mean")
+        .reset_index()
+        .drop_duplicates(subset=SIGNATURE_COLS, keep="first")
+    )
+    return frame.loc[keep["base_dir"]]
 
 
 # ---------------------------------------------------------------------------
-# panel and slot definitions (the only editorial surface)
+# panel composition and the declared label layer (the only editorial surface)
 # ---------------------------------------------------------------------------
 
 
 @dataclass
-class Slot:
-    """One drawn bar: how to find its run, what to call it, and its role."""
+class Native:
+    """The swept run family a panel is built around.
 
-    label: str
-    sub: str = ""
-    role: str = "plain"
-    native: bool = True
-    # a config slot resolves via a spec predicate; a reference slot names a
-    # reference.csv id instead
-    select: dict[str, object] | None = None
+    Every config matching ``pred`` is drawn in ascending-MAE order, minus any
+    ``exclude`` variant that sits outside the panel's story, with launch
+    duplicates collapsed. ``sweep_axis`` names the column or columns the family
+    is meant to vary along; the resolver asserts it genuinely varies so a panel
+    cannot silently collapse to a single bar.
+    """
+
+    pred: dict[str, object]
+    sweep_axis: str | list[str]
+    exclude: list[dict[str, object]] = field(default_factory=list)
+
+
+@dataclass
+class Context:
+    """A comparison row borrowed from outside the swept family.
+
+    Either a computed role holder (``role``) or a predicate match (``pred`` with
+    ``mode`` "min" for the lowest-MAE match, "all" for every match). ``native``
+    marks whether the row draws solid (fresh in this panel) or hatched (reused
+    from another panel).
+    """
+
+    role: str | None = None
+    pred: dict[str, object] | None = None
+    mode: str = "min"
+    native: bool = False
+
+
+@dataclass
+class Head:
+    """A pinned row above the sort boundary: a reference id or the global winner."""
+
     ref_id: str | None = None
+    winner: bool = False
 
 
 @dataclass
-class Panel:
-    """A figure: an ordered pinned block, then a body sorted by ascending MAE."""
+class PanelSpec:
+    """A figure declared by what it compares, not by an enumerated row list."""
 
     out_name: str
-    slots: list[Slot]
-    sort_from: int
-    divider_after: int
+    native: Native | None = None
+    context: list[Context] = field(default_factory=list)
+    head: list[Head] = field(default_factory=list)
+    divider_after: int = -1
+    winner_in_body: bool = False  # global winner sorts into the body, not the head
+    accent_native_min: bool = False  # style the family's own minimum as a winner
+    kind: str = "bars"  # 'bars' | 'mini' | 'calibration'
+    title: str = ""  # mini-chart heading
 
 
 @dataclass
-class MiniRow:
-    """One bar of the PCA mini-chart, selected by spec predicate."""
+class Row:
+    """One resolved, ordered draw row, ready to render."""
 
+    key: str
     label: str
-    select: dict[str, object]
+    sub: str
+    role: str
+    native: bool
+    is_cfg: bool
+    divider: bool
+    data: pd.Series
 
 
-@dataclass
-class MiniPanel:
-    """The PCA-width mini-chart: every row sorted by MAE, the minimum accented."""
+# reference rows carry a fixed role from their identity, not the data extrema
+REF_ROLES = {"n283t_ensemble": "context", "n283t_target": "target"}
 
-    out_name: str
-    title: str
-    rows: list[MiniRow]
+# The declared label layer. Composition (which runs draw, in what order, in what
+# role, solid or reused) is computed; the text is not, because a label encodes
+# distinctions the spec columns do not (a column count, "head only" versus
+# "encoder + head"). LABELS is the per-run default keyed by base_dir or reference
+# id; LABEL_OVERRIDES is where one run reads differently under a panel's framing.
+# Folding the overrides into one label per run is a deliberate, reviewed step, so
+# the renderer never invents label text.
+LABELS: dict[str, tuple[str, str]] = {
+    "n283t_ensemble": ("N283T ensemble", "context only, not our pipeline"),
+    "n283t_target": ("N283T report target", "context only, not our pipeline"),
+    "tabicl_chemeleon_readout_only": (
+        "Our best overall",
+        "CheMeleon embedding + log<sub>2</sub>FC readout, TabICL 2.1.1",
+    ),
+    "tabicl_chemeleon_readout_only_calibrated": (
+        "Calibrated",
+        "isotonic map fit on 5-fold OOF predictions",
+    ),
+    "freeze2_hd512_clipoff": (
+        "Concatenation architecture",
+        "best of 18-config freeze/width/clip sweep",
+    ),
+    "pxr_baseline_chemeleon_pec50": (
+        "CheMeleon baseline",
+        "encoder + head, dose-response only",
+    ),
+    "e4_finetune": (
+        "Fine-tuned log<sub>2</sub>FC encoder",
+        "encoder + head, dose-response + primary screen",
+    ),
+    "e4_finetune_drc_only": (
+        "Fine-tuned log<sub>2</sub>FC encoder",
+        "encoder + head, dose-response only",
+    ),
+    "e4_frozen": (
+        "Frozen log<sub>2</sub>FC encoder",
+        "head only, dose-response + primary screen",
+    ),
+    "e4_frozen_drc_only": (
+        "Frozen log<sub>2</sub>FC encoder",
+        "head only, dose-response only",
+    ),
+    "tabpfn_chemeleon_embed_only": (
+        "CheMeleon embedding",
+        "pretrained, no fine-tuning",
+    ),
+    "tabpfn_rdkit_only_pca128_no_embed_no_readout": (
+        "RDKit descriptors",
+        "217 columns, PCA-128",
+    ),
+    "tabpfn_embed_only_no_readout": (
+        "Best single-ingredient",
+        "log<sub>2</sub>FC embedding only",
+    ),
+    "tabpfn_readout_only_no_embed": (
+        "log<sub>2</sub>FC readout alone",
+        "no embedding, no descriptors",
+    ),
+    "tabpfn_mordred_only_pca128_no_embed_no_readout": (
+        "Descriptors alone",
+        "Mordred, no embedding, no log<sub>2</sub>FC readout",
+    ),
+    "tabpfn_chemeleon_readout_descriptors": (
+        "Embedding + log<sub>2</sub>FC readout + descriptors",
+        "CheMeleon embedding",
+    ),
+    "tabpfn_chemeleon_readout_only": (
+        "Embedding + log<sub>2</sub>FC readout",
+        "CheMeleon embedding, no descriptors",
+    ),
+    "tabpfn_readout_mordred_pca128_no_embed": (
+        "log<sub>2</sub>FC readout + descriptors",
+        "no embedding",
+    ),
+    "tabpfn_embed_readout_mordred_pca128": (
+        "Embedding + log<sub>2</sub>FC readout + descriptors",
+        "log<sub>2</sub>FC embedding",
+    ),
+    "tabpfn_embed_mordred_pca128_no_readout": (
+        "Embedding + descriptors",
+        "log<sub>2</sub>FC embedding, no log<sub>2</sub>FC readout",
+    ),
+    "tabpfn_chemeleon_descriptors_only": (
+        "Embedding + descriptors",
+        "CheMeleon embedding, no log<sub>2</sub>FC readout",
+    ),
+    "tabpfn_small_embed": (
+        "Embedding + log<sub>2</sub>FC readout",
+        "log<sub>2</sub>FC embedding, no descriptors",
+    ),
+    "tabicl_chemeleon_readout_descriptors": ("TabICL v2.1.1", ""),
+    "tabpfn-v3_chemeleon_readout_descriptors": ("TabPFN v3", ""),
+    "tabpfn-v2.6_chemeleon_readout_descriptors": ("TabPFN v2.6", ""),
+    "tabfm_n32_chemeleon_readout_descriptors": ("TabFM v1.0.0", "max_num_rows=500"),
+    "lgbm_chemeleon_readout_descriptors": ("LightGBM", ""),
+    "xgboost_chemeleon_readout_descriptors": ("XGBoost", ""),
+    "tabpfn_embed_readout_mordred_pca256": ("Mordred, 256", ""),
+    "tabpfn_embed_readout_mordred_pca64": ("Mordred, 64", ""),
+    "tabpfn_concat_small_embed": ("RDKit + Mordred, 128", ""),
+    "tabpfn_concat_pca256": ("RDKit + Mordred, 256", ""),
+    "tabpfn_concat_pca64": ("RDKit + Mordred, 64", ""),
+}
 
-
-# canonical encoder featureset fragments, reused across slot predicates
-_SCRATCH = {"encoder_init": "scratch", "encoder_target": "log2fc", "regressor": "tabpfn"}
-_CHEMELEON = {
-    "encoder_init": "chemeleon_pretrained",
-    "encoder_target": "none",
-    "regressor": "tabpfn",
+LABEL_OVERRIDES: dict[str, dict[str, tuple[str, str]]] = {
+    "figure-02.html": {
+        "tabpfn_embed_only_no_readout": (
+            "log<sub>2</sub>FC embedding",
+            "from-scratch encoder, log<sub>2</sub>FC-trained",
+        ),
+        "tabpfn_readout_only_no_embed": (
+            "log<sub>2</sub>FC readout",
+            "encoder's own prediction, 2 columns",
+        ),
+        "tabpfn_mordred_only_pca128_no_embed_no_readout": (
+            "Mordred descriptors",
+            "~1600 columns, PCA-128",
+        ),
+    },
+    "figure-04.html": {
+        "tabpfn_chemeleon_readout_descriptors": ("TabPFN v2.5", ""),
+    },
+    "figure-05.html": {
+        "tabpfn_embed_readout_mordred_pca128": ("Mordred, 128", ""),
+    },
+    "figure-06.html": {
+        "tabicl_chemeleon_readout_only": (
+            "Uncalibrated",
+            "CheMeleon embedding + log<sub>2</sub>FC readout, TabICL 2.1.1",
+        ),
+    },
 }
 
 
-def build_panels() -> tuple[list[Panel], MiniPanel]:
-    """Return the six bar panels and the PCA mini-chart in output order."""
-    # the fixed reference block that opens the first three panels
-    ref_ensemble = Slot("N283T ensemble", "context only, not our pipeline", "context", ref_id="n283t_ensemble")
-    ref_target = Slot(
-        "N283T report target", "frozen Chemprop embedding + TabPFN", "target", ref_id="n283t_target"
-    )
-    our_best = Slot(
-        "Our best overall",
-        "CheMeleon embedding + log<sub>2</sub>FC readout, TabICL 2.1.1",
-        "winner",
-        native=True,
-        select={
-            "encoder_init": "chemeleon_pretrained",
-            "regressor": "tabicl",
-            "has_embedding": True,
-            "has_readout": True,
-            "has_descriptors": False,
-        },
-    )
-    best_gnn = Slot(
-        "Best GNN baseline",
-        "concatenation architecture",
-        "floor",
-        native=False,
-        select={
-            "regressor": "N/A",
-            "encoder_init": "chemeleon_pretrained",
-            "has_readout": False,
-            "has_descriptors": False,
-            "freeze_epochs": 2,
-        },
-    )
-    chemeleon_base = Slot(
-        "CheMeleon baseline",
-        "encoder + head, dose-response only",
-        "chemeleon",
-        native=False,
-        select={"encoder_init": "chemeleon_pretrained", "encoder_target": "pec50", "regressor": "N/A"},
-    )
-    best_single = Slot(
-        "Best single-ingredient",
-        "log<sub>2</sub>FC embedding only",
-        "single_best",
-        native=False,
-        select={**_SCRATCH, "has_embedding": True, "has_readout": False, "has_descriptors": False},
-    )
+def label_for(out_name: str, key: str) -> tuple[str, str]:
+    """Resolve a run's label and sub for a panel, panel override before default."""
+    override = LABEL_OVERRIDES.get(out_name, {})
+    if key in override:
+        return override[key]
+    if key not in LABELS:
+        raise ValueError(f"{out_name}: no label declared for run {key!r}")
+    return LABELS[key]
 
-    # panel 00 -> figure-01: graph baselines
-    panel_gnn = Panel(
+
+def build_panels() -> list[PanelSpec]:
+    """Return the six panels in output order, each declared by what it compares.
+
+    A panel names a swept family (a category or spec predicate plus the axis it
+    varies along) and a few comparison rows drawn from computed roles or
+    predicates. Membership, order, role color, the reused-bar flag, and the
+    reference divider all fall out of the data; only the family, its axis, and
+    the context rows are editorial.
+    """
+    head3 = [
+        Head(ref_id="n283t_ensemble"),
+        Head(ref_id="n283t_target"),
+        Head(winner=True),
+    ]
+    head2 = [Head(ref_id="n283t_ensemble"), Head(ref_id="n283t_target")]
+
+    # graph baselines: the GNN encoder sweep, against the CheMeleon reference
+    panel_gnn = PanelSpec(
         "figure-01.html",
-        [
-            ref_ensemble,
-            ref_target,
-            Slot(**{**our_best.__dict__}),
-            Slot(
-                "Concatenation architecture",
-                "best of 18-config freeze/width/clip sweep",
-                "floor",
-                native=True,
-                select={
-            "regressor": "N/A",
-            "encoder_init": "chemeleon_pretrained",
-            "has_readout": False,
-            "has_descriptors": False,
-            "freeze_epochs": 2,
-        },
-            ),
-            Slot(**{**chemeleon_base.__dict__, "native": True}),
-            Slot(
-                "Fine-tuned log<sub>2</sub>FC encoder",
-                "encoder + head, dose-response only",
-                select={
-                    "encoder_init": "log2fc_checkpoint_pretrained",
-                    "freeze_epochs": 2,
-                    "train_data": "drc_only",
-                },
-            ),
-            Slot(
-                "Frozen log<sub>2</sub>FC encoder",
-                "head only, dose-response + primary screen",
-                select={
-                    "encoder_init": "log2fc_checkpoint_pretrained",
-                    "freeze_epochs": 50,
-                    "train_data": "drc_plus_primary",
-                },
-            ),
-            Slot(
-                "Fine-tuned log<sub>2</sub>FC encoder",
-                "encoder + head, dose-response + primary screen",
-                select={
-                    "encoder_init": "log2fc_checkpoint_pretrained",
-                    "freeze_epochs": 2,
-                    "train_data": "drc_plus_primary",
-                },
-            ),
-            Slot(
-                "Frozen log<sub>2</sub>FC encoder",
-                "head only, dose-response only",
-                select={
-                    "encoder_init": "log2fc_checkpoint_pretrained",
-                    "freeze_epochs": 50,
-                    "train_data": "drc_only",
-                },
-            ),
-        ],
-        sort_from=3,
+        native=Native({"category": "gnn"}, sweep_axis="train_data"),
+        context=[Context(role="chemeleon", native=True)],
+        head=head3,
         divider_after=2,
     )
 
-    # panel 01 -> figure-02: single ingredients
-    panel_ingredients = Panel(
+    # single ingredients: each lone featureset, against the floor and CheMeleon
+    panel_ingredients = PanelSpec(
         "figure-02.html",
-        [
-            ref_ensemble,
-            ref_target,
-            Slot(**{**our_best.__dict__}),
-            Slot(
-                "log<sub>2</sub>FC embedding",
-                "from-scratch encoder, log<sub>2</sub>FC-trained",
-                "single_best",
-                native=True,
-                select={**_SCRATCH, "has_embedding": True, "has_readout": False, "has_descriptors": False},
-            ),
-            Slot(
-                "CheMeleon embedding",
-                "pretrained, no fine-tuning",
-                select={**_CHEMELEON, "has_embedding": True, "has_readout": False, "has_descriptors": False},
-            ),
-            Slot(**{**best_gnn.__dict__}),
-            Slot(**{**chemeleon_base.__dict__}),
-            Slot(
-                "RDKit descriptors",
-                "217 columns, PCA-128",
-                select={**_SCRATCH, "has_embedding": False, "has_readout": False, "descriptor_sources": "rdkit"},
-            ),
-            Slot(
-                "log<sub>2</sub>FC readout",
-                "encoder's own prediction, 2 columns",
-                select={**_SCRATCH, "has_embedding": False, "has_readout": True, "has_descriptors": False},
-            ),
-            Slot(
-                "Mordred descriptors",
-                "~1600 columns, PCA-128",
-                select={**_SCRATCH, "has_embedding": False, "has_readout": False, "descriptor_sources": "mordred"},
-            ),
-        ],
-        sort_from=3,
+        native=Native(
+            {"category": "single_ingredient"},
+            sweep_axis=[
+                "has_embedding",
+                "has_readout",
+                "has_descriptors",
+                "descriptor_sources",
+            ],
+        ),
+        context=[Context(role="floor"), Context(role="chemeleon")],
+        head=head3,
         divider_after=2,
     )
 
-    # panel 02 -> figure-03: combining ingredients
-    panel_combine = Panel(
+    # combining ingredients: the two-embedding combination family. The third
+    # embedding hybrid (CheMeleon-init and then log2FC-trained) sits outside the
+    # story and is excluded; the embedding-alone rung is the single-ingredient
+    # best, so it enters as the reused single_best pointer, not a fresh bar.
+    panel_combine = PanelSpec(
         "figure-03.html",
-        [
-            ref_ensemble,
-            ref_target,
-            Slot(**{**our_best.__dict__}),
-            Slot(
-                "Embedding + log<sub>2</sub>FC readout + descriptors",
-                "CheMeleon embedding",
-                "sweepbest",
+        native=Native(
+            {"category": "combination"},
+            sweep_axis=[
+                "encoder_init",
+                "has_embedding",
+                "has_readout",
+                "has_descriptors",
+            ],
+            exclude=[
+                {"encoder_init": "chemeleon_pretrained", "encoder_target": "log2fc"}
+            ],
+        ),
+        context=[
+            Context(
+                pred={
+                    "category": "single_ingredient",
+                    "encoder_init": "scratch",
+                    "has_readout": True,
+                    "has_descriptors": False,
+                },
+                mode="all",
                 native=True,
-                select={**_CHEMELEON, "has_embedding": True, "has_readout": True, "has_descriptors": True},
             ),
-            Slot(
-                "Embedding + log<sub>2</sub>FC readout",
-                "CheMeleon embedding, no descriptors",
-                select={**_CHEMELEON, "has_embedding": True, "has_readout": True, "has_descriptors": False},
+            Context(
+                pred={
+                    "category": "single_ingredient",
+                    "encoder_init": "scratch",
+                    "descriptor_sources": "mordred",
+                },
+                mode="all",
+                native=True,
             ),
-            Slot(
-                "log<sub>2</sub>FC readout + descriptors",
-                "no embedding",
-                select={**_SCRATCH, "has_embedding": False, "has_readout": True, "has_descriptors": True},
-            ),
-            Slot(
-                "Embedding + log<sub>2</sub>FC readout + descriptors",
-                "log<sub>2</sub>FC embedding",
-                select={**_SCRATCH, "has_embedding": True, "has_readout": True, "has_descriptors": True},
-            ),
-            Slot(
-                "Embedding + descriptors",
-                "log<sub>2</sub>FC embedding, no log<sub>2</sub>FC readout",
-                select={**_SCRATCH, "has_embedding": True, "has_readout": False, "has_descriptors": True},
-            ),
-            Slot(**{**best_single.__dict__}),
-            Slot(
-                "Embedding + log<sub>2</sub>FC readout",
-                "log<sub>2</sub>FC embedding, no descriptors",
-                select={**_SCRATCH, "has_embedding": True, "has_readout": True, "has_descriptors": False},
-            ),
-            Slot(**{**best_gnn.__dict__}),
-            Slot(**{**chemeleon_base.__dict__}),
-            Slot(
-                "Embedding + descriptors",
-                "CheMeleon embedding, no log<sub>2</sub>FC readout",
-                select={**_CHEMELEON, "has_embedding": True, "has_readout": False, "has_descriptors": True},
-            ),
-            Slot(
-                "log<sub>2</sub>FC readout alone",
-                "no embedding, no descriptors",
-                select={**_SCRATCH, "has_embedding": False, "has_readout": True, "has_descriptors": False},
-            ),
-            Slot(
-                "Descriptors alone",
-                "Mordred, no embedding, no log<sub>2</sub>FC readout",
-                select={**_SCRATCH, "has_embedding": False, "has_readout": False, "descriptor_sources": "mordred"},
-            ),
+            Context(role="single_best"),
+            Context(role="floor"),
+            Context(role="chemeleon"),
         ],
-        sort_from=3,
+        head=head3,
         divider_after=2,
     )
 
-    # the regressor sweep fixes the featureset at figure-03's winner (CheMeleon
-    # embedding + log2FC readout + descriptors, 386 columns) and varies only the
-    # regressor
-    crd = {
-        "encoder_init": "chemeleon_pretrained",
-        "has_embedding": True,
-        "has_readout": True,
-        "has_descriptors": True,
-        "n_features": 386,
-    }
-    panel_regressor = Panel(
+    # regressor sweep: the featureset fixed at figure-03's 386-column combination,
+    # varying only the tabular regressor; the family's own minimum is accented and
+    # the global winner drops into the sorted body for scale
+    panel_regressor = PanelSpec(
         "figure-04.html",
-        [
-            ref_ensemble,
-            ref_target,
-            Slot(**{**our_best.__dict__, "native": False}),
-            Slot("TabICL v2.1.1", "", "winner", native=True, select={**crd, "regressor": "tabicl"}),
-            Slot("TabPFN v3", "", select={**crd, "regressor": "tabpfn-v3"}),
-            Slot("TabPFN v2.5", "", "sweepbest", native=True, select={**crd, "regressor": "tabpfn"}),
-            Slot("TabPFN v2.6", "", select={**crd, "regressor": "tabpfn-v2.6"}),
-            Slot(**{**best_single.__dict__}),
-            Slot("TabFM v1.0.0", "max_num_rows=500", select={**crd, "regressor": "tabfm"}),
-            Slot("LightGBM", "", select={**crd, "regressor": "lgbm"}),
-            Slot(**{**best_gnn.__dict__}),
-            Slot(**{**chemeleon_base.__dict__}),
-            Slot("XGBoost", "", select={**crd, "regressor": "xgboost"}),
+        native=Native(
+            {
+                "encoder_init": "chemeleon_pretrained",
+                "has_embedding": True,
+                "has_readout": True,
+                "has_descriptors": True,
+                "n_features": 386,
+            },
+            sweep_axis="regressor",
+        ),
+        context=[
+            Context(role="single_best"),
+            Context(role="floor"),
+            Context(role="chemeleon"),
         ],
-        sort_from=2,
+        head=head2,
         divider_after=1,
+        winner_in_body=True,
+        accent_native_min=True,
     )
 
-    # panel 05 -> figure-06: calibration, two rows, no reference block
-    panel_calibration = Panel(
-        "figure-06.html",
-        [
-            Slot(
-                "Uncalibrated",
-                "CheMeleon embedding + log<sub>2</sub>FC readout, TabICL 2.1.1",
-                "winner",
-                native=True,
-                select={
-                    "encoder_init": "chemeleon_pretrained",
-                    "regressor": "tabicl",
-                    "has_embedding": True,
-                    "has_readout": True,
-                    "has_descriptors": False,
-                    "n_features": 258,
-                },
-            ),
-            Slot(
-                "Calibrated",
-                "isotonic map fit on 5-fold OOF predictions",
-                select={
-                    "encoder_init": "chemeleon_pretrained",
-                    "regressor": "tabicl",
-                    "has_embedding": True,
-                    "has_readout": True,
-                    "has_descriptors": False,
-                    "n_features": 258,
-                    "_calibrated": True,
-                },
-            ),
-        ],
-        sort_from=99,
-        divider_after=-1,
-    )
-
-    # panel 04 -> figure-05: PCA-width mini-chart
-    mini = MiniPanel(
+    # PCA-width mini-chart: embedding + readout + descriptors, scratch/log2FC,
+    # varying the descriptor source and PCA width
+    panel_pca = PanelSpec(
         "figure-05.html",
-        "Embedding + log<sub>2</sub>FC readout (fixed, raw) + descriptors, by PCA width",
-        [
-            MiniRow("Mordred, 128", {**_SCRATCH_ALL("mordred", 128)}),
-            MiniRow("RDKit + Mordred, 128", {**_SCRATCH_ALL("all", 128)}),
-            MiniRow("Mordred, 256", {**_SCRATCH_ALL("mordred", 256)}),
-            MiniRow("RDKit + Mordred, 256", {**_SCRATCH_ALL("all", 256)}),
-            MiniRow("RDKit + Mordred, 64", {**_SCRATCH_ALL("all", 64)}),
-            MiniRow("Mordred, 64", {**_SCRATCH_ALL("mordred", 64)}),
-        ],
+        native=Native(
+            {
+                "has_embedding": True,
+                "has_readout": True,
+                "has_descriptors": True,
+                "encoder_init": "scratch",
+                "encoder_target": "log2fc",
+                "regressor": "tabpfn",
+            },
+            sweep_axis=["descriptor_sources", "descriptor_pca_width"],
+        ),
+        kind="mini",
+        title="Embedding + log<sub>2</sub>FC readout (fixed, raw) + descriptors, by PCA width",
     )
 
-    return (
-        [panel_gnn, panel_ingredients, panel_combine, panel_regressor, panel_calibration],
-        mini,
-    )
+    # calibration: the global winner and its isotonic-calibrated counterpart
+    panel_calibration = PanelSpec("figure-06.html", kind="calibration")
 
-
-def _SCRATCH_ALL(source: str, width: int) -> dict[str, object]:
-    """Predicate for a scratch embed+readout+descriptor run at a given PCA width."""
-    return {
-        **_SCRATCH,
-        "has_embedding": True,
-        "has_readout": True,
-        "has_descriptors": True,
-        "descriptor_sources": source,
-        "descriptor_pca_width": width,
-    }
+    return [
+        panel_gnn,
+        panel_ingredients,
+        panel_combine,
+        panel_regressor,
+        panel_pca,
+        panel_calibration,
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -992,6 +1027,7 @@ def _SCRATCH_ALL(source: str, width: int) -> dict[str, object]:
 
 def role_holders(configs: pd.DataFrame) -> dict[str, str]:
     """Compute the base_dir that legitimately holds each singular role."""
+
     def argmin_in(category: str) -> str:
         members = configs[configs["category"] == category]
         if members.empty:
@@ -1012,15 +1048,16 @@ def role_holders(configs: pd.DataFrame) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 
-def render_row(base_dir: str, stats: pd.Series, slot: Slot, is_divider: bool) -> str:
+def render_config_row(row: Row) -> str:
     """Render one config bar with computed width, whisker, and role color."""
-    row_cls, bar_cls, bg = ROLE_STYLE[slot.role]
+    stats = row.data
+    row_cls, bar_cls, bg = ROLE_STYLE[row.role]
     classes = ["row"]
     if row_cls:
         classes.append(row_cls)
-    if is_divider:
+    if row.divider:
         classes.append("ref-divider")
-    reused = " reused" if not slot.native else ""
+    reused = " reused" if not row.native else ""
 
     width = fmt_pct(pct(stats["mae_mean"]))
     bar_classes = "bar"
@@ -1035,8 +1072,8 @@ def render_row(base_dir: str, stats: pd.Series, slot: Slot, is_divider: bool) ->
     span = fmt_pct(pct(stats["mae_max"]) - pct(stats["mae_min"]))
     whisker = f'<div class="err-whisker" style="left: {left}%; width: {span}%;"></div>'
 
-    label = _label_html(slot.label, slot.sub)
-    val = f'{stats["mae_mean"]:.4f}'
+    label = _label_html(row.label, row.sub)
+    val = f"{stats['mae_mean']:.4f}"
     return (
         f'      <div class="{" ".join(classes)}">\n'
         f'        <div class="row-label">{label}</div>\n'
@@ -1046,14 +1083,15 @@ def render_row(base_dir: str, stats: pd.Series, slot: Slot, is_divider: bool) ->
     )
 
 
-def render_reference_row(ref: pd.Series, slot: Slot, is_divider: bool) -> str:
+def render_reference_row(row: Row) -> str:
     """Render an external reference bar: width from its MAE, no whisker."""
-    row_cls, bar_cls, _ = ROLE_STYLE[slot.role]
+    ref = row.data
+    row_cls, bar_cls, _ = ROLE_STYLE[row.role]
     classes = ["row", row_cls]
-    if is_divider:
+    if row.divider:
         classes.append("ref-divider")
     width = fmt_pct(pct(float(ref["mae"])))
-    label = _label_html(slot.label, slot.sub)
+    label = _label_html(row.label, row.sub)
     return (
         f'      <div class="{" ".join(classes)}">\n'
         f'        <div class="row-label">{label}</div>\n'
@@ -1070,85 +1108,227 @@ def _label_html(label: str, sub: str) -> str:
     return label
 
 
-def resolve_panel(
-    panel: Panel, configs: pd.DataFrame, references: pd.DataFrame, holders: dict[str, str]
-) -> list[tuple[Slot, str, pd.Series, bool]]:
-    """Resolve every slot to its data, sort the body, and check roles.
+# ---------------------------------------------------------------------------
+# panel resolution: composition derived from the data, labels looked up
+# ---------------------------------------------------------------------------
 
-    Returns ``(slot, kind, data, is_config)`` tuples in draw order, where kind is
-    the resolved base_dir or reference id. Raises on a duplicate rendered label,
-    a role whose config is not the computed extremum, or a config not found.
+
+def _series(frame: pd.DataFrame, key: str) -> pd.Series:
+    """One row of a frame by label as a Series (scalar-label ``.loc``)."""
+    return cast(pd.Series, frame.loc[key])
+
+
+def _make_row(
+    spec: PanelSpec, key: str, role: str, native: bool, is_cfg: bool, data: pd.Series
+) -> Row:
+    """Build a draw row, looking up its label under the panel's framing."""
+    label, sub = label_for(spec.out_name, key)
+    return Row(
+        key=key,
+        label=label,
+        sub=sub,
+        role=role,
+        native=native,
+        is_cfg=is_cfg,
+        divider=False,
+        data=data,
+    )
+
+
+def _axis_cols(sweep_axis: str | list[str]) -> list[str]:
+    """The sweep axis as a list, whether declared as one column or several."""
+    return [sweep_axis] if isinstance(sweep_axis, str) else list(sweep_axis)
+
+
+def _native_family(native: Native, configs: pd.DataFrame) -> pd.DataFrame:
+    """The swept family: matches minus excludes, duplicates collapsed, MAE-sorted.
+
+    Asserts the sweep axis genuinely varies so a panel cannot silently collapse
+    to a single bar when a predicate is too narrow.
     """
-    resolved: list[dict[str, object]] = []
-    for slot in panel.slots:
-        if slot.ref_id is not None:
-            ref = references.loc[slot.ref_id]
-            resolved.append({"slot": slot, "key": slot.ref_id, "data": ref, "is_cfg": False, "sort": float(ref["mae"])})
-            continue
-        if slot.select is None:
-            raise ValueError(f"config slot {slot.label!r} has no select predicate")
-        row = select_one(configs, slot.select)
-        _check_role(slot, str(row.name), holders)
-        resolved.append({"slot": slot, "key": str(row.name), "data": row, "is_cfg": True, "sort": float(row["mae_mean"])})
+    frame = match(configs, native.pred)
+    for excluded in native.exclude:
+        frame = frame.drop(index=match(frame, excluded).index)
+    frame = dedup_min(frame)
+    if not any(frame[col].nunique() > 1 for col in _axis_cols(native.sweep_axis)):
+        raise ValueError(
+            f"sweep axis {native.sweep_axis!r} does not vary across the family"
+        )
+    return frame.sort_values("mae_mean")
 
-    head = resolved[: panel.sort_from]
-    body = sorted(resolved[panel.sort_from :], key=lambda item: item["sort"])
-    ordered = head + body
 
+def _context_keys(
+    ctx: Context, configs: pd.DataFrame, holders: dict[str, str], out_name: str
+) -> list[str]:
+    """The base_dir(s) a context row draws: a role holder, or predicate match(es)."""
+    if ctx.role is not None:
+        return [holders[ctx.role]]
+    if ctx.pred is None:
+        raise ValueError(f"{out_name}: context row declares neither role nor pred")
+    hits = match(configs, ctx.pred)
+    if hits.empty:
+        raise ValueError(f"{out_name}: context predicate {ctx.pred} matched nothing")
+    if ctx.mode == "all":
+        return [str(k) for k in hits.index]
+    return [str(hits["mae_mean"].idxmin())]
+
+
+def _check_labels_unique(rows: list[Row], out_name: str) -> None:
+    """Reject a panel that would render two rows with identical label text."""
     seen: set[str] = set()
-    for item in ordered:
-        rendered = _label_html(item["slot"].label, item["slot"].sub)
+    for row in rows:
+        rendered = _label_html(row.label, row.sub)
         if rendered in seen:
-            raise ValueError(f"duplicate rendered label {rendered!r} in {panel.out_name}")
+            raise ValueError(f"duplicate rendered label {rendered!r} in {out_name}")
         seen.add(rendered)
 
-    return [(item["slot"], str(item["key"]), item["data"], bool(item["is_cfg"])) for item in ordered]
 
-
-def _check_role(slot: Slot, base_dir: str, holders: dict[str, str]) -> None:
-    """Verify a declared singular role belongs to the data-derived holder.
-
-    A panel-local winner (the sweep minimum) is allowed alongside the global
-    winner, so a winner slot passes when it holds either.
-    """
-    if slot.role not in holders:
-        return
-    if slot.role == "winner":
-        return  # global vs panel-local winner checked in verify.py against the rendered set
-    if holders[slot.role] != base_dir:
-        raise ValueError(
-            f"slot {slot.label!r} declares role {slot.role!r} but data assigns it to {holders[slot.role]!r}, not {base_dir!r}"
+def _resolve_calibration(
+    spec: PanelSpec, configs: pd.DataFrame, holders: dict[str, str]
+) -> list[Row]:
+    """The global winner and its isotonic-calibrated twin, in that fixed order."""
+    winner = holders["winner"]
+    rows: list[Row] = []
+    for idx, key in enumerate((winner, f"{winner}_calibrated")):
+        rows.append(
+            _make_row(
+                spec,
+                key,
+                role="winner" if idx == 0 else "plain",
+                native=True,
+                is_cfg=True,
+                data=_series(configs, key),
+            )
         )
+        rows[-1].divider = idx == spec.divider_after
+    return rows
 
 
-def render_panel(panel: Panel, configs: pd.DataFrame, references: pd.DataFrame, holders: dict[str, str]) -> str:
-    """Render a full chart panel to its standalone card HTML."""
-    ordered = resolve_panel(panel, configs, references, holders)
-    rows: list[str] = []
-    for index, (slot, key, data, is_cfg) in enumerate(ordered):
-        is_divider = index == panel.divider_after
-        if is_cfg:
-            rows.append(render_row(key, data, slot, is_divider))
-        else:
-            rows.append(render_reference_row(data, slot, is_divider))
-    body = "\n\n".join(rows)
+def resolve(
+    spec: PanelSpec,
+    configs: pd.DataFrame,
+    references: pd.DataFrame,
+    holders: dict[str, str],
+) -> list[Row]:
+    """Resolve a bars or calibration panel to its ordered draw rows.
+
+    Head rows (references and, when pinned, the global winner) stay above the
+    sort boundary; the swept family and the borrowed context rows sort together
+    by MAE below it. Role color, the reused flag, and the divider all follow from
+    the data; only label text is looked up.
+    """
+    if spec.kind == "calibration":
+        return _resolve_calibration(spec, configs, holders)
+    if spec.native is None:
+        raise ValueError(f"{spec.out_name}: a bars panel needs a native family")
+
+    global_winner = holders["winner"]
+
+    def role_of(key: str) -> str:
+        for role, holder in holders.items():
+            if holder == key:
+                return role
+        return "plain"
+
+    # pinned head: reference bars and, unless it sorts into the body, the winner
+    head: list[Row] = []
+    for pinned in spec.head:
+        if pinned.ref_id is not None:
+            head.append(
+                _make_row(
+                    spec,
+                    pinned.ref_id,
+                    REF_ROLES[pinned.ref_id],
+                    True,
+                    False,
+                    _series(references, pinned.ref_id),
+                )
+            )
+        elif pinned.winner:
+            head.append(
+                _make_row(
+                    spec,
+                    global_winner,
+                    "winner",
+                    True,
+                    True,
+                    _series(configs, global_winner),
+                )
+            )
+
+    # swept family, then borrowed context rows, all sorted together by MAE
+    family = _native_family(spec.native, configs)
+    body: list[Row] = [
+        _make_row(
+            spec, str(key), role_of(str(key)), True, True, _series(configs, str(key))
+        )
+        for key in family.index
+    ]
+    if spec.accent_native_min:
+        min(body, key=lambda row: float(row.data["mae_mean"])).role = "winner"
+    if spec.winner_in_body:
+        body.append(
+            _make_row(
+                spec,
+                global_winner,
+                "winner",
+                False,
+                True,
+                _series(configs, global_winner),
+            )
+        )
+    for ctx in spec.context:
+        for key in _context_keys(ctx, configs, holders, spec.out_name):
+            body.append(
+                _make_row(
+                    spec, key, role_of(key), ctx.native, True, _series(configs, key)
+                )
+            )
+    body.sort(key=lambda row: float(row.data["mae_mean"]))
+
+    rows = head + body
+    for idx, row in enumerate(rows):
+        row.divider = idx == spec.divider_after
+    _check_labels_unique(rows, spec.out_name)
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# rendering
+# ---------------------------------------------------------------------------
+
+
+def render_panel(
+    spec: PanelSpec,
+    configs: pd.DataFrame,
+    references: pd.DataFrame,
+    holders: dict[str, str],
+) -> str:
+    """Render a full bars or calibration panel to its standalone card HTML."""
+    rendered = [
+        render_config_row(row) if row.is_cfg else render_reference_row(row)
+        for row in resolve(spec, configs, references, holders)
+    ]
+    body = "\n\n".join(rendered)
     return f"{CSS_STYLE}\n{CHART_OPEN}{body}\n{CHART_CLOSE}"
 
 
-def render_mini(mini: MiniPanel, configs: pd.DataFrame) -> str:
+def render_mini(spec: PanelSpec, configs: pd.DataFrame) -> str:
     """Render the PCA-width mini-chart, sorted by MAE with the minimum accented."""
-    resolved = []
-    for row in mini.rows:
-        cfg = select_one(configs, row.select)
-        resolved.append((row.label, cfg))
-    resolved.sort(key=lambda item: float(item[1]["mae_mean"]))
+    if spec.native is None:
+        raise ValueError(f"{spec.out_name}: a mini panel needs a native family")
+    family = _native_family(spec.native, configs)
+    resolved = [
+        (label_for(spec.out_name, str(key))[0], configs.loc[key])
+        for key in family.index
+    ]
     floor = min(float(cfg["mae_mean"]) for _, cfg in resolved)
 
     grid = 'style="grid-template-columns: 9rem 1fr 3.4rem;"'
     lines = [
         '<div class="pxr-post">',
         '    <div class="mini-chart">',
-        f'      <p class="mini-title">{mini.title}</p>',
+        f'      <p class="mini-title">{spec.title}</p>',
         f'      <div class="axis-ref" {grid}><div></div><div class="axis-ticks"><span>0.30</span><span>0.50</span><span>0.70</span></div><div></div></div>',
     ]
     for label, cfg in resolved:
@@ -1162,7 +1342,9 @@ def render_mini(mini: MiniPanel, configs: pd.DataFrame) -> str:
             f'        <div class="mini-track"><div class="mini-bar" style="width: {width}%; background: {bg};"></div>'
             f'<div class="err-whisker" style="left: {left}%; width: {span}%;"></div></div>'
         )
-        lines.append(f'        <span class="mini-val">{float(cfg["mae_mean"]):.4f}</span>')
+        lines.append(
+            f'        <span class="mini-val">{float(cfg["mae_mean"]):.4f}</span>'
+        )
         lines.append("      </div>")
     lines.append("    </div>")
     lines.append("</div>")
@@ -1182,32 +1364,33 @@ def attach_calibrated(configs: pd.DataFrame) -> pd.DataFrame:
     the ``_calibrated`` suffix on its base_dir.
     """
     configs = configs.copy()
-    configs["_calibrated"] = [str(name).endswith("_calibrated") for name in configs.index]
+    configs["_calibrated"] = [
+        str(name).endswith("_calibrated") for name in configs.index
+    ]
     return configs
 
 
 def main() -> None:
     """Render figure-01 .. figure-06 from the run index and reference table."""
-    configs = load_configs()
-    configs = attach_calibrated(configs)
+    configs = attach_calibrated(load_configs())
     references = pd.read_csv(REFERENCE_PATH).set_index("id")
     holders = role_holders(configs)
 
-    panels, mini = build_panels()
+    panels = build_panels()
     OUT_DIR.mkdir(exist_ok=True)
 
-    # the calibration panel resolves on the _calibrated column; every other
-    # panel selects non-calibrated runs, so drop the calibrated twin there
+    # the calibration panel resolves on the _calibrated column; every other panel
+    # selects non-calibrated runs, so drop the calibrated twin there
     plain_configs = configs[~configs["_calibrated"]]
 
-    for panel in panels:
-        source = configs if panel.out_name == "figure-06.html" else plain_configs
-        html = render_panel(panel, source, references, holders)
-        (OUT_DIR / panel.out_name).write_text(html)
-        print(f"wrote {panel.out_name}")
-
-    (OUT_DIR / mini.out_name).write_text(render_mini(mini, plain_configs))
-    print(f"wrote {mini.out_name}")
+    for spec in panels:
+        source = configs if spec.kind == "calibration" else plain_configs
+        if spec.kind == "mini":
+            html = render_mini(spec, source)
+        else:
+            html = render_panel(spec, source, references, holders)
+        (OUT_DIR / spec.out_name).write_text(html)
+        print(f"wrote {spec.out_name}")
 
 
 if __name__ == "__main__":
