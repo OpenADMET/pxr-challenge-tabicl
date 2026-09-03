@@ -726,6 +726,9 @@ class Row:
     is_cfg: bool
     divider: bool
     data: pd.Series
+    source: str = (
+        "panel"  # provenance that picks the label registry: reference | role | panel
+    )
 
 
 # reference rows carry a fixed role from their identity, not the data extrema
@@ -734,111 +737,72 @@ REF_ROLES = {"n283t_ensemble": "context", "n283t_target": "target"}
 # The declared label layer. Composition (which runs draw, in what order, in what
 # role, solid or reused) is computed; the text is not, because a label encodes
 # distinctions the spec columns do not (a column count, "head only" versus
-# "encoder + head"). LABELS is the per-run default keyed by base_dir or reference
-# id; LABEL_OVERRIDES is where one run reads differently under a panel's framing.
-# Folding the overrides into one label per run is a deliberate, reviewed step, so
-# the renderer never invents label text.
-LABELS: dict[str, tuple[str, str]] = {
+# "encoder + head"). The one text a row shows is fixed by how it entered its
+# panel, so there is exactly one lookup path and no overrides to keep in sync:
+#   - a reference row reads from REF_LABELS, keyed by reference id
+#   - a row borrowed as a computed role (the pinned winner, or a floor / single-
+#     ingredient / CheMeleon comparison) reads from ROLE_LABELS, keyed by role,
+#     so the same borrow reads the same everywhere it appears
+#   - a native family member or panel-specific constituent reads from
+#     PANEL_LABELS[panel], keyed by run, so a panel names each run by the axis it
+#     sweeps (a regressor name in the regressor panel, a featureset in the
+#     combination panel), even for a run that is native in two panels
+# A run therefore reads by its role where borrowed and by its identity where
+# native; the two never collide because provenance, not the run alone, selects
+# the registry.
+REF_LABELS: dict[str, tuple[str, str]] = {
     "n283t_ensemble": ("N283T ensemble", "context only, not our pipeline"),
     "n283t_target": ("N283T report target", "context only, not our pipeline"),
-    "tabicl_chemeleon_readout_only": (
+}
+
+ROLE_LABELS: dict[str, tuple[str, str]] = {
+    "winner": (
         "Our best overall",
         "CheMeleon embedding + log<sub>2</sub>FC readout, TabICL 2.1.1",
     ),
-    "tabicl_chemeleon_readout_only_calibrated": (
-        "Calibrated",
-        "isotonic map fit on 5-fold OOF predictions",
-    ),
-    "freeze2_hd512_clipoff": (
+    "floor": (
         "Concatenation architecture",
         "best of 18-config freeze/width/clip sweep",
     ),
-    "pxr_baseline_chemeleon_pec50": (
-        "CheMeleon baseline",
-        "encoder + head, dose-response only",
-    ),
-    "e4_finetune": (
-        "Fine-tuned log<sub>2</sub>FC encoder",
-        "encoder + head, dose-response + primary screen",
-    ),
-    "e4_finetune_drc_only": (
-        "Fine-tuned log<sub>2</sub>FC encoder",
-        "encoder + head, dose-response only",
-    ),
-    "e4_frozen": (
-        "Frozen log<sub>2</sub>FC encoder",
-        "head only, dose-response + primary screen",
-    ),
-    "e4_frozen_drc_only": (
-        "Frozen log<sub>2</sub>FC encoder",
-        "head only, dose-response only",
-    ),
-    "tabpfn_chemeleon_embed_only": (
-        "CheMeleon embedding",
-        "pretrained, no fine-tuning",
-    ),
-    "tabpfn_rdkit_only_pca128_no_embed_no_readout": (
-        "RDKit descriptors",
-        "217 columns, PCA-128",
-    ),
-    "tabpfn_embed_only_no_readout": (
-        "Best single-ingredient",
-        "log<sub>2</sub>FC embedding only",
-    ),
-    "tabpfn_readout_only_no_embed": (
-        "log<sub>2</sub>FC readout alone",
-        "no embedding, no descriptors",
-    ),
-    "tabpfn_mordred_only_pca128_no_embed_no_readout": (
-        "Descriptors alone",
-        "Mordred, no embedding, no log<sub>2</sub>FC readout",
-    ),
-    "tabpfn_chemeleon_readout_descriptors": (
-        "Embedding + log<sub>2</sub>FC readout + descriptors",
-        "CheMeleon embedding",
-    ),
-    "tabpfn_chemeleon_readout_only": (
-        "Embedding + log<sub>2</sub>FC readout",
-        "CheMeleon embedding, no descriptors",
-    ),
-    "tabpfn_readout_mordred_pca128_no_embed": (
-        "log<sub>2</sub>FC readout + descriptors",
-        "no embedding",
-    ),
-    "tabpfn_embed_readout_mordred_pca128": (
-        "Embedding + log<sub>2</sub>FC readout + descriptors",
-        "log<sub>2</sub>FC embedding",
-    ),
-    "tabpfn_embed_mordred_pca128_no_readout": (
-        "Embedding + descriptors",
-        "log<sub>2</sub>FC embedding, no log<sub>2</sub>FC readout",
-    ),
-    "tabpfn_chemeleon_descriptors_only": (
-        "Embedding + descriptors",
-        "CheMeleon embedding, no log<sub>2</sub>FC readout",
-    ),
-    "tabpfn_small_embed": (
-        "Embedding + log<sub>2</sub>FC readout",
-        "log<sub>2</sub>FC embedding, no descriptors",
-    ),
-    "tabicl_chemeleon_readout_descriptors": ("TabICL v2.1.1", ""),
-    "tabpfn-v3_chemeleon_readout_descriptors": ("TabPFN v3", ""),
-    "tabpfn-v2.6_chemeleon_readout_descriptors": ("TabPFN v2.6", ""),
-    "tabfm_n32_chemeleon_readout_descriptors": ("TabFM v1.0.0", "max_num_rows=500"),
-    "lgbm_chemeleon_readout_descriptors": ("LightGBM", ""),
-    "xgboost_chemeleon_readout_descriptors": ("XGBoost", ""),
-    "tabpfn_embed_readout_mordred_pca256": ("Mordred, 256", ""),
-    "tabpfn_embed_readout_mordred_pca64": ("Mordred, 64", ""),
-    "tabpfn_concat_small_embed": ("RDKit + Mordred, 128", ""),
-    "tabpfn_concat_pca256": ("RDKit + Mordred, 256", ""),
-    "tabpfn_concat_pca64": ("RDKit + Mordred, 64", ""),
+    "single_best": ("Best single-ingredient", "log<sub>2</sub>FC embedding"),
+    "chemeleon": ("CheMeleon baseline", "encoder + head, dose-response only"),
 }
 
-LABEL_OVERRIDES: dict[str, dict[str, tuple[str, str]]] = {
+PANEL_LABELS: dict[str, dict[str, tuple[str, str]]] = {
+    "figure-01.html": {
+        "freeze2_hd512_clipoff": (
+            "Concatenation architecture",
+            "best of 18-config freeze/width/clip sweep",
+        ),
+        "e4_finetune": (
+            "Fine-tuned log<sub>2</sub>FC encoder",
+            "encoder + head, dose-response + primary screen",
+        ),
+        "e4_finetune_drc_only": (
+            "Fine-tuned log<sub>2</sub>FC encoder",
+            "encoder + head, dose-response only",
+        ),
+        "e4_frozen": (
+            "Frozen log<sub>2</sub>FC encoder",
+            "head only, dose-response + primary screen",
+        ),
+        "e4_frozen_drc_only": (
+            "Frozen log<sub>2</sub>FC encoder",
+            "head only, dose-response only",
+        ),
+    },
     "figure-02.html": {
         "tabpfn_embed_only_no_readout": (
             "log<sub>2</sub>FC embedding",
             "from-scratch encoder, log<sub>2</sub>FC-trained",
+        ),
+        "tabpfn_chemeleon_embed_only": (
+            "CheMeleon embedding",
+            "pretrained, no fine-tuning",
+        ),
+        "tabpfn_rdkit_only_pca128_no_embed_no_readout": (
+            "RDKit descriptors",
+            "217 columns, PCA-128",
         ),
         "tabpfn_readout_only_no_embed": (
             "log<sub>2</sub>FC readout",
@@ -849,29 +813,80 @@ LABEL_OVERRIDES: dict[str, dict[str, tuple[str, str]]] = {
             "~1600 columns, PCA-128",
         ),
     },
+    "figure-03.html": {
+        "tabpfn_chemeleon_readout_descriptors": (
+            "Embedding + log<sub>2</sub>FC readout + descriptors",
+            "CheMeleon embedding",
+        ),
+        "tabpfn_chemeleon_readout_only": (
+            "Embedding + log<sub>2</sub>FC readout",
+            "CheMeleon embedding",
+        ),
+        "tabpfn_readout_mordred_pca128_no_embed": (
+            "log<sub>2</sub>FC readout + descriptors",
+            "",
+        ),
+        "tabpfn_embed_readout_mordred_pca128": (
+            "Embedding + log<sub>2</sub>FC readout + descriptors",
+            "log<sub>2</sub>FC embedding",
+        ),
+        "tabpfn_embed_mordred_pca128_no_readout": (
+            "Embedding + descriptors",
+            "log<sub>2</sub>FC embedding",
+        ),
+        "tabpfn_small_embed": (
+            "Embedding + log<sub>2</sub>FC readout",
+            "log<sub>2</sub>FC embedding",
+        ),
+        "tabpfn_chemeleon_descriptors_only": (
+            "Embedding + descriptors",
+            "CheMeleon embedding",
+        ),
+        # the two fresh constituents read like their figure-02 identities, minus
+        # the "alone" and negation text a single-ingredient row already implies
+        "tabpfn_readout_only_no_embed": ("log<sub>2</sub>FC readout", ""),
+        "tabpfn_mordred_only_pca128_no_embed_no_readout": ("Mordred descriptors", ""),
+    },
     "figure-04.html": {
+        "tabicl_chemeleon_readout_descriptors": ("TabICL v2.1.1", ""),
+        "tabpfn-v3_chemeleon_readout_descriptors": ("TabPFN v3", ""),
         "tabpfn_chemeleon_readout_descriptors": ("TabPFN v2.5", ""),
+        "tabpfn-v2.6_chemeleon_readout_descriptors": ("TabPFN v2.6", ""),
+        "tabfm_n32_chemeleon_readout_descriptors": ("TabFM v1.0.0", "max_num_rows=500"),
+        "lgbm_chemeleon_readout_descriptors": ("LightGBM", ""),
+        "xgboost_chemeleon_readout_descriptors": ("XGBoost", ""),
     },
     "figure-05.html": {
         "tabpfn_embed_readout_mordred_pca128": ("Mordred, 128", ""),
+        "tabpfn_concat_small_embed": ("RDKit + Mordred, 128", ""),
+        "tabpfn_embed_readout_mordred_pca256": ("Mordred, 256", ""),
+        "tabpfn_concat_pca256": ("RDKit + Mordred, 256", ""),
+        "tabpfn_concat_pca64": ("RDKit + Mordred, 64", ""),
+        "tabpfn_embed_readout_mordred_pca64": ("Mordred, 64", ""),
     },
     "figure-06.html": {
         "tabicl_chemeleon_readout_only": (
             "Uncalibrated",
             "CheMeleon embedding + log<sub>2</sub>FC readout, TabICL 2.1.1",
         ),
+        "tabicl_chemeleon_readout_only_calibrated": (
+            "Calibrated",
+            "isotonic map fit on 5-fold OOF predictions",
+        ),
     },
 }
 
 
-def label_for(out_name: str, key: str) -> tuple[str, str]:
-    """Resolve a run's label and sub for a panel, panel override before default."""
-    override = LABEL_OVERRIDES.get(out_name, {})
-    if key in override:
-        return override[key]
-    if key not in LABELS:
-        raise ValueError(f"{out_name}: no label declared for run {key!r}")
-    return LABELS[key]
+def label_for(source: str, role: str, out_name: str, key: str) -> tuple[str, str]:
+    """Resolve a row's label and sub from its provenance, one registry per source."""
+    if source == "reference":
+        return REF_LABELS[key]
+    if source == "role":
+        return ROLE_LABELS[role]
+    panel = PANEL_LABELS.get(out_name, {})
+    if key not in panel:
+        raise ValueError(f"{out_name}: no panel label declared for run {key!r}")
+    return panel[key]
 
 
 def build_panels() -> list[PanelSpec]:
@@ -1119,10 +1134,16 @@ def _series(frame: pd.DataFrame, key: str) -> pd.Series:
 
 
 def _make_row(
-    spec: PanelSpec, key: str, role: str, native: bool, is_cfg: bool, data: pd.Series
+    spec: PanelSpec,
+    key: str,
+    role: str,
+    native: bool,
+    is_cfg: bool,
+    data: pd.Series,
+    source: str,
 ) -> Row:
-    """Build a draw row, looking up its label under the panel's framing."""
-    label, sub = label_for(spec.out_name, key)
+    """Build a draw row, looking up its label from its provenance source."""
+    label, sub = label_for(source, role, spec.out_name, key)
     return Row(
         key=key,
         label=label,
@@ -1132,6 +1153,7 @@ def _make_row(
         is_cfg=is_cfg,
         divider=False,
         data=data,
+        source=source,
     )
 
 
@@ -1198,6 +1220,7 @@ def _resolve_calibration(
                 native=True,
                 is_cfg=True,
                 data=_series(configs, key),
+                source="panel",
             )
         )
         rows[-1].divider = idx == spec.divider_after
@@ -1242,6 +1265,7 @@ def resolve(
                     True,
                     False,
                     _series(references, pinned.ref_id),
+                    source="reference",
                 )
             )
         elif pinned.winner:
@@ -1253,6 +1277,7 @@ def resolve(
                     True,
                     True,
                     _series(configs, global_winner),
+                    source="role",
                 )
             )
 
@@ -1260,7 +1285,13 @@ def resolve(
     family = _native_family(spec.native, configs)
     body: list[Row] = [
         _make_row(
-            spec, str(key), role_of(str(key)), True, True, _series(configs, str(key))
+            spec,
+            str(key),
+            role_of(str(key)),
+            True,
+            True,
+            _series(configs, str(key)),
+            source="panel",
         )
         for key in family.index
     ]
@@ -1275,13 +1306,24 @@ def resolve(
                 False,
                 True,
                 _series(configs, global_winner),
+                source="role",
             )
         )
+
+    # a borrowed context row reads by its role (role source); a predicate context
+    # row reads by its native identity in this panel (panel source)
     for ctx in spec.context:
+        source = "role" if ctx.role is not None else "panel"
         for key in _context_keys(ctx, configs, holders, spec.out_name):
             body.append(
                 _make_row(
-                    spec, key, role_of(key), ctx.native, True, _series(configs, key)
+                    spec,
+                    key,
+                    role_of(key),
+                    ctx.native,
+                    True,
+                    _series(configs, key),
+                    source=source,
                 )
             )
     body.sort(key=lambda row: float(row.data["mae_mean"]))
@@ -1319,7 +1361,7 @@ def render_mini(spec: PanelSpec, configs: pd.DataFrame) -> str:
         raise ValueError(f"{spec.out_name}: a mini panel needs a native family")
     family = _native_family(spec.native, configs)
     resolved = [
-        (label_for(spec.out_name, str(key))[0], configs.loc[key])
+        (label_for("panel", "plain", spec.out_name, str(key))[0], configs.loc[key])
         for key in family.index
     ]
     floor = min(float(cfg["mae_mean"]) for _, cfg in resolved)
