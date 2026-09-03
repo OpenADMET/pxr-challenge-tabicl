@@ -813,39 +813,43 @@ PANEL_LABELS: dict[str, dict[str, tuple[str, str]]] = {
             "~1600 → 128 columns",
         ),
     },
+    # each combination names its specific embedding in the main label so the row
+    # stands alone, and the sub gives the per-ingredient column split (embedding
+    # 256, log2FC readout 2, descriptors 128) in the same order the main lists them
     "figure-03.html": {
         "tabpfn_chemeleon_readout_descriptors": (
-            "Embedding + log<sub>2</sub>FC readout + descriptors",
-            "CheMeleon embedding",
+            "CheMeleon embedding + log<sub>2</sub>FC readout + descriptors",
+            "256 + 2 + 128 columns",
         ),
         "tabpfn_chemeleon_readout_only": (
-            "Embedding + log<sub>2</sub>FC readout",
-            "CheMeleon embedding",
+            "CheMeleon embedding + log<sub>2</sub>FC readout",
+            "256 + 2 columns",
         ),
         "tabpfn_readout_mordred_pca128_no_embed": (
             "log<sub>2</sub>FC readout + descriptors",
-            "",
+            "2 + 128 columns",
         ),
         "tabpfn_embed_readout_mordred_pca128": (
-            "Embedding + log<sub>2</sub>FC readout + descriptors",
-            "log<sub>2</sub>FC embedding",
+            "log<sub>2</sub>FC embedding + log<sub>2</sub>FC readout + descriptors",
+            "256 + 2 + 128 columns",
         ),
         "tabpfn_embed_mordred_pca128_no_readout": (
-            "Embedding + descriptors",
-            "log<sub>2</sub>FC embedding",
+            "log<sub>2</sub>FC embedding + descriptors",
+            "256 + 128 columns",
         ),
         "tabpfn_small_embed": (
-            "Embedding + log<sub>2</sub>FC readout",
-            "log<sub>2</sub>FC embedding",
+            "log<sub>2</sub>FC embedding + log<sub>2</sub>FC readout",
+            "256 + 2 columns",
         ),
         "tabpfn_chemeleon_descriptors_only": (
-            "Embedding + descriptors",
-            "CheMeleon embedding",
+            "CheMeleon embedding + descriptors",
+            "256 + 128 columns",
         ),
-        # the two fresh constituents read like their figure-02 identities, minus
-        # the "alone" and negation text a single-ingredient row already implies
-        "tabpfn_readout_only_no_embed": ("log<sub>2</sub>FC readout", ""),
-        "tabpfn_mordred_only_pca128_no_embed_no_readout": ("Mordred descriptors", ""),
+        "tabpfn_readout_only_no_embed": ("log<sub>2</sub>FC readout", "2 columns"),
+        "tabpfn_mordred_only_pca128_no_embed_no_readout": (
+            "Mordred descriptors",
+            "128 columns",
+        ),
     },
     "figure-04.html": {
         "tabicl_chemeleon_readout_descriptors": ("TabICL v2.1.1", ""),
