@@ -437,194 +437,59 @@
   </div>
  </div>
  <div class="rows">
-  <!-- PANEL:01:START -->
-  <div class="row context">
-   <div class="row-label">
-    N283T ensemble
-    <span class="sub">
-     context only, not our pipeline
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar context-bar" style="width: 27.0%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    ~0.408
-   </div>
-  </div>
-  <div class="row target">
-   <div class="row-label">
-    N283T report target
-    <span class="sub">
-     frozen ChemProp embedding + TabPFN
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar target-bar" style="width: 34.3%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.437
-   </div>
-  </div>
-  <div class="row winner ref-divider">
-   <div class="row-label">
-    Our best overall
-    <span class="sub">
-     CheMeleon embedding + log
-     <sub>
-      2
-     </sub>
-     FC readout, TabICL 2.1.1
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar win" style="width: 33.9%;">
-    </div>
-    <div class="err-whisker" style="left: 32.6%; width: 2.9%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.4356
-   </div>
-  </div>
-  <div class="row single_best">
-   <div class="row-label">
-    log
-    <sub>
-     2
-    </sub>
-    FC embedding
-    <span class="sub">
-     from-scratch encoder, log
-     <sub>
-      2
-     </sub>
-     FC-trained
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar" style="width: 44.5%; background-color: var(--blue);">
-    </div>
-    <div class="err-whisker" style="left: 42.2%; width: 6.1%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.4780
-   </div>
-  </div>
-  <div class="row">
-   <div class="row-label">
-    CheMeleon embedding
-    <span class="sub">
-     pretrained, no fine-tuning
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar" style="width: 50.0%;">
-    </div>
-    <div class="err-whisker" style="left: 49.2%; width: 1.3%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.5002
-   </div>
-  </div>
-  <div class="row floor">
-   <div class="row-label">
-    Best GNN baseline
-    <span class="sub">
-     concatenation architecture
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar floor-bar reused" style="width: 54.4%;">
-    </div>
-    <div class="err-whisker" style="left: 48.0%; width: 10.5%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.5176
-   </div>
-  </div>
-  <div class="row chemeleon">
-   <div class="row-label">
-    CheMeleon baseline
-    <span class="sub">
-     no log
-     <sub>
-      2
-     </sub>
-     FC pretraining, single-stage
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar reused" style="width: 55.4%; background-color: var(--magenta);">
-    </div>
-    <div class="err-whisker" style="left: 51.4%; width: 8.7%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.5215
-   </div>
-  </div>
-  <div class="row">
-   <div class="row-label">
-    RDKit descriptors
-    <span class="sub">
-     217 columns, PCA-128
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar" style="width: 57.8%;">
-    </div>
-    <div class="err-whisker" style="left: 57.2%; width: 1.3%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.5312
-   </div>
-  </div>
-  <div class="row">
-   <div class="row-label">
-    Predicted log
-    <sub>
-     2
-    </sub>
-    FC readout
-    <span class="sub">
-     encoder's own prediction, 2 columns
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar" style="width: 60.3%;">
-    </div>
-    <div class="err-whisker" style="left: 57.8%; width: 4.0%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.5410
-   </div>
-  </div>
-  <div class="row">
-   <div class="row-label">
-    Mordred descriptors
-    <span class="sub">
-     ~1600 columns, PCA-128
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar" style="width: 69.6%;">
-    </div>
-    <div class="err-whisker" style="left: 68.8%; width: 1.3%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.5784
-   </div>
-  </div>
-  <!-- PANEL:01:END -->
+      <div class="row context">
+        <div class="row-label">N283T ensemble<span class="sub">context only, not our pipeline</span></div>
+        <div class="track"><div class="bar context-bar" style="width: 27.0%;"></div></div>
+        <div class="mae-val">~0.408</div>
+      </div>
+
+      <div class="row target">
+        <div class="row-label">N283T report target<span class="sub">frozen Chemprop embedding + TabPFN</span></div>
+        <div class="track"><div class="bar target-bar" style="width: 34.3%;"></div></div>
+        <div class="mae-val">0.437</div>
+      </div>
+
+      <div class="row winner ref-divider">
+        <div class="row-label">Our best overall<span class="sub">CheMeleon embedding + log<sub>2</sub>FC readout, TabICL 2.1.1</span></div>
+        <div class="track"><div class="bar win" style="width: 33.9%;"></div><div class="err-whisker" style="left: 32.6%; width: 2.9%;"></div></div>
+        <div class="mae-val">0.4356</div>
+      </div>
+
+      <div class="row floor">
+        <div class="row-label">Concatenation architecture<span class="sub">best of 18-config freeze/width/clip sweep</span></div>
+        <div class="track"><div class="bar floor-bar" style="width: 54.4%;"></div><div class="err-whisker" style="left: 48.0%; width: 10.5%;"></div></div>
+        <div class="mae-val">0.5176</div>
+      </div>
+
+      <div class="row chemeleon">
+        <div class="row-label">CheMeleon baseline<span class="sub">no log<sub>2</sub>FC pretraining, single-stage</span></div>
+        <div class="track"><div class="bar" style="width: 55.4%; background-color: var(--magenta);"></div><div class="err-whisker" style="left: 51.4%; width: 8.7%;"></div></div>
+        <div class="mae-val">0.5215</div>
+      </div>
+
+      <div class="row">
+        <div class="row-label">Fine-tuned log<sub>2</sub>FC encoder<span class="sub">full model, dose-response only</span></div>
+        <div class="track"><div class="bar" style="width: 58.5%;"></div><div class="err-whisker" style="left: 52.6%; width: 20.6%;"></div></div>
+        <div class="mae-val">0.5339</div>
+      </div>
+
+      <div class="row">
+        <div class="row-label">Frozen log<sub>2</sub>FC encoder<span class="sub">FFN only, dose-response + primary screen</span></div>
+        <div class="track"><div class="bar" style="width: 61.6%;"></div><div class="err-whisker" style="left: 57.4%; width: 8.4%;"></div></div>
+        <div class="mae-val">0.5464</div>
+      </div>
+
+      <div class="row">
+        <div class="row-label">Fine-tuned log<sub>2</sub>FC encoder<span class="sub">full model, dose-response + primary screen</span></div>
+        <div class="track"><div class="bar" style="width: 64.3%;"></div><div class="err-whisker" style="left: 60.2%; width: 7.6%;"></div></div>
+        <div class="mae-val">0.5573</div>
+      </div>
+
+      <div class="row">
+        <div class="row-label">Frozen log<sub>2</sub>FC encoder<span class="sub">FFN-tuned, dose-response only</span></div>
+        <div class="track"><div class="bar" style="width: 71.2%;"></div><div class="err-whisker" style="left: 54.6%; width: 32.8%;"></div></div>
+        <div class="mae-val">0.5849</div>
+      </div>
  </div>
 </div>
 </div>

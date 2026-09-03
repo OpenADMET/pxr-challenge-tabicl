@@ -418,200 +418,101 @@
   .pxr-post { padding: 0; max-width: none; margin: 0; }
 </style>
 <div class="pxr-post">
-<div class="chart">
- <div class="axis-ref">
-  <div>
-  </div>
-  <div class="axis-ticks">
-   <span>
-    0.30
-   </span>
-   <span>
-    0.50
-   </span>
-   <span>
-    0.70
-   </span>
-  </div>
-  <div>
-  </div>
- </div>
- <div class="rows">
-  <!-- PANEL:00:START -->
-  <div class="row context">
-   <div class="row-label">
-    N283T ensemble
-    <span class="sub">
-     context only, not our pipeline
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar context-bar" style="width: 27.0%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    ~0.408
-   </div>
-  </div>
-  <div class="row target">
-   <div class="row-label">
-    N283T report target
-    <span class="sub">
-     frozen ChemProp embedding + TabPFN
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar target-bar" style="width: 34.3%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.437
-   </div>
-  </div>
-  <div class="row winner ref-divider">
-   <div class="row-label">
-    Our best overall
-    <span class="sub">
-     CheMeleon embedding + log
-     <sub>
-      2
-     </sub>
-     FC readout, TabICL 2.1.1
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar win" style="width: 33.9%;">
-    </div>
-    <div class="err-whisker" style="left: 32.6%; width: 2.9%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.4356
-   </div>
-  </div>
-  <div class="row floor">
-   <div class="row-label">
-    Concatenation architecture
-    <span class="sub">
-     best of 18-config freeze/width/clip sweep
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar floor-bar" style="width: 54.4%;">
-    </div>
-    <div class="err-whisker" style="left: 48.0%; width: 10.5%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.5176
-   </div>
-  </div>
-  <div class="row chemeleon">
-   <div class="row-label">
-    CheMeleon baseline
-    <span class="sub">
-     no log
-     <sub>
-      2
-     </sub>
-     FC pretraining, single-stage
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar" style="width: 55.4%; background-color: var(--magenta);">
-    </div>
-    <div class="err-whisker" style="left: 51.4%; width: 8.7%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.5215
-   </div>
-  </div>
-  <div class="row">
-   <div class="row-label">
-    Fine-tuned log
-    <sub>
-     2
-    </sub>
-    FC encoder
-    <span class="sub">
-     full model, dose-response only
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar" style="width: 58.5%;">
-    </div>
-    <div class="err-whisker" style="left: 52.6%; width: 20.6%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.5339
-   </div>
-  </div>
-  <div class="row">
-   <div class="row-label">
-    Frozen log
-    <sub>
-     2
-    </sub>
-    FC encoder
-    <span class="sub">
-     FFN only, dose-response + primary screen
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar" style="width: 61.6%;">
-    </div>
-    <div class="err-whisker" style="left: 57.4%; width: 8.4%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.5464
-   </div>
-  </div>
-  <div class="row">
-   <div class="row-label">
-    Fine-tuned log
-    <sub>
-     2
-    </sub>
-    FC encoder
-    <span class="sub">
-     full model, dose-response + primary screen
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar" style="width: 64.3%;">
-    </div>
-    <div class="err-whisker" style="left: 60.2%; width: 7.6%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.5573
-   </div>
-  </div>
-  <div class="row">
-   <div class="row-label">
-    Frozen log
-    <sub>
-     2
-    </sub>
-    FC encoder
-    <span class="sub">
-     FFN-tuned, dose-response only
-    </span>
-   </div>
-   <div class="track">
-    <div class="bar" style="width: 71.2%;">
-    </div>
-    <div class="err-whisker" style="left: 54.6%; width: 32.8%;">
-    </div>
-   </div>
-   <div class="mae-val">
-    0.5849
-   </div>
-  </div>
-  <!-- PANEL:00:END -->
+<div class="support-grid">
+ <div class="scatter-wrap">
+  <p class="mini-title">
+   Miscalibration area: empirical coverage vs. nominal level, all 9 quantiles
+  </p>
+  <svg aria-label="Reliability diagram plotting empirical coverage against nominal quantile level, with the gap to perfect calibration shaded" class="scatter-svg" role="img" viewbox="0 0 384 374">
+   <line class="scatter-grid" x1="114" x2="114" y1="14" y2="334">
+   </line>
+   <line class="scatter-grid" x1="178" x2="178" y1="14" y2="334">
+   </line>
+   <line class="scatter-grid" x1="242" x2="242" y1="14" y2="334">
+   </line>
+   <line class="scatter-grid" x1="306" x2="306" y1="14" y2="334">
+   </line>
+   <line class="scatter-grid" x1="50" x2="370" y1="270" y2="270">
+   </line>
+   <line class="scatter-grid" x1="50" x2="370" y1="206" y2="206">
+   </line>
+   <line class="scatter-grid" x1="50" x2="370" y1="142" y2="142">
+   </line>
+   <line class="scatter-grid" x1="50" x2="370" y1="78" y2="78">
+   </line>
+   <line class="scatter-axis" x1="50" x2="50" y1="14" y2="334">
+   </line>
+   <line class="scatter-axis" x1="50" x2="370" y1="334" y2="334">
+   </line>
+   <line class="calib-diagonal" x1="50" x2="370" y1="334" y2="14">
+   </line>
+   <polygon class="calib-area" points="82,311.5 114,282.8 146,267.9 178,239.8 210,206.7 242,174.3 274,139.4 306,100.7 338,64.5 338,46.0 306,78.0 274,110.0 242,142.0 210,174.0 178,206.0 146,238.0 114,270.0 82,302.0">
+   </polygon>
+   <polyline class="calib-curve" points="82,311.5 114,282.8 146,267.9 178,239.8 210,206.7 242,174.3 274,139.4 306,100.7 338,64.5">
+   </polyline>
+   <g class="calib-points">
+    <circle cx="82" cy="311.5" r="2.8">
+    </circle>
+    <circle cx="114" cy="282.8" r="2.8">
+    </circle>
+    <circle cx="146" cy="267.9" r="2.8">
+    </circle>
+    <circle cx="178" cy="239.8" r="2.8">
+    </circle>
+    <circle cx="210" cy="206.7" r="2.8">
+    </circle>
+    <circle cx="242" cy="174.3" r="2.8">
+    </circle>
+    <circle cx="274" cy="139.4" r="2.8">
+    </circle>
+    <circle cx="306" cy="100.7" r="2.8">
+    </circle>
+    <circle cx="338" cy="64.5" r="2.8">
+    </circle>
+   </g>
+   <text class="scatter-tick" text-anchor="middle" x="50" y="349">
+    0
+   </text>
+   <text class="scatter-tick" text-anchor="middle" x="114" y="349">
+    0.2
+   </text>
+   <text class="scatter-tick" text-anchor="middle" x="178" y="349">
+    0.4
+   </text>
+   <text class="scatter-tick" text-anchor="middle" x="242" y="349">
+    0.6
+   </text>
+   <text class="scatter-tick" text-anchor="middle" x="306" y="349">
+    0.8
+   </text>
+   <text class="scatter-tick" text-anchor="middle" x="370" y="349">
+    1.0
+   </text>
+   <text class="scatter-tick" text-anchor="end" x="42" y="337">
+    0
+   </text>
+   <text class="scatter-tick" text-anchor="end" x="42" y="273">
+    0.2
+   </text>
+   <text class="scatter-tick" text-anchor="end" x="42" y="209">
+    0.4
+   </text>
+   <text class="scatter-tick" text-anchor="end" x="42" y="145">
+    0.6
+   </text>
+   <text class="scatter-tick" text-anchor="end" x="42" y="81">
+    0.8
+   </text>
+   <text class="scatter-tick" text-anchor="end" x="42" y="17">
+    1.0
+   </text>
+   <text class="scatter-axis-label" text-anchor="middle" x="210" y="366">
+    nominal level
+   </text>
+   <text class="scatter-axis-label" text-anchor="middle" transform="rotate(-90 16 174)" x="16" y="174">
+    empirical coverage
+   </text>
+  </svg>
  </div>
 </div>
 </div>

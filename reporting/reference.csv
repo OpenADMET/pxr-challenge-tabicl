@@ -1,0 +1,3 @@
+id,label,sub,mae,mae_display,source,external
+n283t_ensemble,N283T ensemble,"context only, not our pipeline",0.408,~0.408,N283T challenge report ensemble MAE,True
+n283t_target,N283T report target,frozen Chemprop embedding + TabPFN,0.437,0.437,N283T challenge report headline target MAE,True
