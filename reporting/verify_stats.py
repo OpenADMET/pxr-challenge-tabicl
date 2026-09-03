@@ -7,7 +7,9 @@ two experiments' per-seed MAE arrays is naturally paired by seed and
 numbers (``n283t_ensemble``, ``n283t_target``) have no seed data of their
 own; where the manuscript compares one of our 5-seed distributions against
 one of those fixed external values, a one-sample ``ttest_1samp`` is used
-instead.
+instead. The CheMeleon->pEC50 baseline is likewise a single ``openadmet-models``
+anvil run with no seed sweep, so panel 00 tests the concatenation architecture's
+5 seeds against its pooled MAE one-sample as well.
 
 Every number quoted in blogpost.md is asserted through :func:`check`,
 :func:`check_below`, or :func:`check_atleast`, so this is a gate, not a
@@ -19,6 +21,7 @@ any claim that has drifted past its tolerance. Run from the repo root::
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -29,6 +32,7 @@ from manifest import EXPERIMENTS
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 SEEDS = range(5)
+ANVIL_BASELINE_DIRS = ("pxr_baseline_predictions_phase1", "pxr_baseline_predictions_phase2")
 
 
 # ── loading ──────────────────────────────────────────────────────────────────
@@ -62,6 +66,28 @@ def fixed_value(key: str) -> float:
     if exp.fixed_mae is None:
         raise ValueError(f"{key!r} has no fixed_mae; use seed_mae instead")
     return exp.fixed_mae
+
+
+def anvil_baseline_mae() -> float:
+    """Return the CheMeleon->pEC50 anvil baseline's pooled MAE over the blind set.
+
+    The baseline is one directly-fine-tuned CheMeleon model scored on the two
+    blind phases separately, each with its own ``regression_metrics.json``. MAE is
+    a mean of absolute errors, so the pooled value is the per-phase MAEs weighted
+    by compound count, matching ``build_run_provenance._combine_baseline_metrics``.
+    Derived from source here rather than read from the results table so the gate
+    stays self-contained and reproducible.
+    """
+    total_n = 0
+    sum_abs = 0.0
+    for name in ANVIL_BASELINE_DIRS:
+        run_dir = RESULTS_DIR / name
+        metrics = json.loads((run_dir / "regression_metrics.json").read_text())
+        target = next(k for k in metrics if k != "tag")
+        n = len(pd.read_csv(run_dir / "data" / "y_test.csv"))
+        sum_abs += n * metrics[target]["mae"]["value"]
+        total_n += n
+    return sum_abs / total_n
 
 
 # ── reporting ────────────────────────────────────────────────────────────────
@@ -138,17 +164,19 @@ def main() -> None:
     print("PANEL 00 — graph-network baselines")
     print("=" * 64)
 
-    # Concatenation architecture ("floor") vs the plain CheMeleon baseline:
-    # text claims it "did surpass" the baseline.
+    # Concatenation architecture ("floor") vs the real CheMeleon baseline:
+    # text claims the concat mean came in nominally lower. The baseline is a
+    # single anvil run with no seed distribution, so this is a one-sample test
+    # of the concat 5-seed MAE against its fixed pooled value, not a paired one.
     concat = seed_mae("concat_architecture")
-    chemeleon_baseline = seed_mae("fine_tuned_pec50_direct")
+    base_mae = anvil_baseline_mae()
     m_concat, m_chemeleon, p = report(
-        "[00] concat_architecture vs fine_tuned_pec50_direct (CheMeleon baseline)",
+        "[00] concat_architecture vs CheMeleon->pEC50 anvil baseline (one-sample)",
         concat,
-        chemeleon_baseline,
+        base_mae,
     )
     check("[00] concat_architecture mean", m_concat, 0.5176, 0.001)
-    check("[00] CheMeleon baseline mean", m_chemeleon, 0.5215, 0.001)
+    check("[00] CheMeleon baseline mean", m_chemeleon, 0.5348, 0.001)
     check_below("[00] concat nominally lower than CheMeleon baseline", m_concat - m_chemeleon, 0.0)
     check_atleast("[00] concat-vs-CheMeleon-baseline gap not significant", p, 0.05)
 
