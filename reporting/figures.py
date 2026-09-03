@@ -181,7 +181,7 @@ CSS_STYLE = """<style>.pxr-post {
     padding: 1.6rem 1.6rem 1.3rem;
   }.pxr-post .axis-ref {
     display: grid;
-    grid-template-columns: 15rem 1fr 4.2rem;
+    grid-template-columns: 17rem 1fr 4.2rem;
     gap: 0.6rem;
     margin-bottom: 0.4rem;
   }.pxr-post .axis-ticks {
@@ -196,7 +196,7 @@ CSS_STYLE = """<style>.pxr-post {
     gap: 0.55rem;
   }.pxr-post .row {
     display: grid;
-    grid-template-columns: 15rem 1fr 4.2rem;
+    grid-template-columns: 17rem 1fr 4.2rem;
     align-items: center;
     gap: 0.6rem;
     /* Fixed to the two-line (label + sub) height so bar-to-bar spacing
