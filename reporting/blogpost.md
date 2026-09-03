@@ -32,7 +32,7 @@ We then tested each of four candidate ingredients individually (the raw embeddin
 
 *(paste `reporting/figures/figure-02.html` here as an HTML card)*
 
-*(caption TK)*
+**Figure 2. Single-ingredient contributions.** The panel reports blind-set mean absolute error (MAE) for each candidate feature on its own, fed to TabPFN v2.5 (the "our best overall" reference row above the divider uses TabICL 2.1.1 instead). Four candidate ingredients appear individually, the log<sub>2</sub>FC-trained Chemprop embedding, the log<sub>2</sub>FC readout (the Chemprop head's own two-column prediction), and the RDKit and Mordred descriptor sets, with CheMeleon's off-the-shelf pretrained embedding shown alongside as a no-fine-tuning comparison. The two descriptor sets and the CheMeleon embedding are PCA-reduced to fit under TabPFN's feature limit (RDKit 217 → 128, Mordred ~1600 → 128, CheMeleon 2048 → 256 columns), while the log<sub>2</sub>FC embedding is a natively 256-dimensional encoder and the readout is two raw columns. The Concatenation architecture and CheMeleon baseline rows repeat the best GNN configuration and the single-stage CheMeleon baseline from Figure 1 for scale. The N283T ensemble, the N283T report target, and our best result overall are reproduced above the dashed divider for reference.
 
 ---
 
