@@ -199,18 +199,20 @@ CSS_STYLE = """<style>.pxr-post {
     grid-template-columns: 17rem 1fr 4.2rem;
     align-items: center;
     gap: 0.6rem;
-    /* Fixed to the two-line (label + sub) height so bar-to-bar spacing
-       stays even whether or not a given row's sub label is present; the
-       label column is widened to keep every sub on one line, so no row
-       needs a third line */
-    min-height: 1.9rem;
+    /* Fixed to the tallest case, a two-line label over a one-line sub, so
+       bar-to-bar spacing stays even whether or not a given row wraps or
+       carries a sub; line-heights below are explicit so this height is exact:
+       2 * 0.86 * 1.25 + 0.72 * 1.25 = 3.05rem */
+    min-height: 3.05rem;
   }.pxr-post .row-label {
     font-size: 0.86rem;
+    line-height: 1.25;
     text-align: right;
     color: var(--ink);
   }.pxr-post .row-label .sub {
     display: block;
     font-size: 0.72rem;
+    line-height: 1.25;
     color: var(--ink-soft);
   }.pxr-post .track {
     position: relative;
