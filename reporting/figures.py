@@ -794,7 +794,7 @@ PANEL_LABELS: dict[str, dict[str, tuple[str, str]]] = {
     "figure-02.html": {
         "tabpfn_embed_only_no_readout": (
             "log<sub>2</sub>FC embedding",
-            "from-scratch encoder, log<sub>2</sub>FC-trained",
+            "Chemprop encoder, log<sub>2</sub>FC-trained",
         ),
         "tabpfn_chemeleon_embed_only": (
             "CheMeleon embedding",
@@ -806,7 +806,7 @@ PANEL_LABELS: dict[str, dict[str, tuple[str, str]]] = {
         ),
         "tabpfn_readout_only_no_embed": (
             "log<sub>2</sub>FC readout",
-            "encoder's own prediction, 2 columns",
+            "Chemprop head, log<sub>2</sub>FC-trained",
         ),
         "tabpfn_mordred_only_pca128_no_embed_no_readout": (
             "Mordred descriptors",
