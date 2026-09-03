@@ -798,11 +798,11 @@ PANEL_LABELS: dict[str, dict[str, tuple[str, str]]] = {
         ),
         "tabpfn_chemeleon_embed_only": (
             "CheMeleon embedding",
-            "pretrained, no fine-tuning",
+            "pretrained, 2048 → 256 columns",
         ),
         "tabpfn_rdkit_only_pca128_no_embed_no_readout": (
             "RDKit descriptors",
-            "217 columns, PCA-128",
+            "217 → 128 columns",
         ),
         "tabpfn_readout_only_no_embed": (
             "log<sub>2</sub>FC readout",
@@ -810,7 +810,7 @@ PANEL_LABELS: dict[str, dict[str, tuple[str, str]]] = {
         ),
         "tabpfn_mordred_only_pca128_no_embed_no_readout": (
             "Mordred descriptors",
-            "~1600 columns, PCA-128",
+            "~1600 → 128 columns",
         ),
     },
     "figure-03.html": {
