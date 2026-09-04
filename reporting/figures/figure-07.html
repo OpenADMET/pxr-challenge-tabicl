@@ -422,8 +422,8 @@
 <div class="pxr-post">
 <div class="support-grid">
  <div class="scatter-wrap">
-  <p class="mini-title">|residual| vs. predicted std, 513 blind compounds</p>
-  <svg aria-label="Scatter plot of predicted standard deviation versus absolute residual for 513 blind compounds" class="scatter-svg" role="img" viewBox="0 0 560 545">
+  <p class="mini-title">|residual| vs. predicted std, 513 test compounds</p>
+  <svg aria-label="Scatter plot of predicted standard deviation versus absolute residual for 513 test compounds" class="scatter-svg" role="img" viewBox="0 0 560 545">
    <line class="scatter-grid" x1="124.9" x2="124.9" y1="14" y2="509.0"></line>
    <line class="scatter-grid" x1="332.8" x2="332.8" y1="14" y2="509.0"></line>
    <line class="scatter-grid" x1="540.6" x2="540.6" y1="14" y2="509.0"></line>
@@ -957,6 +957,49 @@
     <circle cx="101.0" cy="461.0" r="2.6"></circle>
     <circle cx="171.5" cy="470.6" r="2.6"></circle>
    </g>
+  </svg>
+ </div>
+ <div class="scatter-wrap">
+  <p class="mini-title">Miscalibration area: empirical coverage vs. nominal level, all 9 quantiles</p>
+  <svg aria-label="Reliability diagram plotting empirical coverage against nominal quantile level, with the gap to perfect calibration shaded" class="scatter-svg" role="img" viewBox="0 0 384 374">
+   <line class="scatter-grid" x1="114" x2="114" y1="14" y2="334"></line>
+   <line class="scatter-grid" x1="178" x2="178" y1="14" y2="334"></line>
+   <line class="scatter-grid" x1="242" x2="242" y1="14" y2="334"></line>
+   <line class="scatter-grid" x1="306" x2="306" y1="14" y2="334"></line>
+   <line class="scatter-grid" x1="50" x2="370" y1="270" y2="270"></line>
+   <line class="scatter-grid" x1="50" x2="370" y1="206" y2="206"></line>
+   <line class="scatter-grid" x1="50" x2="370" y1="142" y2="142"></line>
+   <line class="scatter-grid" x1="50" x2="370" y1="78" y2="78"></line>
+   <line class="scatter-axis" x1="50" x2="50" y1="14" y2="334"></line>
+   <line class="scatter-axis" x1="50" x2="370" y1="334" y2="334"></line>
+   <line class="calib-diagonal" x1="50" x2="370" y1="334" y2="14"></line>
+   <polygon class="calib-area" points="82.0,312.8 114.0,287.8 146.0,266.0 178.0,242.9 210.0,213.6 242.0,179.9 274.0,144.4 306.0,102.6 338.0,64.5 338.0,46.0 306.0,78.0 274.0,110.0 242.0,142.0 210.0,174.0 178.0,206.0 146.0,238.0 114.0,270.0 82.0,302.0"></polygon>
+   <polyline class="calib-curve" points="82.0,312.8 114.0,287.8 146.0,266.0 178.0,242.9 210.0,213.6 242.0,179.9 274.0,144.4 306.0,102.6 338.0,64.5"></polyline>
+   <g class="calib-points">
+    <circle cx="82.0" cy="312.8" r="2.8"></circle>
+    <circle cx="114.0" cy="287.8" r="2.8"></circle>
+    <circle cx="146.0" cy="266.0" r="2.8"></circle>
+    <circle cx="178.0" cy="242.9" r="2.8"></circle>
+    <circle cx="210.0" cy="213.6" r="2.8"></circle>
+    <circle cx="242.0" cy="179.9" r="2.8"></circle>
+    <circle cx="274.0" cy="144.4" r="2.8"></circle>
+    <circle cx="306.0" cy="102.6" r="2.8"></circle>
+    <circle cx="338.0" cy="64.5" r="2.8"></circle>
+   </g>
+   <text class="scatter-tick" text-anchor="middle" x="50" y="349">0</text>
+   <text class="scatter-tick" text-anchor="middle" x="114" y="349">0.2</text>
+   <text class="scatter-tick" text-anchor="middle" x="178" y="349">0.4</text>
+   <text class="scatter-tick" text-anchor="middle" x="242" y="349">0.6</text>
+   <text class="scatter-tick" text-anchor="middle" x="306" y="349">0.8</text>
+   <text class="scatter-tick" text-anchor="middle" x="370" y="349">1</text>
+   <text class="scatter-tick" text-anchor="end" x="42" y="337">0</text>
+   <text class="scatter-tick" text-anchor="end" x="42" y="273">0.2</text>
+   <text class="scatter-tick" text-anchor="end" x="42" y="209">0.4</text>
+   <text class="scatter-tick" text-anchor="end" x="42" y="145">0.6</text>
+   <text class="scatter-tick" text-anchor="end" x="42" y="81">0.8</text>
+   <text class="scatter-tick" text-anchor="end" x="42" y="17">1</text>
+   <text class="scatter-axis-label" text-anchor="middle" x="210" y="366">nominal level</text>
+   <text class="scatter-axis-label" text-anchor="middle" transform="rotate(-90 16 174)" x="16" y="174">empirical coverage</text>
   </svg>
  </div>
 </div>

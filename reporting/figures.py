@@ -1449,7 +1449,7 @@ def render_scatter(
     x_label: str,
     y_label: str,
 ) -> str:
-    """Render a point-cloud scatter card: predicted std against absolute residual.
+    """Render a point-cloud scatter panel fragment: predicted std against absolute residual.
 
     The axis range pads 5% past the data on each side, then draws round ticks
     covering that padded range.
@@ -1470,8 +1470,6 @@ def render_scatter(
         return bottom - (value - y_lo) / (y_hi - y_lo) * (bottom - top)
 
     lines = [
-        f'{CSS_STYLE}\n<div class="pxr-post">',
-        '<div class="support-grid">',
         ' <div class="scatter-wrap">',
         f'  <p class="mini-title">{title}</p>',
         f'  <svg aria-label="{aria_label}" class="scatter-svg" role="img" '
@@ -1515,8 +1513,6 @@ def render_scatter(
     lines.append("   </g>")
     lines.append("  </svg>")
     lines.append(" </div>")
-    lines.append("</div>")
-    lines.append("</div>")
     return "\n".join(lines) + "\n"
 
 
@@ -1527,7 +1523,7 @@ def render_reliability(
     title: str,
     aria_label: str,
 ) -> str:
-    """Render the reliability diagram: empirical coverage against nominal level.
+    """Render the reliability diagram panel fragment: empirical coverage against nominal level.
 
     Both axes are fixed to [0, 1], since a quantile level and a coverage
     fraction are both probabilities; the diagonal marks perfect calibration
@@ -1549,8 +1545,6 @@ def render_reliability(
     area = curve + list(reversed(diagonal))
 
     lines = [
-        f'{CSS_STYLE}\n<div class="pxr-post">',
-        '<div class="support-grid">',
         ' <div class="scatter-wrap">',
         f'  <p class="mini-title">{title}</p>',
         f'  <svg aria-label="{aria_label}" class="scatter-svg" role="img" '
@@ -1599,9 +1593,13 @@ def render_reliability(
     )
     lines.append("  </svg>")
     lines.append(" </div>")
-    lines.append("</div>")
-    lines.append("</div>")
     return "\n".join(lines) + "\n"
+
+
+def render_support_grid(*panels: str) -> str:
+    """Wrap scatter/reliability panel fragments in one shared support-grid card."""
+    body = "\n".join(panels)
+    return f'{CSS_STYLE}\n<div class="pxr-post">\n<div class="support-grid">\n{body}\n</div>\n</div>\n'
 
 
 # ---------------------------------------------------------------------------

@@ -36,7 +36,7 @@ from moal.config import PipelineConfig
 from moal.planning import parse_campaign_state, training_records_for_refit
 from moal.preprocessing import SMILESPreprocessor
 from moal.types import QueryType
-from reporting.figures import OUT_DIR, render_reliability, render_scatter
+from reporting.figures import OUT_DIR, render_reliability, render_scatter, render_support_grid
 from tabpfn_concat_features import (
     _embedding_features,
     _load_descriptor_cache,
@@ -204,21 +204,18 @@ def main() -> None:
     coverage_df.to_csv(args.output_dir / "quantile_coverage.csv", index=False)
 
     n = len(merged)
-    scatter_html = render_scatter(
+    scatter_panel = render_scatter(
         merged["predicted_std"].tolist(),
         merged["abs_residual"].tolist(),
-        title=f"|residual| vs. predicted std, {n} blind compounds",
+        title=f"|residual| vs. predicted std, {n} test compounds",
         aria_label=(
             "Scatter plot of predicted standard deviation versus absolute "
-            f"residual for {n} blind compounds"
+            f"residual for {n} test compounds"
         ),
         x_label="predicted std",
         y_label="|residual|",
     )
-    (OUT_DIR / "figure-07.html").write_text(scatter_html)
-    logger.info("Wrote %s", OUT_DIR / "figure-07.html")
-
-    reliability_html = render_reliability(
+    reliability_panel = render_reliability(
         coverage_df["nominal"].tolist(),
         coverage_df["empirical"].tolist(),
         title=f"Miscalibration area: empirical coverage vs. nominal level, all {len(coverage_df)} quantiles",
@@ -227,8 +224,9 @@ def main() -> None:
             "quantile level, with the gap to perfect calibration shaded"
         ),
     )
-    (OUT_DIR / "figure-08.html").write_text(reliability_html)
-    logger.info("Wrote %s", OUT_DIR / "figure-08.html")
+    support_html = render_support_grid(scatter_panel, reliability_panel)
+    (OUT_DIR / "figure-07.html").write_text(support_html)
+    logger.info("Wrote %s", OUT_DIR / "figure-07.html")
 
 
 if __name__ == "__main__":

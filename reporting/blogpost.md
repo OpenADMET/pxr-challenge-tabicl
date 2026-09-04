@@ -86,10 +86,6 @@ Tabular foundation models return more than a point estimate. <code>output_type="
 
 *(caption TK)*
 
-*(paste `reporting/figures/figure-08.html` here as an HTML card)*
-
-*(caption TK)*
-
 ---
 
 ## Limitations
