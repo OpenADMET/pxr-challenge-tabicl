@@ -64,7 +64,7 @@ Raw Mordred descriptors are comprised of 1,613 columns, RDKit adds another 217, 
 
 *(paste `reporting/figures/figure-05.html` here as an HTML card)*
 
-*(caption TK)*
+**Figure 5. Descriptor PCA width.** The panel reports test set MAE for the descriptor-compression sweep, holding the embedding and log<sub>2</sub>FC readout fixed and raw while varying the descriptor set (Mordred alone, or RDKit + Mordred) and its PCA width (64, 128, or 256 components). As in Figure 1, each bar's whisker spans its minimum-to-maximum MAE across the 5 seeds.
 
 ---
 
