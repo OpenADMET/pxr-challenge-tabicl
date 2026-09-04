@@ -66,7 +66,7 @@ from openadmet.models.architecture.chemprop import ChemPropModel
 
 import provenance
 
-# _canonical_smiles is the canonicalizer the splits were built with; re-deriving
+# canonical_smiles is the canonicalizer the splits were built with; re-deriving
 # it here would risk the log2FC pool and the split disagreeing about what one
 # compound is
 from data import (
@@ -76,7 +76,7 @@ from data import (
     SMILES_COL,
     SPLIT_DIR,
     TARGET_COL,
-    _canonical_smiles,
+    canonical_smiles,
 )
 
 logger = logging.getLogger(__name__)
@@ -401,7 +401,7 @@ def _log2fc_targets(long: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     # one row per compound and concentration, so each distinct input string is
     # canonicalized once rather than once per reading
     canonical = long[SMILES_COL].map(
-        {smiles: _canonical_smiles(smiles) for smiles in long[SMILES_COL].unique()}
+        {smiles: canonical_smiles(smiles) for smiles in long[SMILES_COL].unique()}
     )
     n_bad = int(canonical.isna().sum())
     if n_bad:
@@ -826,3 +826,61 @@ BLOCK_SPECS: dict[str, _BlockSpec] = {
         defaults=_defaults(from_foundation="chemeleon", val_fraction=None),
     ),
 }
+
+
+def log2fc_body_checkpoint(
+    seed: int,
+    *,
+    cache_dir: Path = CHECKPOINT_DIR,
+    **paths: Path,
+) -> Path:
+    """Return a message-passing body pretrained on log2FC, for the E4 arm.
+
+    E4 replaces the foundation initialisation itself: rather than concatenating
+    an auxiliary encoder's output, it starts the main model from a body already
+    trained on log2FC and fine-tunes that on pEC50. The body it needs is the one
+    inside the from-scratch log2FC encoder this module already trains and
+    caches, so this extracts it rather than training a second one.
+
+    Parameters
+    ----------
+    seed : int
+        The replicate seed, so the pretrained body matches the run it feeds.
+    cache_dir : path-like, optional
+        Root of the checkpoint cache.
+    **paths
+        ``raw_dir`` and ``split_dir`` overrides, passed through to the training
+        set.
+
+    Returns
+    -------
+    Path
+        A torch-saved mapping with ``hyper_parameters`` and ``state_dict`` keys
+        for chemprop's ``BondMessagePassing``, in the shape the vendored
+        architecture loads a foundation checkpoint in.
+    """
+    # the from-scratch log2FC encoder, the same one the embedding and readout
+    # blocks share, so the E4 arm costs no additional training
+    spec = BLOCK_SPECS["chemprop_log2fc_embedding"]
+    config = EncoderConfig(**{**spec.defaults, "seed": seed})
+    training = _training_set_for(spec.target, config, **paths)
+    artifact = encoder_artifact(spec.target, config, training, cache_dir=cache_dir)
+
+    body_path = cache_dir / "log2fc_body" / f"{artifact.key}.pt"
+    if body_path.exists():
+        logger.info("log2fc body: cached (%s)", artifact.key)
+        return body_path
+
+    model = _ensure_encoder(spec.target, config, training, cache_dir=cache_dir)
+
+    # imported here rather than at module scope: the vendored architecture
+    # reaches back into this module for exactly this function, and only one of
+    # the two directions may bind at import time
+    from concat_arch import write_body_checkpoint
+
+    body_path.parent.mkdir(parents=True, exist_ok=True)
+    return write_body_checkpoint(
+        model.estimator.state_dict(),
+        {"d_h": config.message_hidden_dim, "depth": config.depth},
+        body_path,
+    )

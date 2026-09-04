@@ -440,3 +440,70 @@ def test_different_seeds_are_different_artifacts(tmp_path):
             )
         )
     assert len(keys) == 2
+
+
+def test_the_e4_bridge_extracts_a_loadable_message_passing_body(tmp_path, monkeypatch):
+    import torch
+    from chemprop.nn import BondMessagePassing
+
+    from concat_arch.backbone import load_body_weights
+
+    # a real body, wrapped in the key prefix a whole network carries, so the
+    # extraction is exercised against chemprop's own shapes rather than a mock
+    defaults = encoders.BLOCK_SPECS["chemprop_log2fc_embedding"].defaults
+    # chemprop types this abstract though it instantiates, as backbone.py also notes
+    body = BondMessagePassing(  # pyright: ignore[reportAbstractUsage]
+        d_h=defaults["message_hidden_dim"], depth=defaults["depth"]
+    )
+    whole = {f"message_passing.{k}": v for k, v in body.state_dict().items()}
+    whole["predictor.ffn.0.weight"] = torch.zeros(3, defaults["message_hidden_dim"])
+
+    class _Stub:
+        def __init__(self):
+            self.estimator = self
+
+        def state_dict(self):
+            return whole
+
+    monkeypatch.setattr(encoders, "_ensure_encoder", lambda *a, **k: _Stub())
+
+    path = encoders.log2fc_body_checkpoint(seed=0, cache_dir=tmp_path)
+    assert path.exists()
+
+    saved = torch.load(path, weights_only=True, map_location="cpu")
+    assert saved["hyper_parameters"] == {
+        "d_h": defaults["message_hidden_dim"],
+        "depth": defaults["depth"],
+    }
+    # the predictor head must not travel with the body
+    assert not any(k.startswith("predictor") for k in saved["state_dict"])
+
+    rebuilt = load_body_weights(path)
+    assert rebuilt is not None
+
+
+def test_the_e4_bridge_is_cached(tmp_path, monkeypatch):
+    calls = []
+
+    class _Stub:
+        def __init__(self):
+            self.estimator = self
+
+        def state_dict(self):
+            calls.append(1)
+            return {"message_passing.W_i.weight": __import__("torch").zeros(4, 4)}
+
+    monkeypatch.setattr(encoders, "_ensure_encoder", lambda *a, **k: _Stub())
+    first = encoders.log2fc_body_checkpoint(seed=0, cache_dir=tmp_path)
+    second = encoders.log2fc_body_checkpoint(seed=0, cache_dir=tmp_path)
+    assert first == second
+    # the second call must not reach the encoder at all
+    assert len(calls) == 1
+
+
+def test_the_vendored_architecture_finds_the_bridge():
+    from concat_arch.run import ENCODERS_FACTORY, ENCODERS_MODULE
+
+    module = __import__(ENCODERS_MODULE)
+    # the E4 arm resolves this by name at call time, so the contract is the name
+    assert callable(getattr(module, ENCODERS_FACTORY, None))

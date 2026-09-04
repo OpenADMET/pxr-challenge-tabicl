@@ -177,8 +177,23 @@ def build_split(
     return artifacts
 
 
-def _canonical_smiles(smiles: str) -> str | None:
-    """Return the canonical SMILES of the largest fragment, or None if unparsable."""
+def canonical_smiles(smiles: str) -> str | None:
+    """Return the canonical SMILES of the largest fragment, or None if unparsable.
+
+    This is the identity key the split files are built on and joined by, so
+    anything that needs to match a compound to a split row must come through
+    here rather than canonicalize independently.
+
+    Parameters
+    ----------
+    smiles : str
+        A SMILES string, not necessarily canonical.
+
+    Returns
+    -------
+    str or None
+        The canonical parent SMILES, or None if RDKit cannot parse the input.
+    """
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return None
@@ -199,7 +214,7 @@ def _load_potency_csv(path: Path, source: str) -> pd.DataFrame:
 def _prepare(frame: pd.DataFrame, label: str) -> pd.DataFrame:
     """Add canonical SMILES, drop unparsable rows, and range-check pEC50."""
     # canonicalize; None marks a structure RDKit could not parse
-    canonical = frame[SMILES_COL].map(_canonical_smiles)
+    canonical = frame[SMILES_COL].map(canonical_smiles)
     n_bad = int(canonical.isna().sum())
     if n_bad:
         logger.warning("%s: dropping %d unparsable SMILES", label, n_bad)

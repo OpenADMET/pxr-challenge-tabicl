@@ -16,8 +16,8 @@ from data import (
     TARGET_COL,
     TRAIN_FILE,
     _assert_disjoint,
-    _canonical_smiles,
     build_split,
+    canonical_smiles,
 )
 
 # the challenge's official split sizes: TRAIN (4139) + phase 1 (253) fit, phase 2 test
@@ -26,15 +26,15 @@ EXPECTED_TEST_ROWS = 260
 
 
 def test_canonical_smiles_strips_salt_to_parent():
-    assert _canonical_smiles("CCO.Cl") == "CCO"
+    assert canonical_smiles("CCO.Cl") == "CCO"
 
 
 def test_canonical_smiles_is_input_order_independent():
-    assert _canonical_smiles("OCC") == _canonical_smiles("CCO")
+    assert canonical_smiles("OCC") == canonical_smiles("CCO")
 
 
 def test_canonical_smiles_returns_none_for_unparsable():
-    assert _canonical_smiles("not_a_molecule_zz") is None
+    assert canonical_smiles("not_a_molecule_zz") is None
 
 
 def test_assert_disjoint_raises_on_shared_compound():

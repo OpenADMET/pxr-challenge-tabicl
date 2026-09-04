@@ -24,8 +24,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from rdkit import Chem, RDLogger
+from rdkit import RDLogger
 from rdkit.Chem.MolStandardize import rdMolStandardize
+
+from data import canonical_smiles
 
 logger = logging.getLogger(__name__)
 
@@ -76,29 +78,6 @@ def task_columns(tasks: int) -> tuple[str, ...]:
     if tasks == 4:
         return ALL_TASKS
     raise ValueError(f"tasks must be 2 or 4, got {tasks!r}")
-
-
-def canonical_smiles(smiles: str) -> str | None:
-    """Return the canonical SMILES of a structure's largest fragment.
-
-    Salts are stripped by keeping the largest fragment, matching how the split
-    files' ``canonical_smiles`` column was built, so a readout row joins to a
-    split row when and only when they are the same compound.
-
-    Parameters
-    ----------
-    smiles : str
-        A SMILES string, not necessarily canonical.
-
-    Returns
-    -------
-    str or None
-        The canonical parent SMILES, or None if RDKit cannot parse the input.
-    """
-    mol = Chem.MolFromSmiles(smiles)
-    if mol is None:
-        return None
-    return Chem.MolToSmiles(_LARGEST_FRAGMENT.choose(mol))
 
 
 def load_readouts(
