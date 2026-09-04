@@ -60,6 +60,9 @@ pythonVersion = "3.12"
 typeCheckingMode = "standard"
 
 [tool.pytest.ini_options]
-addopts = "-q"
+# gpu tests fit the tabular foundation models and need an accelerator plus a
+# weights download, so they are deselected unless asked for with -m gpu
+addopts = "-q -m 'not gpu'"
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = ["gpu: fits a tabular foundation model on an accelerator"]

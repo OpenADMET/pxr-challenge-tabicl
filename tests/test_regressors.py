@@ -1,0 +1,204 @@
+"""Contract tests for the uniform regressor adapter."""
+
+from __future__ import annotations
+
+import json
+
+import numpy as np
+import pytest
+
+import regressors
+
+# the two regressors that fit in milliseconds on CPU and so run on every pass
+FAST_NAMES = ("lgbm", "xgboost")
+
+# the GPU foundation models, deselected by default via the pytest addopts
+SLOW_NAMES = ("tabpfn-v2.5", "tabpfn-v2.6", "tabpfn-v3", "tabicl", "tabfm")
+
+# names whose predictions carry a predictive spread
+SPREAD_NAMES = ("tabpfn-v2.5", "tabpfn-v2.6", "tabpfn-v3", "tabicl")
+
+
+@pytest.fixture
+def data() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Return a small linear regression problem with a train and a test half."""
+    rng = np.random.default_rng(0)
+    x = rng.normal(size=(120, 5))
+    y = 3.0 * x[:, 0] - 2.0 * x[:, 1] + 0.1 * rng.normal(size=120)
+    return x[:90], y[:90], x[90:], y[90:]
+
+
+@pytest.mark.parametrize("name", FAST_NAMES)
+def test_prediction_has_one_mean_per_test_row(name, data):
+    x_train, y_train, x_test, _ = data
+
+    prediction = regressors.fit_predict(name, x_train, y_train, x_test, seed=0)
+
+    assert isinstance(prediction, regressors.Prediction)
+    assert prediction.mean.shape == (x_test.shape[0],)
+
+
+@pytest.mark.parametrize("name", FAST_NAMES)
+def test_gradient_boosting_reports_no_predictive_spread(name, data):
+    x_train, y_train, x_test, _ = data
+
+    prediction = regressors.fit_predict(name, x_train, y_train, x_test, seed=0)
+
+    assert prediction.std is None
+
+
+@pytest.mark.parametrize("name", FAST_NAMES)
+def test_prediction_tracks_the_signal_it_was_trained_on(name, data):
+    x_train, y_train, x_test, y_test = data
+
+    prediction = regressors.fit_predict(name, x_train, y_train, x_test, seed=0)
+
+    # the target is a clean linear function of two columns, so any working
+    # regressor beats predicting the training mean by a wide margin
+    baseline = np.abs(y_test - y_train.mean()).mean()
+    assert np.abs(y_test - prediction.mean).mean() < 0.5 * baseline
+
+
+@pytest.mark.parametrize("name", FAST_NAMES)
+def test_same_seed_gives_the_same_numbers(name, data):
+    x_train, y_train, x_test, _ = data
+
+    first = regressors.fit_predict(name, x_train, y_train, x_test, seed=7)
+    second = regressors.fit_predict(name, x_train, y_train, x_test, seed=7)
+
+    np.testing.assert_allclose(first.mean, second.mean, rtol=0, atol=0)
+
+
+def test_mismatched_test_width_is_rejected(data):
+    x_train, y_train, x_test, _ = data
+
+    with pytest.raises(ValueError, match="columns"):
+        regressors.fit_predict("lgbm", x_train, y_train, x_test[:, :3], seed=0)
+
+
+@pytest.mark.parametrize("name", FAST_NAMES + SLOW_NAMES)
+def test_resolved_params_are_json_serialisable(name):
+    resolved = regressors.resolved_params(name, seed=3, n_features=130)
+
+    assert json.loads(json.dumps(resolved, sort_keys=True)) == resolved
+
+
+@pytest.mark.parametrize("name", FAST_NAMES + SLOW_NAMES)
+def test_resolved_params_are_stable_across_calls(name):
+    first = regressors.resolved_params(name, seed=3, n_features=130)
+    second = regressors.resolved_params(name, seed=3, n_features=130)
+
+    assert first == second
+
+
+@pytest.mark.parametrize("name", FAST_NAMES + SLOW_NAMES)
+def test_resolved_params_carry_the_seed(name):
+    resolved = regressors.resolved_params(name, seed=11, n_features=130)
+
+    assert resolved["random_state"] == 11
+
+
+@pytest.mark.parametrize("name", FAST_NAMES + SLOW_NAMES)
+def test_every_regressor_declares_a_semantic_version(name):
+    assert regressors.REGRESSORS[name].version >= 1
+
+
+def test_registry_holds_exactly_the_seven_documented_names():
+    assert sorted(regressors.REGRESSORS) == sorted(FAST_NAMES + SLOW_NAMES)
+
+
+def test_tabicl_batch_size_is_recorded_rather_than_inherited():
+    resolved = regressors.resolved_params("tabicl", seed=0, n_features=130)
+
+    assert resolved["batch_size"] == regressors.TABICL_BATCH_SIZE
+
+
+def test_tabicl_batch_size_can_be_overridden_per_featureset():
+    resolved = regressors.resolved_params(
+        "tabicl", seed=0, n_features=130, params={"batch_size": 2}
+    )
+
+    assert resolved["batch_size"] == 2
+
+
+def test_tabfm_caps_its_in_context_rows():
+    resolved = regressors.resolved_params("tabfm", seed=0, n_features=130)
+
+    assert resolved["max_num_rows"] == 500
+
+
+@pytest.mark.parametrize(
+    ("n_features", "expected"),
+    [(130, False), (2000, False), (2300, True)],
+    ids=["narrow", "at-the-limit", "past-the-limit"],
+)
+def test_tabpfn_ignores_pretraining_limits_only_past_the_cap(n_features, expected):
+    resolved = regressors.resolved_params("tabpfn-v3", seed=0, n_features=n_features)
+
+    assert resolved["ignore_pretraining_limits"] is expected
+
+
+def test_an_explicit_pretraining_limit_flag_wins_over_the_derived_one():
+    resolved = regressors.resolved_params(
+        "tabpfn-v3", seed=0, n_features=130, params={"ignore_pretraining_limits": True}
+    )
+
+    assert resolved["ignore_pretraining_limits"] is True
+
+
+def test_overrides_do_not_mutate_the_registry_defaults():
+    regressors.resolved_params("lgbm", seed=0, n_features=5, params={"verbose": 1})
+
+    assert regressors.REGRESSORS["lgbm"].defaults["verbose"] == -1
+
+
+@pytest.mark.parametrize("call", ["resolved_params", "build"])
+def test_unknown_name_raises(call):
+    with pytest.raises(KeyError, match="unknown regressor"):
+        getattr(regressors, call)("catboost", seed=0, n_features=5)
+
+
+def test_unknown_name_raises_before_a_fit_is_attempted(data):
+    x_train, y_train, x_test, _ = data
+
+    with pytest.raises(KeyError, match="unknown regressor"):
+        regressors.fit_predict("catboost", x_train, y_train, x_test, seed=0)
+
+
+@pytest.mark.parametrize("name", FAST_NAMES)
+def test_build_returns_an_unfitted_estimator_with_the_sklearn_api(name):
+    model = regressors.build(name, seed=0, n_features=5)
+
+    assert callable(model.fit)
+    assert callable(model.predict)
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("name", SLOW_NAMES)
+def test_foundation_model_predicts_every_test_row(name, data):
+    x_train, y_train, x_test, _ = data
+
+    prediction = regressors.fit_predict(name, x_train, y_train, x_test, seed=0)
+
+    assert prediction.mean.shape == (x_test.shape[0],)
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("name", SPREAD_NAMES)
+def test_foundation_model_reports_a_positive_predictive_spread(name, data):
+    x_train, y_train, x_test, _ = data
+
+    prediction = regressors.fit_predict(name, x_train, y_train, x_test, seed=0)
+
+    assert prediction.std is not None
+    assert prediction.std.shape == (x_test.shape[0],)
+    assert np.all(prediction.std > 0.0)
+
+
+@pytest.mark.gpu
+def test_tabfm_reports_no_predictive_spread(data):
+    x_train, y_train, x_test, _ = data
+
+    prediction = regressors.fit_predict("tabfm", x_train, y_train, x_test, seed=0)
+
+    assert prediction.std is None
