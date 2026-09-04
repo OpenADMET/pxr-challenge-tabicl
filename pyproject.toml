@@ -1,0 +1,59 @@
+[project]
+name = "pxr-challenge-tabicl"
+version = "0.0.0"
+description = "Rebuild of the OpenADMET PXR challenge analysis on the challenge's own train+phase1 / phase2 split"
+requires-python = ">=3.12"
+dependencies = [
+    "openadmet-models",
+    "pandas>=2.2",
+    "numpy>=2.0",
+    "scipy>=1.13",
+    "rdkit>=2024.03",
+    "pyarrow>=15",
+    "huggingface-hub>=0.24",
+    "pyyaml>=6",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "pyright>=1.1",
+]
+
+[tool.uv.sources]
+openadmet-models = { git = "https://github.com/OpenADMET/openadmet-models.git", rev = "4a8df806d12a7385edb6365074ce218af19002a5" }
+
+[tool.uv]
+# not an installable package: modules live in src/ and resolve via PYTHONPATH=src
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "run", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "N", "PTH", "D", "PT"]
+# D203/D213 conflict with the numpy convention's D211/D212
+ignore = ["D203", "D213"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+# entry-point scripts bootstrap sys.path before importing from src/
+"run/*" = ["E402"]
+# test functions are self-describing by name; docstrings would restate them
+"tests/*" = ["D100", "D103"]
+
+[tool.pyright]
+include = ["src", "run", "tests"]
+extraPaths = ["src"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["src"]

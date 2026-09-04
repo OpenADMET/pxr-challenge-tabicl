@@ -2,9 +2,14 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .DS_Store
+.ruff_cache/
+.pytest_cache/
 
-# Generated run artifacts, checkpoints, and caches (large, reproducible from code)
-data/
+# everything under data/ is reproducible from code, except the committed split
+# resources the recipes point at
+data/*
+!data/splits/
+
+# anvil run dirs, checkpoints, zarr, and logs (large, reproducible from recipes)
 results/
-e4_log2fc_pretrain/
 logs/
