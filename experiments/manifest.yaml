@@ -112,6 +112,14 @@ tabular:
     own stage, on the configuration the earlier gates settled, costs ten runs
     rather than doubling the sweep.
 
+    This is not the N283T report's method. They fitted an affine map, not an
+    isotonic one, over out-of-fold predictions spanning all 4,140 training
+    compounds rather than one held-out partition, weighted per compound by a
+    density ratio from a Morgan-fingerprint classifier separating train from
+    test, and validated under 5-fold nested cross-validation. Matching that
+    would mean k-fold out-of-fold predictions and the weighting, which is a
+    larger job than this arm; it is recorded as an open question.
+
   # Each stage sweeps every level of the dimensions it names, and holds fixed
   # only what an earlier gate already decided on this split.
   stages:
@@ -313,8 +321,11 @@ figures:
     facet: descriptor_pca
 
   - id: fig6
-    title: Isotonic calibration
-    question: Does post-hoc isotonic calibration help on the challenge split?
+    title: Post-hoc calibration
+    # not a reproduction of the report's calibration: theirs was an affine map
+    # over out-of-fold predictions across the whole training set, weighted by a
+    # train-versus-test density ratio, so this asks a question of our own
+    question: Does a post-hoc isotonic map help on the challenge split?
     # no width is pinned here on purpose: the calibration stage runs on whatever
     # width the gate before it settled, so pinning 128 would empty this figure
     # whenever that gate chose 64 or 256

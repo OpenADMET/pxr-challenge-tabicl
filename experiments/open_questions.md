@@ -96,6 +96,27 @@ Not done, because it trades a simple story for a faster one.
 result beside six regressors that saw the whole training set, with the caveat
 living only in this file and the module docstring.
 
+**The calibration figure does not reproduce the report's calibration.** Reading
+the N283T report directly rather than through the previous generation's notes:
+they fitted an **affine** map, over **out-of-fold predictions spanning all 4,140
+training compounds**, weighted per compound by a density ratio from a
+Morgan-fingerprint classifier separating train from test, validated under 5-fold
+nested cross-validation. The pipeline as built fits an **isotonic** map on a
+single held-out partition. Three ways forward: implement their method, keep ours
+and stop describing it as reproducing theirs, or run both arms. The manifest now
+says plainly that this figure asks a question of its own.
+
+**Their cross-validation was a UMAP cluster split**, Morgan fingerprints through
+UMAP into KMeans, not a random carve-out. If a validation partition here only
+picks an epoch count, a random split is defensible; if it is ever read as an
+estimate of generalization, a cluster split is the stricter and more comparable
+choice.
+
+**Their phase-2 submission retrained on train plus the released phase-1
+compounds**, about 4,393, which is exactly this repository's `fit_all` at 4,392.
+That settles what a production run should train on, and it is the argument for
+removing the graph networks' 20% handicap rather than living with it.
+
 ## Early numbers, not results
 
 One seed of three graph-network cells was run to measure wall clock:
