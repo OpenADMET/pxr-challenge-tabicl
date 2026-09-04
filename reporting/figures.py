@@ -909,7 +909,6 @@ def build_panels() -> list[PanelSpec]:
         Head(ref_id="n283t_target"),
         Head(winner=True),
     ]
-    head2 = [Head(ref_id="n283t_ensemble"), Head(ref_id="n283t_target")]
 
     # graph baselines: the GNN encoder sweep, against the CheMeleon reference
     panel_gnn = PanelSpec(
@@ -984,8 +983,9 @@ def build_panels() -> list[PanelSpec]:
     )
 
     # regressor sweep: the featureset fixed at figure-03's 386-column combination,
-    # varying only the tabular regressor; the family's own minimum is accented and
-    # the global winner drops into the sorted body for scale
+    # varying only the tabular regressor; the family's own minimum is accented, and
+    # the global winner is pinned above the divider as a reference (its leaner
+    # 258-column featureset is not part of this sweep)
     panel_regressor = PanelSpec(
         "figure-04.html",
         native=Native(
@@ -1003,9 +1003,8 @@ def build_panels() -> list[PanelSpec]:
             Context(role="floor"),
             Context(role="chemeleon"),
         ],
-        head=head2,
-        divider_after=1,
-        winner_in_body=True,
+        head=head3,
+        divider_after=2,
         accent_native_min=True,
     )
 
