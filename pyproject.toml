@@ -31,7 +31,7 @@ package = false
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["src", "run", "tests"]
+src = ["src", "run", "tests", "tools"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "N", "PTH", "D", "PT"]
@@ -48,8 +48,14 @@ convention = "numpy"
 "tests/*" = ["D100", "D103"]
 
 [tool.pyright]
-include = ["src", "run", "tests"]
-extraPaths = ["src"]
+include = ["src", "run", "tests", "tools"]
+# the modelling stack lives in the shared venv beside this checkout; uv sync
+# does not reproduce it, so pyright is pointed at it explicitly
+venvPath = ".."
+venv = ".venv"
+# openadmet-models is installed editable, which pyright cannot follow, so its
+# source tree is resolved directly
+extraPaths = ["src", "../openadmet-models"]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
 
