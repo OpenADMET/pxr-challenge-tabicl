@@ -244,3 +244,10 @@ BLOCKS: dict[str, _Block] = {
         1, _compute_chemeleon, {"batch_size": EMBEDDING_BATCH_SIZE, "accelerator": "auto"}
     ),
 }
+
+
+# the seeded blocks live in encoders, registered here once BLOCKS exists; the
+# import is late because encoders imports this module for the block contract
+import encoders  # noqa: E402
+
+encoders.register()
