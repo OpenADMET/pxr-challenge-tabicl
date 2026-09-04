@@ -499,6 +499,15 @@ def test_a_full_size_fit_beats_predicting_the_training_mean():
     assert refit["best_val_loss"] is None
     assert refit["restored_best"] is False
 
+    # the auxiliary encoder gets the same treatment: its held-out slice of the
+    # screen picks the epoch count, then it retrains on the whole screen
+    aux = result.record["auxiliary"]
+    aux_refit = aux["refit"]
+    assert aux_refit["n_train"] == aux["n_train"] + aux["n_val"]
+    assert aux_refit["epochs_requested"] == aux["selected_epoch"] + 1
+    assert aux_refit["best_val_loss"] is None
+    assert aux_refit["restored_best"] is False
+
 
 def test_refitting_on_everything_is_the_default_and_can_be_turned_off():
     # the graph networks would otherwise train on 3,514 compounds while the
