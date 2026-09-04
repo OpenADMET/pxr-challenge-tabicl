@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -39,7 +39,7 @@ import provenance
 import reduce as reduction
 import regressors
 from data import CANONICAL_COL, SPLIT_DIR, TARGET_COL
-from manifest import Manifest, TabularConfig
+from manifest import GnnCell, Manifest, TabularConfig
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,10 @@ VERSION = 1
 # the order feature blocks are joined in, so a matrix's columns are a function
 # of the configuration and not of dictionary iteration order
 BLOCK_ORDER = ("embedding", "readout", "descriptors")
+
+# what the vendored architecture must supply: axes, seed and partitions in,
+# test-partition predictions out, in that partition's own row order
+TrainGnn = Callable[[dict[str, Any], int, "Partitions"], np.ndarray]
 
 
 class SweepError(RuntimeError):
@@ -271,39 +275,89 @@ def run_one(
         calibrator = _fit_calibrator(config, artifacts, partitions, seed)
         predicted = calibrator.predict(predicted)
 
-    scores = evaluate.metrics(y_test, predicted)
+    scores = write_run(
+        run_dir,
+        spec=spec,
+        seed=seed,
+        smiles=partitions.test[CANONICAL_COL].to_numpy(),
+        observed=y_test,
+        predicted=predicted,
+        std=prediction.std,
+        record={
+            "slug": config.slug,
+            "config": config.as_dict(),
+            "regressor_params": regressors.resolved_params(
+                config.regressor, seed=seed, n_features=int(x_fit.shape[1])
+            ),
+            "inputs": [
+                {"key": a.key, "block": a.spec["block"], "path": str(a.path)} for a in artifacts
+            ],
+            "n_features": int(x_fit.shape[1]),
+            "n_fit": int(x_fit.shape[0]),
+            "calibrated": calibrator is not None,
+        },
+    )
+    logger.info("%s seed=%d: mae=%.4f -> %s", config.slug, seed, scores["mae"], run_dir)
+    return run_dir
+
+
+def write_run(
+    run_dir: Path,
+    *,
+    spec: dict,
+    seed: int,
+    smiles: np.ndarray,
+    observed: np.ndarray,
+    predicted: np.ndarray,
+    std: np.ndarray | None = None,
+    record: dict[str, Any] | None = None,
+) -> dict[str, float]:
+    """Score predictions and write a run directory.
+
+    Both the tabular and the graph-network paths write through here, so a run
+    directory has one shape whatever produced it, and aggregation has one thing
+    to read.
+
+    Parameters
+    ----------
+    run_dir : path-like
+        Directory to write into; created if absent.
+    spec : dict
+        The run's specification, whose key decides whether a later sweep can
+        skip it.
+    seed : int
+        The replicate seed.
+    smiles : ndarray
+        Canonical SMILES of the scored compounds, in prediction order.
+    observed, predicted : ndarray
+        Truth and prediction for those compounds.
+    std : ndarray, optional
+        Predicted standard deviation, where the model gives one.
+    record : dict, optional
+        Extra fields for the run record, such as the configuration behind it.
+
+    Returns
+    -------
+    dict of str to float
+        The metrics written.
+    """
+    scores = evaluate.metrics(observed, predicted)
 
     run_dir.mkdir(parents=True, exist_ok=True)
-    frame = pd.DataFrame(
-        {
-            CANONICAL_COL: partitions.test[CANONICAL_COL].to_numpy(),
-            "observed": y_test,
-            "predicted": predicted,
-        }
-    )
-    if prediction.std is not None:
-        frame["predicted_std"] = prediction.std
+    frame = pd.DataFrame({CANONICAL_COL: smiles, "observed": observed, "predicted": predicted})
+    if std is not None:
+        frame["predicted_std"] = std
     frame.to_csv(run_dir / "predictions.csv", index=False)
     (run_dir / "metrics.json").write_text(json.dumps(scores, indent=2) + "\n")
     (run_dir / "run.json").write_text(
         json.dumps(
             {
                 "key": provenance.spec_key(spec),
-                "slug": config.slug,
                 "seed": seed,
                 "spec": spec,
-                "config": config.as_dict(),
-                "regressor_params": regressors.resolved_params(
-                    config.regressor, seed=seed, n_features=int(x_fit.shape[1])
-                ),
-                "inputs": [
-                    {"key": a.key, "block": a.spec["block"], "path": str(a.path)} for a in artifacts
-                ],
-                "n_features": int(x_fit.shape[1]),
-                "n_fit": int(x_fit.shape[0]),
-                "n_test": int(x_test.shape[0]),
+                **(record or {}),
+                "n_test": int(len(observed)),
                 "metrics": scores,
-                "calibrated": calibrator is not None,
                 "environment": provenance.environment(),
                 "written_at": datetime.now(tz=UTC).isoformat(timespec="seconds"),
             },
@@ -312,7 +366,91 @@ def run_one(
         )
         + "\n"
     )
-    logger.info("%s seed=%d: mae=%.4f -> %s", config.slug, seed, scores["mae"], run_dir)
+    return scores
+
+
+def run_gnn_one(
+    cell: GnnCell,
+    manifest: Manifest,
+    seed: int,
+    *,
+    train: TrainGnn,
+    partitions: Partitions | None = None,
+    results_dir: Path = RESULTS_DIR,
+    force: bool = False,
+) -> Path:
+    """Train one graph-network cell at one seed and write its run directory.
+
+    The architecture itself is vendored separately and injected here, so this
+    module owns the run's identity, its skip rule and its record while knowing
+    nothing about message passing.
+
+    Parameters
+    ----------
+    cell : GnnCell
+        The configuration to train, from the manifest.
+    manifest : Manifest
+        Supplies the seeds and the split paths.
+    seed : int
+        The replicate seed.
+    train : callable
+        Takes the cell's axes, the seed and the partitions, and returns
+        predictions for the test partition in its row order.
+    partitions : Partitions, optional
+        Preloaded split frames.
+    results_dir : path-like, optional
+        Root the run directory hangs off.
+    force : bool, optional
+        Retrain even when a matching run is present.
+
+    Returns
+    -------
+    Path
+        The run directory.
+
+    Raises
+    ------
+    SweepError
+        If the architecture returns a different number of predictions than
+        there are compounds to score.
+    """
+    partitions = partitions or load_partitions()
+    spec = provenance.block_spec(
+        "gnn_run",
+        VERSION,
+        params={"cell": cell.id, "axes": cell.axes, "seed": seed},
+        split=provenance.spec_key(
+            {
+                "fit_train": sorted(partitions.fit_train[CANONICAL_COL]),
+                "test": sorted(partitions.test[CANONICAL_COL]),
+            }
+        ),
+    )
+    run_dir = cell.run_dir(seed, results_dir)
+
+    if is_complete(run_dir, spec) and not force:
+        logger.info("%s seed=%d: already complete", cell.id, seed)
+        return run_dir
+
+    logger.info("%s seed=%d: training", cell.id, seed)
+    predicted = np.asarray(train(cell.axes, seed, partitions), dtype=np.float64)
+    observed = partitions.test[TARGET_COL].to_numpy(dtype=np.float64)
+    if predicted.shape != observed.shape:
+        raise SweepError(
+            f"{cell.id} seed={seed}: got {predicted.shape} predictions for "
+            f"{observed.shape} test compounds"
+        )
+
+    scores = write_run(
+        run_dir,
+        spec=spec,
+        seed=seed,
+        smiles=partitions.test[CANONICAL_COL].to_numpy(),
+        observed=observed,
+        predicted=predicted,
+        record={"cell": cell.id, "axes": cell.axes, "n_fit": int(len(partitions.fit_train))},
+    )
+    logger.info("%s seed=%d: mae=%.4f -> %s", cell.id, seed, scores["mae"], run_dir)
     return run_dir
 
 

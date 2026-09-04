@@ -149,3 +149,91 @@ def test_assembling_a_block_that_misses_compounds_is_refused(spec, tiny):
 
 def test_blocks_are_joined_in_a_fixed_order():
     assert sweep.BLOCK_ORDER == ("embedding", "readout", "descriptors")
+
+
+def _stub_train(offset: float):
+    """Return a stand-in architecture, so the run path is testable without training one."""
+
+    def train(axes, seed, partitions):
+        del axes, seed
+        return partitions.test[TARGET_COL].to_numpy(dtype=float) + offset
+
+    return train
+
+
+def test_a_graph_network_run_writes_the_same_shape_as_a_tabular_one(spec, tiny):
+    partitions, tmp_path = tiny
+    cell = spec.gnn_cells[0]
+    run_dir = sweep.run_gnn_one(
+        cell,
+        spec,
+        seed=1,
+        train=_stub_train(0.25),
+        partitions=partitions,
+        results_dir=tmp_path / "results",
+    )
+    assert run_dir.parts[-3:] == ("gnn", cell.id, "seed1")
+
+    record = json.loads((run_dir / "run.json").read_text())
+    assert record["cell"] == cell.id
+    assert record["axes"] == cell.axes
+    assert record["seed"] == 1
+    # aggregation identifies a run by its directory and cross-checks the record
+    assert record["cell"] == run_dir.parent.name
+
+    predictions = pd.read_csv(run_dir / "predictions.csv")
+    assert list(predictions.columns) == [CANONICAL_COL, "observed", "predicted"]
+    scores = json.loads((run_dir / "metrics.json").read_text())
+    assert scores["mae"] == pytest.approx(0.25)
+
+
+def test_a_completed_graph_network_run_is_not_repeated(spec, tiny):
+    partitions, tmp_path = tiny
+    cell = spec.gnn_cells[0]
+    kwargs = {
+        "train": _stub_train(0.25),
+        "partitions": partitions,
+        "results_dir": tmp_path / "results",
+    }
+    run_dir = sweep.run_gnn_one(cell, spec, seed=1, **kwargs)
+    stamp = (run_dir / "run.json").stat().st_mtime_ns
+    sweep.run_gnn_one(cell, spec, seed=1, **kwargs)
+    assert (run_dir / "run.json").stat().st_mtime_ns == stamp
+
+
+def test_wrong_number_of_predictions_is_refused(spec, tiny):
+    partitions, tmp_path = tiny
+
+    def short(axes, seed, partitions):
+        del axes, seed
+        return partitions.test[TARGET_COL].to_numpy(dtype=float)[:-1]
+
+    with pytest.raises(sweep.SweepError, match="predictions for"):
+        sweep.run_gnn_one(
+            spec.gnn_cells[0],
+            spec,
+            seed=0,
+            train=short,
+            partitions=partitions,
+            results_dir=tmp_path / "results",
+        )
+
+
+def test_aggregation_reads_a_graph_network_run(spec, tiny):
+    import aggregate
+
+    partitions, tmp_path = tiny
+    results = tmp_path / "results"
+    for seed in (0, 1):
+        sweep.run_gnn_one(
+            spec.gnn_cells[0],
+            spec,
+            seed=seed,
+            train=_stub_train(0.25),
+            partitions=partitions,
+            results_dir=results,
+        )
+    table = aggregate.tidy(results)
+    assert len(table) == 2
+    assert set(table["kind"]) == {"gnn"}
+    assert set(table["config_id"]) == {spec.gnn_cells[0].id}
