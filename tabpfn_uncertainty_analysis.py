@@ -36,6 +36,7 @@ from moal.config import PipelineConfig
 from moal.planning import parse_campaign_state, training_records_for_refit
 from moal.preprocessing import SMILESPreprocessor
 from moal.types import QueryType
+from reporting.figures import OUT_DIR, render_reliability, render_scatter
 from tabpfn_concat_features import (
     _embedding_features,
     _load_descriptor_cache,
@@ -50,11 +51,19 @@ _QUANTILE_LEVELS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
 def main() -> None:
     """Fit the best config on cached features, predict full distributions, and check calibration."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
+    )
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("config", type=Path, help="moal plan config supplying data/auxiliary_model settings")
-    parser.add_argument("--output-dir", type=Path, default=Path("results/tabpfn_uncertainty"))
+    parser.add_argument(
+        "config",
+        type=Path,
+        help="moal plan config supplying data/auxiliary_model settings",
+    )
+    parser.add_argument(
+        "--output-dir", type=Path, default=Path("results/tabpfn_uncertainty")
+    )
     parser.add_argument(
         "--embedding-cache",
         type=Path,
@@ -64,7 +73,10 @@ def main() -> None:
         "the encoder fixed within a 5-seed replicate comparison",
     )
     parser.add_argument(
-        "--pca-components", type=int, default=128, help="Must match the config being analyzed"
+        "--pca-components",
+        type=int,
+        default=128,
+        help="Must match the config being analyzed",
     )
     parser.add_argument(
         "--descriptor-source", choices=["all", "rdkit", "mordred"], default="mordred"
@@ -115,7 +127,11 @@ def main() -> None:
 
     train_features = np.concatenate([train_embed, train_descriptors], axis=1)
     test_features = np.concatenate([test_embed, test_descriptors], axis=1)
-    logger.info("Extracted %s / %s train / blind feature matrices", train_features.shape, test_features.shape)
+    logger.info(
+        "Extracted %s / %s train / blind feature matrices",
+        train_features.shape,
+        test_features.shape,
+    )
 
     regressor = TabPFNRegressor(
         random_state=cfg.seed,
@@ -125,12 +141,22 @@ def main() -> None:
     )
     regressor.fit(train_features, train_true)
 
-    full_output = regressor.predict(test_features, output_type="full", quantiles=_QUANTILE_LEVELS)
+    full_output = regressor.predict(
+        test_features, output_type="full", quantiles=_QUANTILE_LEVELS
+    )
     predicted_mean = full_output["mean"]
-    predicted_std = full_output["criterion"].variance(full_output["logits"]).sqrt().cpu().numpy()
+    predicted_std = (
+        full_output["criterion"].variance(full_output["logits"]).sqrt().cpu().numpy()
+    )
     quantile_preds = np.stack(full_output["quantiles"], axis=1)  # (n_test, n_quantiles)
 
-    results_df = pd.DataFrame({"smiles": test_smiles, "predicted_pec50": predicted_mean, "predicted_std": predicted_std})
+    results_df = pd.DataFrame(
+        {
+            "smiles": test_smiles,
+            "predicted_pec50": predicted_mean,
+            "predicted_std": predicted_std,
+        }
+    )
     for level, col in zip(_QUANTILE_LEVELS, quantile_preds.T, strict=True):
         results_df[f"q{level:.1f}"] = col
 
@@ -140,9 +166,15 @@ def main() -> None:
     logger.info("Wrote per-compound distributions to %s", raw_csv)
 
     unblinded = load_unblinded_test(preprocessor)
-    results_df["canonical"] = results_df["smiles"].astype(str).map(preprocessor.canonicalize)
+    results_df["canonical"] = (
+        results_df["smiles"].astype(str).map(preprocessor.canonicalize)
+    )
     merged = results_df.merge(unblinded, on="canonical", how="inner")
-    logger.info("Matched %d/%d blind predictions to unblinded ground truth", len(merged), len(results_df))
+    logger.info(
+        "Matched %d/%d blind predictions to unblinded ground truth",
+        len(merged),
+        len(results_df),
+    )
 
     merged["residual"] = merged["predicted_pec50"] - merged["true_pec50"]
     merged["abs_residual"] = merged["residual"].abs()
@@ -156,16 +188,47 @@ def main() -> None:
         len(merged),
     )
 
-    print("\nQuantile coverage (nominal level vs. empirical fraction of true values below the predicted quantile):")
+    print(
+        "\nQuantile coverage (nominal level vs. empirical fraction of true values below the predicted quantile):"
+    )
     coverage_rows = []
     for level in _QUANTILE_LEVELS:
         col = f"q{level:.1f}"
         empirical = float((merged["true_pec50"] <= merged[col]).mean())
-        coverage_rows.append({"nominal": level, "empirical": empirical, "gap": empirical - level})
+        coverage_rows.append(
+            {"nominal": level, "empirical": empirical, "gap": empirical - level}
+        )
     coverage_df = pd.DataFrame(coverage_rows)
     pd.set_option("display.float_format", lambda x: f"{x:.4f}")
     print(coverage_df.to_string(index=False))
     coverage_df.to_csv(args.output_dir / "quantile_coverage.csv", index=False)
+
+    n = len(merged)
+    scatter_html = render_scatter(
+        merged["predicted_std"].tolist(),
+        merged["abs_residual"].tolist(),
+        title=f"|residual| vs. predicted std, {n} blind compounds",
+        aria_label=(
+            "Scatter plot of predicted standard deviation versus absolute "
+            f"residual for {n} blind compounds"
+        ),
+        x_label="predicted std",
+        y_label="|residual|",
+    )
+    (OUT_DIR / "figure-07.html").write_text(scatter_html)
+    logger.info("Wrote %s", OUT_DIR / "figure-07.html")
+
+    reliability_html = render_reliability(
+        coverage_df["nominal"].tolist(),
+        coverage_df["empirical"].tolist(),
+        title=f"Miscalibration area: empirical coverage vs. nominal level, all {len(coverage_df)} quantiles",
+        aria_label=(
+            "Reliability diagram plotting empirical coverage against nominal "
+            "quantile level, with the gap to perfect calibration shaded"
+        ),
+    )
+    (OUT_DIR / "figure-08.html").write_text(reliability_html)
+    logger.info("Wrote %s", OUT_DIR / "figure-08.html")
 
 
 if __name__ == "__main__":

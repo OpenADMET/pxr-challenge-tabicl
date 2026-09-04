@@ -25,6 +25,7 @@ Run ``python reporting/figures.py`` to rewrite ``figures/figure-01.html`` ..
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
@@ -1396,6 +1397,211 @@ def render_mini(spec: PanelSpec, configs: pd.DataFrame) -> str:
     lines.append("    </div>")
     lines.append("</div>")
     return f"{CSS_STYLE}\n" + "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# uncertainty scatter and reliability diagram (driven by external data, not
+# the run index; called from tabpfn_uncertainty_analysis.py)
+# ---------------------------------------------------------------------------
+
+
+def _nice_step(raw_step: float) -> float:
+    """Round a raw tick spacing up to a 1/2/5-times-a-power-of-ten step."""
+    if raw_step <= 0:
+        raise ValueError(f"raw_step must be positive, got {raw_step!r}")
+    magnitude = 10 ** math.floor(math.log10(raw_step))
+    residual = raw_step / magnitude
+    if residual <= 1:
+        nice = 1.0
+    elif residual <= 2:
+        nice = 2.0
+    elif residual <= 5:
+        nice = 5.0
+    else:
+        nice = 10.0
+    return nice * magnitude
+
+
+def _nice_ticks(vmin: float, vmax: float, target_count: int = 5) -> list[float]:
+    """Round tick values spanning at least [vmin, vmax], evenly spaced."""
+    span = vmax - vmin
+    step = _nice_step(span / max(target_count - 1, 1)) if span > 0 else 1.0
+    start = math.floor(vmin / step) * step
+    ticks = []
+    value = start
+    while value <= vmax + step * 0.5:
+        ticks.append(round(value, 10))
+        value += step
+    return ticks
+
+
+def _fmt_tick(value: float) -> str:
+    """Render a tick value without a trailing ``.0`` for whole numbers."""
+    return f"{value:g}"
+
+
+def render_scatter(
+    x: list[float],
+    y: list[float],
+    *,
+    title: str,
+    aria_label: str,
+    x_label: str,
+    y_label: str,
+) -> str:
+    """Render a point-cloud scatter card: predicted std against absolute residual.
+
+    The axis range pads 5% past the data on each side, then draws round ticks
+    covering that padded range.
+    """
+    width, height = 560, 545
+    left, right, top, bottom = 48, width - 14, 14, height - 36
+    x_span = max(x) - min(x)
+    y_span = max(y) - min(y)
+    x_lo, x_hi = min(x) - 0.05 * x_span, max(x) + 0.05 * x_span
+    y_lo, y_hi = min(y) - 0.05 * y_span, max(y) + 0.05 * y_span
+    x_ticks = [t for t in _nice_ticks(x_lo, x_hi) if x_lo <= t <= x_hi]
+    y_ticks = [t for t in _nice_ticks(y_lo, y_hi) if y_lo <= t <= y_hi]
+
+    def px(value: float) -> float:
+        return left + (value - x_lo) / (x_hi - x_lo) * (right - left)
+
+    def py(value: float) -> float:
+        return bottom - (value - y_lo) / (y_hi - y_lo) * (bottom - top)
+
+    lines = [
+        f'{CSS_STYLE}\n<div class="pxr-post">',
+        '<div class="support-grid">',
+        ' <div class="scatter-wrap">',
+        f'  <p class="mini-title">{title}</p>',
+        f'  <svg aria-label="{aria_label}" class="scatter-svg" role="img" '
+        f'viewBox="0 0 {width} {height}">',
+    ]
+    for tick in x_ticks:
+        lines.append(
+            f'   <line class="scatter-grid" x1="{px(tick):.1f}" x2="{px(tick):.1f}" y1="{top}" y2="{bottom:.1f}"></line>'
+        )
+    for tick in y_ticks:
+        lines.append(
+            f'   <line class="scatter-grid" x1="{left}" x2="{right}" y1="{py(tick):.1f}" y2="{py(tick):.1f}"></line>'
+        )
+    lines.append(
+        f'   <line class="scatter-axis" x1="{left}" x2="{left}" y1="{top}" y2="{bottom:.1f}"></line>'
+    )
+    lines.append(
+        f'   <line class="scatter-axis" x1="{left}" x2="{right}" y1="{bottom:.1f}" y2="{bottom:.1f}"></line>'
+    )
+    for tick in x_ticks:
+        lines.append(
+            f'   <text class="scatter-tick" text-anchor="middle" x="{px(tick):.1f}" y="{bottom + 18:.1f}">{_fmt_tick(tick)}</text>'
+        )
+    for tick in y_ticks:
+        lines.append(
+            f'   <text class="scatter-tick" text-anchor="end" x="{left - 8}" y="{py(tick) + 5:.1f}">{_fmt_tick(tick)}</text>'
+        )
+    x_mid, y_mid = (left + right) / 2, (top + bottom) / 2
+    lines.append(
+        f'   <text class="scatter-axis-label" text-anchor="middle" x="{x_mid:.1f}" y="{height - 4}">{x_label}</text>'
+    )
+    lines.append(
+        f'   <text class="scatter-axis-label" text-anchor="middle" '
+        f'transform="rotate(-90 14 {y_mid:.1f})" x="14" y="{y_mid:.1f}">{y_label}</text>'
+    )
+    lines.append('   <g class="scatter-points">')
+    for xi, yi in zip(x, y, strict=True):
+        lines.append(
+            f'    <circle cx="{px(xi):.1f}" cy="{py(yi):.1f}" r="2.6"></circle>'
+        )
+    lines.append("   </g>")
+    lines.append("  </svg>")
+    lines.append(" </div>")
+    lines.append("</div>")
+    lines.append("</div>")
+    return "\n".join(lines) + "\n"
+
+
+def render_reliability(
+    nominal: list[float],
+    empirical: list[float],
+    *,
+    title: str,
+    aria_label: str,
+) -> str:
+    """Render the reliability diagram: empirical coverage against nominal level.
+
+    Both axes are fixed to [0, 1], since a quantile level and a coverage
+    fraction are both probabilities; the diagonal marks perfect calibration
+    and the shaded band is the gap between the curve and that diagonal.
+    """
+    width, height = 384, 374
+    left, right, top, bottom = 50, width - 14, 14, height - 40
+    ticks = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+
+    def px(value: float) -> float:
+        return left + value * (right - left)
+
+    def py(value: float) -> float:
+        return bottom - value * (bottom - top)
+
+    points = list(zip(nominal, empirical, strict=True))
+    curve = [(px(n), py(e)) for n, e in points]
+    diagonal = [(px(n), py(n)) for n, _ in points]
+    area = curve + list(reversed(diagonal))
+
+    lines = [
+        f'{CSS_STYLE}\n<div class="pxr-post">',
+        '<div class="support-grid">',
+        ' <div class="scatter-wrap">',
+        f'  <p class="mini-title">{title}</p>',
+        f'  <svg aria-label="{aria_label}" class="scatter-svg" role="img" '
+        f'viewBox="0 0 {width} {height}">',
+    ]
+    for tick in ticks[1:-1]:
+        lines.append(
+            f'   <line class="scatter-grid" x1="{px(tick):.0f}" x2="{px(tick):.0f}" y1="{top}" y2="{bottom}"></line>'
+        )
+    for tick in ticks[1:-1]:
+        lines.append(
+            f'   <line class="scatter-grid" x1="{left}" x2="{right}" y1="{py(tick):.0f}" y2="{py(tick):.0f}"></line>'
+        )
+    lines.append(
+        f'   <line class="scatter-axis" x1="{left}" x2="{left}" y1="{top}" y2="{bottom}"></line>'
+    )
+    lines.append(
+        f'   <line class="scatter-axis" x1="{left}" x2="{right}" y1="{bottom}" y2="{bottom}"></line>'
+    )
+    lines.append(
+        f'   <line class="calib-diagonal" x1="{left}" x2="{right}" y1="{bottom}" y2="{top}"></line>'
+    )
+    area_pts = " ".join(f"{px:.1f},{py:.1f}" for px, py in area)
+    lines.append(f'   <polygon class="calib-area" points="{area_pts}"></polygon>')
+    curve_pts = " ".join(f"{px:.1f},{py:.1f}" for px, py in curve)
+    lines.append(f'   <polyline class="calib-curve" points="{curve_pts}"></polyline>')
+    lines.append('   <g class="calib-points">')
+    for px_, py_ in curve:
+        lines.append(f'    <circle cx="{px_:.1f}" cy="{py_:.1f}" r="2.8"></circle>')
+    lines.append("   </g>")
+    for tick in ticks:
+        lines.append(
+            f'   <text class="scatter-tick" text-anchor="middle" x="{px(tick):.0f}" y="{bottom + 15}">{_fmt_tick(tick)}</text>'
+        )
+    for tick in ticks:
+        lines.append(
+            f'   <text class="scatter-tick" text-anchor="end" x="{left - 8}" y="{py(tick) + 3:.0f}">{_fmt_tick(tick)}</text>'
+        )
+    x_mid, y_mid = (left + right) / 2, (top + bottom) / 2
+    lines.append(
+        f'   <text class="scatter-axis-label" text-anchor="middle" x="{x_mid:.0f}" y="{height - 8}">nominal level</text>'
+    )
+    lines.append(
+        f'   <text class="scatter-axis-label" text-anchor="middle" '
+        f'transform="rotate(-90 16 {y_mid:.0f})" x="16" y="{y_mid:.0f}">empirical coverage</text>'
+    )
+    lines.append("  </svg>")
+    lines.append(" </div>")
+    lines.append("</div>")
+    lines.append("</div>")
+    return "\n".join(lines) + "\n"
 
 
 # ---------------------------------------------------------------------------
