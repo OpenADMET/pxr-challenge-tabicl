@@ -71,12 +71,17 @@ OUTPUT_CSV = REPORTING_DIR / "results.csv"
 # standard models) instead of this challenge's own seeded sweep scripts, so
 # they carry no config_used.yaml/eval_out.csv and are skipped by the normal
 # per-dir loop. They are not dropped: their axes come from anvil_recipe.yaml and
-# their metrics from regression_metrics.json, ingested as one combined row by
-# build_anvil_baseline_spec (the two dirs are one model scored on the two blind
-# test phases separately, recombined here into the same overall split the sweep
-# rows report). Anything genuinely outside the table stays in EXCLUDED_DIRS.
+# their metrics from regression_metrics.json, ingested as combined rows by
+# build_anvil_baseline_specs (each phase pair is one model scored on the two
+# blind test phases separately, recombined here into the same overall split
+# the sweep rows report). Anything genuinely outside the table stays in
+# EXCLUDED_DIRS.
 ANVIL_BASELINE_DIRS = ("pxr_baseline_predictions_phase1", "pxr_baseline_predictions_phase2")
-EXCLUDED_DIRS = set(ANVIL_BASELINE_DIRS)
+ANVIL_BASELINE_SEEDS = range(5)
+ANVIL_BASELINE_SEEDED_DIRS = tuple(
+    f"pxr_baseline_predictions_phase{phase}_seed{seed}" for phase in (1, 2) for seed in ANVIL_BASELINE_SEEDS
+)
+EXCLUDED_DIRS = set(ANVIL_BASELINE_DIRS) | set(ANVIL_BASELINE_SEEDED_DIRS)
 
 SEED_RE = re.compile(r"^(?P<base>.+)_seed(?P<seed>\d+)$")
 
@@ -320,18 +325,9 @@ def _combine_baseline_metrics(phase_dirs: list[Path]) -> dict[str, float | None]
     }
 
 
-def build_anvil_baseline_spec() -> RunSpec | None:
-    """Build the single combined RunSpec for the CheMeleon->pEC50 anvil baseline.
-
-    Returns None if the baseline directories are absent. Requires every present
-    phase to share one model recipe, so a divergent recipe fails loudly rather
-    than collapsing two different models into one row.
-    """
-    phase_dirs = [RESULTS_DIR / name for name in ANVIL_BASELINE_DIRS if (RESULTS_DIR / name).is_dir()]
-    if not phase_dirs:
-        return None
-
-    axes = None
+def _build_anvil_baseline_spec_for_phase_dirs(phase_dirs: list[Path], seed: int) -> RunSpec:
+    """Build one combined RunSpec from a pair of per-phase anvil baseline run directories."""
+    axes: dict[str, Any] | None = None
     for d in phase_dirs:
         recipe = yaml.safe_load((d / "anvil_recipe.yaml").read_text())
         resolved = _resolve_anvil_axes(recipe)
@@ -339,10 +335,12 @@ def build_anvil_baseline_spec() -> RunSpec | None:
             axes = resolved
         elif resolved != axes:
             raise ValueError(f"anvil baseline phases disagree on axes: {d.name} -> {resolved} vs {axes}")
+    if axes is None:
+        raise ValueError("_build_anvil_baseline_spec_for_phase_dirs called with no phase_dirs")
 
     spec = RunSpec(
         base_dir=ANVIL_BASELINE_BASE_DIR,
-        seed=UNPINNED_SEED,
+        seed=seed,
         run_dir=str(phase_dirs[0]),
         spec_source="anvil_recipe",
         n_features_inapplicable=True,
@@ -351,6 +349,34 @@ def build_anvil_baseline_spec() -> RunSpec | None:
         setattr(spec, col, value)
     spec.metrics = _combine_baseline_metrics(phase_dirs)
     return spec
+
+
+def build_anvil_baseline_specs() -> list[RunSpec]:
+    """Build the CheMeleon->pEC50 anvil baseline RunSpecs, one per available seed.
+
+    Prefers the 5-seed sweep (`pxr_baseline_predictions_phase{1,2}_seed{0..4}`)
+    over the older single unseeded pair, matching every other row's 5-seed
+    convention; falls back to the unseeded pair (as one UNPINNED_SEED row) only
+    if no seeded pair is present. Requires every present phase within a seed to
+    share one model recipe, so a divergent recipe fails loudly rather than
+    collapsing two different models into one row.
+    """
+    seeded_specs = []
+    for seed in ANVIL_BASELINE_SEEDS:
+        phase_dirs = [
+            RESULTS_DIR / f"pxr_baseline_predictions_phase{phase}_seed{seed}"
+            for phase in (1, 2)
+            if (RESULTS_DIR / f"pxr_baseline_predictions_phase{phase}_seed{seed}").is_dir()
+        ]
+        if phase_dirs:
+            seeded_specs.append(_build_anvil_baseline_spec_for_phase_dirs(phase_dirs, seed))
+    if seeded_specs:
+        return seeded_specs
+
+    phase_dirs = [RESULTS_DIR / name for name in ANVIL_BASELINE_DIRS if (RESULTS_DIR / name).is_dir()]
+    if not phase_dirs:
+        return []
+    return [_build_anvil_baseline_spec_for_phase_dirs(phase_dirs, UNPINNED_SEED)]
 
 
 # Directive 3, third pass: base_dirs whose header comment in configs/<stem>.yaml
@@ -1285,9 +1311,7 @@ def build_table() -> pd.DataFrame:
     """Build the full one-row-per-run provenance dataframe."""
     run_dirs = discover_run_dirs()
     specs = [build_run_spec(d) for d in run_dirs]
-    baseline_spec = build_anvil_baseline_spec()
-    if baseline_spec is not None:
-        specs.append(baseline_spec)
+    specs.extend(build_anvil_baseline_specs())
     rows = [spec_to_row(s) for s in specs]
     df = pd.DataFrame(rows)
     # seed is never null: split_base_and_seed always assigns either an

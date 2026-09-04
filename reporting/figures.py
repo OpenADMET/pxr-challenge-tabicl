@@ -531,8 +531,8 @@ def load_configs() -> pd.DataFrame:
     """
     runs = pd.read_parquet(RESULTS_PATH)
     # keep the canonical 5-seed sweep runs, dropping stray unpinned duplicates;
-    # additionally admit the anvil-recipe baseline, which is a single run with no
-    # seed sweep (seed=UNPINNED_SEED) and so would otherwise fall through the filter
+    # additionally admit the anvil-recipe baseline in its unseeded fallback form
+    # (seed=UNPINNED_SEED), which would otherwise fall through the filter
     runs = runs[runs["seed"].isin(SEEDS) | (runs["spec_source"] == "anvil_recipe")]
     scored = runs[runs["mae"].notna()].copy()
 
