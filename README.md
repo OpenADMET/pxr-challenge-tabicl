@@ -10,7 +10,8 @@ numbers participants reported. This rebuild corrects that, emits run
 provenance forward instead of reconstructing it after the fact, and is laid
 out so a reader can clone and rerun the whole thing.
 
-See [`PLAN.md`](PLAN.md) for the tracked rebuild checklist.
+The tracked rebuild checklist lives on the pull request:
+<https://github.com/OpenADMET/pxr-challenge-tabicl/pull/1>.
 
 ## Reproduce
 
