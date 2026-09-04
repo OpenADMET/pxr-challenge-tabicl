@@ -207,7 +207,6 @@ def main() -> None:
     scatter_panel = render_scatter(
         merged["predicted_std"].tolist(),
         merged["abs_residual"].tolist(),
-        title=f"|residual| vs. predicted std, {n} test compounds",
         aria_label=(
             "Scatter plot of predicted standard deviation versus absolute "
             f"residual for {n} test compounds"
@@ -218,7 +217,6 @@ def main() -> None:
     reliability_panel = render_reliability(
         coverage_df["nominal"].tolist(),
         coverage_df["empirical"].tolist(),
-        title=f"Miscalibration area: empirical coverage vs. nominal level, all {len(coverage_df)} quantiles",
         aria_label=(
             "Reliability diagram plotting empirical coverage against nominal "
             "quantile level, with the gap to perfect calibration shaded"

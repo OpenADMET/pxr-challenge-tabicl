@@ -1440,11 +1440,21 @@ def _fmt_tick(value: float) -> str:
     return f"{value:g}"
 
 
+# shared canvas for the two support-grid panels, taken from the reliability
+# diagram's own layout, so both scale to the same font size and axis line
+# width once placed side by side at equal container width
+SUPPORT_PANEL_WIDTH = 384
+SUPPORT_PANEL_HEIGHT = 374
+SUPPORT_PANEL_LEFT = 50
+SUPPORT_PANEL_RIGHT = SUPPORT_PANEL_WIDTH - 14
+SUPPORT_PANEL_TOP = 14
+SUPPORT_PANEL_BOTTOM = SUPPORT_PANEL_HEIGHT - 40
+
+
 def render_scatter(
     x: list[float],
     y: list[float],
     *,
-    title: str,
     aria_label: str,
     x_label: str,
     y_label: str,
@@ -1452,10 +1462,12 @@ def render_scatter(
     """Render a point-cloud scatter panel fragment: predicted std against absolute residual.
 
     The axis range pads 5% past the data on each side, then draws round ticks
-    covering that padded range.
+    covering that padded range. Shares SUPPORT_PANEL_* dimensions with
+    render_reliability so both panels scale to the same font size and axis
+    line width when placed side by side in a support-grid.
     """
-    width, height = 560, 545
-    left, right, top, bottom = 48, width - 14, 14, height - 36
+    width, height = SUPPORT_PANEL_WIDTH, SUPPORT_PANEL_HEIGHT
+    left, right, top, bottom = SUPPORT_PANEL_LEFT, SUPPORT_PANEL_RIGHT, SUPPORT_PANEL_TOP, SUPPORT_PANEL_BOTTOM
     x_span = max(x) - min(x)
     y_span = max(y) - min(y)
     x_lo, x_hi = min(x) - 0.05 * x_span, max(x) + 0.05 * x_span
@@ -1471,7 +1483,6 @@ def render_scatter(
 
     lines = [
         ' <div class="scatter-wrap">',
-        f'  <p class="mini-title">{title}</p>',
         f'  <svg aria-label="{aria_label}" class="scatter-svg" role="img" '
         f'viewBox="0 0 {width} {height}">',
     ]
@@ -1520,17 +1531,17 @@ def render_reliability(
     nominal: list[float],
     empirical: list[float],
     *,
-    title: str,
     aria_label: str,
 ) -> str:
     """Render the reliability diagram panel fragment: empirical coverage against nominal level.
 
     Both axes are fixed to [0, 1], since a quantile level and a coverage
     fraction are both probabilities; the diagonal marks perfect calibration
-    and the shaded band is the gap between the curve and that diagonal.
+    and the shaded band is the gap between the curve and that diagonal. This
+    panel's dimensions are the SUPPORT_PANEL_* reference render_scatter matches.
     """
-    width, height = 384, 374
-    left, right, top, bottom = 50, width - 14, 14, height - 40
+    width, height = SUPPORT_PANEL_WIDTH, SUPPORT_PANEL_HEIGHT
+    left, right, top, bottom = SUPPORT_PANEL_LEFT, SUPPORT_PANEL_RIGHT, SUPPORT_PANEL_TOP, SUPPORT_PANEL_BOTTOM
     ticks = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
 
     def px(value: float) -> float:
@@ -1546,7 +1557,6 @@ def render_reliability(
 
     lines = [
         ' <div class="scatter-wrap">',
-        f'  <p class="mini-title">{title}</p>',
         f'  <svg aria-label="{aria_label}" class="scatter-svg" role="img" '
         f'viewBox="0 0 {width} {height}">',
     ]
