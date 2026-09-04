@@ -21,10 +21,26 @@ anchor:
   name: N283T, challenge leaderboard, phase 2
   n: 260
   mae_ensemble: 0.4113
-  mae_single: 0.437
+  source: https://n283t.github.io/openadmet-pxr-model-report/
   note: >
-    The only absolute reference in this repository. Prior metrics rank
-    configurations against each other and are not comparable to this number.
+    The only phase-2 score in the report, and so the only absolute reference in
+    this repository: rank 4 on the blinded 260-compound phase-2 set, from a
+    nine-member ensemble. Prior sweep metrics rank configurations against each
+    other and are not comparable to it.
+  not_the_anchor:
+    0.437: >
+      An out-of-fold MAE on the training set, from the report's Table 4,
+      "OOF results for the same log2fc-pretrained ChemProp with only the
+      downstream model changed". It is a development number over training
+      compounds, not a phase-2 score, and drawing it beside one compares
+      different quantities. The previous generation treated it as a phase-2
+      target and measured a gap to it.
+    0.4059: >
+      The interim leaderboard, scored on AS1 and AS2 pooled at 513 compounds,
+      which is the pooled evaluation this rebuild exists to get away from.
+    0.408: >
+      Appears nowhere in the report. The previous generation's reference table
+      carries it as the ensemble MAE; the nearest real value is 0.4059 above.
 
 prior:
   source: "main:reporting/results.parquet @ 00be37e"

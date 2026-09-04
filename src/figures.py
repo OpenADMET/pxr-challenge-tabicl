@@ -276,6 +276,11 @@ def anchor_lines(
     scored a different number of compounds, where the two numbers would not be
     on the same footing.
 
+    One line, not two. The report's other widely quoted figure, 0.437, is an
+    out-of-fold score over training compounds rather than a phase-2 score, so
+    it has no place on an axis of phase-2 results; the manifest records it and
+    the reason under ``anchor.not_the_anchor``.
+
     Parameters
     ----------
     spec : Manifest
@@ -307,7 +312,6 @@ def anchor_lines(
     name = anchor["name"]
     return [
         (f"{name}, ensemble", float(anchor["mae_ensemble"])),
-        (f"{name}, single model", float(anchor["mae_single"])),
     ]
 
 

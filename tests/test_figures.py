@@ -282,19 +282,29 @@ def test_render_all_writes_every_file_it_reports(spec, frame, tmp_path):
 def test_the_anchor_values_come_from_the_manifest(spec, frame):
     edited = dataclasses.replace(
         spec,
-        anchor={"name": "somewhere else", "n": 260, "mae_ensemble": 0.9, "mae_single": 1.1},
+        anchor={"name": "somewhere else", "n": 260, "mae_ensemble": 0.9},
     )
 
     lines = figures.anchor_lines(edited, figures.slice_for(edited, "fig2", frame))
 
-    assert [value for _, value in lines] == [0.9, 1.1]
+    assert [value for _, value in lines] == [0.9]
     assert all("somewhere else" in label for label, _ in lines)
+
+
+def test_only_the_phase_two_score_is_drawn_as_an_anchor(spec, frame):
+    # the report's other quoted figure, 0.437, is an out-of-fold score over
+    # training compounds; putting it on an axis of phase-2 results would
+    # compare different quantities
+    lines = figures.anchor_lines(spec, figures.slice_for(spec, "fig2", frame))
+
+    assert [value for _, value in lines] == [spec.anchor["mae_ensemble"]]
+    assert 0.437 not in {value for _, value in lines}
 
 
 def test_the_anchor_is_drawn_at_the_value_the_manifest_carries(spec, frame):
     edited = dataclasses.replace(
         spec,
-        anchor={"name": "somewhere else", "n": 260, "mae_ensemble": 0.9, "mae_single": 1.1},
+        anchor={"name": "somewhere else", "n": 260, "mae_ensemble": 0.9},
     )
 
     figure = figures.figure_2(edited, frame)
@@ -305,7 +315,7 @@ def test_the_anchor_is_drawn_at_the_value_the_manifest_carries(spec, frame):
         if str(line.get_label()).startswith("somewhere else")
     }
     plt.close(figure)
-    assert drawn == {0.9, 1.1}
+    assert drawn == {0.9}
 
 
 def test_the_anchor_is_withheld_when_the_slice_scores_other_compounds(spec, tmp_path):
