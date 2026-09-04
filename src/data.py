@@ -2,7 +2,7 @@
 
 The challenge scores a model fit on the dose-response training set pooled with
 phase 1 against phase 2 alone. This module pulls the raw CSVs from the public
-Hugging Face dataset and writes the resource files the anvil recipes point at:
+Hugging Face dataset and writes the resource files the later stages read:
 the pooled fit set, a seeded train/validation partition of it for early
 stopping, and the phase-2 test set. A leakage guard asserts the fit and test
 compound sets are disjoint by canonical structure before anything is written.
@@ -222,7 +222,9 @@ def _prepare(frame: pd.DataFrame, label: str) -> pd.DataFrame:
         frame.assign(**{CANONICAL_COL: canonical}).loc[canonical.notna()].reset_index(drop=True)
     )
 
-    # rows without a pEC50 are kept; anvil drops them train-only at fit time
+    # no released file currently has a missing pEC50, so this removes nothing;
+    # the rows are kept here regardless because featurization wants the
+    # structures, and a partition load drops them before a fit sees them
     present = prepared[TARGET_COL].notna()
     n_missing = int((~present).sum())
     if n_missing:
