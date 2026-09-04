@@ -11,6 +11,7 @@ from data import (
     CANONICAL_COL,
     PHASE1_FILE,
     PHASE2_FILE,
+    RAW_DIR,
     SPLIT_DIR,
     TARGET_COL,
     TRAIN_FILE,
@@ -126,3 +127,15 @@ def test_committed_split_matches_challenge_contract():
     assert len(fit) == EXPECTED_FIT_ROWS
     assert len(test) == EXPECTED_TEST_ROWS
     assert set(fit[CANONICAL_COL]) & set(test[CANONICAL_COL]) == set()
+
+
+@pytest.mark.skipif(
+    not (RAW_DIR / TRAIN_FILE).exists(),
+    reason="raw downloads absent; run/00_fetch_data.py fetches them",
+)
+def test_the_committed_splits_regenerate_byte_identically(tmp_path):
+    # the split files are committed so recipes can point at them, which is only
+    # safe if rebuilding them from the raw downloads reproduces them exactly
+    build_split(out_dir=tmp_path)
+    for name in ("fit_all.csv", "fit_train.csv", "fit_val.csv", "test_phase2.csv"):
+        assert (tmp_path / name).read_bytes() == (SPLIT_DIR / name).read_bytes(), name
