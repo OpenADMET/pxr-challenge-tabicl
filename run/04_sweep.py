@@ -5,6 +5,10 @@ already settled on this split. Pass those settled axes with repeated ``--fix``,
 for example ``--fix embedding=chemeleon --fix regressor=tabicl``; a stage that
 declares ``fixed_from`` refuses to expand without them.
 
+The graph-network cells are not a stage, since they sweep no shared axis and
+depend on no gate. ``--stage gnn`` trains every cell the manifest enumerates,
+optionally narrowed with ``--cells``.
+
 Completed runs are skipped by their recorded specification rather than by the
 directory existing, so an interrupted sweep can be restarted and a changed
 upstream block is redone. ``--force`` is the only way to overwrite a run whose
@@ -26,7 +30,11 @@ import encoders  # noqa: E402
 import manifest as manifest_module  # noqa: E402
 import sweep  # noqa: E402
 
-DESCRIPTION = "Run one stage of the tabular sweep, at every configuration and seed."
+DESCRIPTION = "Run one stage of the sweep, at every configuration and seed."
+
+# not a manifest stage: the graph-network cells sweep no shared axis and wait
+# on no gate, so they are enumerated rather than expanded
+GNN_STAGE = "gnn"
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +42,17 @@ logger = logging.getLogger(__name__)
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse the command line."""
     parser = argparse.ArgumentParser(description=DESCRIPTION)
-    parser.add_argument("--stage", required=True, help="which stage of the manifest to run")
+    parser.add_argument(
+        "--stage",
+        required=True,
+        help="which stage of the manifest to run, or 'gnn' for the graph-network cells",
+    )
+    parser.add_argument(
+        "--cells",
+        nargs="+",
+        metavar="ID",
+        help="restrict a gnn run to these cells; defaults to every cell",
+    )
     parser.add_argument(
         "--fix",
         action="append",
@@ -95,6 +113,27 @@ def parse_fixed(assignments: list[str]) -> dict[str, Any]:
     return resolved
 
 
+def _run_gnn(spec: manifest_module.Manifest, args: argparse.Namespace, seeds: list[int]) -> None:
+    """Print the graph-network plan and, unless this is a dry run, train it."""
+    wanted = set(args.cells) if args.cells else None
+    unknown = wanted - {cell.id for cell in spec.gnn_cells} if wanted else set()
+    if unknown:
+        raise SystemExit(f"unknown gnn cells: {sorted(unknown)}")
+
+    selected = [c for c in spec.gnn_cells if wanted is None or c.id in wanted]
+    print(f"stage gnn: {len(selected)} cells x {len(seeds)} seeds")
+    print(f"  seeds: {seeds}")
+    for cell in selected:
+        print(f"  {cell.id}")
+    print(f"total runs: {len(selected) * len(seeds)}")
+
+    if args.dry_run:
+        return
+
+    written = sweep.run_gnn_stage(spec, seeds=seeds, cells=args.cells, force=args.force)
+    logger.info("gnn: %d runs in %s", len(written), sweep.RESULTS_DIR)
+
+
 def main() -> None:
     """Expand the stage, print its plan, and run every configuration and seed."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -102,8 +141,13 @@ def main() -> None:
 
     encoders.register()
     spec = manifest_module.load()
-    resolved = parse_fixed(args.fix)
     seeds = args.seeds if args.seeds is not None else list(spec.seeds)
+
+    if args.stage == GNN_STAGE:
+        _run_gnn(spec, args, seeds)
+        return
+
+    resolved = parse_fixed(args.fix)
     configs = spec.expand(args.stage, resolved)
 
     print(f"stage {args.stage}: {len(configs)} configurations x {len(seeds)} seeds")

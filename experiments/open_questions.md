@@ -69,8 +69,37 @@ on `4a8df806`, the pinned commit. Provenance records the commit as well as the
 version, so results are attributable, but anyone reading the version alone would
 be misled.
 
-## Not yet verified
+**The auxiliary encoder has seen some validation structures under a different
+measurement.** The log2FC screen covers 565 of the 878 compounds in `fit_val`.
+That is not pEC50 leakage, since the screen is a different, public assay and no
+phase-2 compound is in it at all, but it does mean the auxiliary encoder has
+been trained on structures the main model then early-stops on. The prior design
+did the same. Scoring against phase 2 is unaffected; the question is whether
+the validation loss the main model stops on is slightly optimistic, and whether
+that is worth saying in the write-up.
 
-The encoder blocks and the vendored concatenation architecture were built in
-parallel and their reports are not yet folded in. Their wall-clock per run is
-what sets figure 1's cost, and figure 1 is the expensive half of the sweep.
+**Predictions now come from the best-validation epoch, not the last.** The prior
+ran without checkpointing and predicted from wherever training happened to stop,
+several epochs past its best. That is a real improvement rather than a
+reproduction, so it is flagged rather than absorbed;
+`TrainingConfig(restore_best=False)` reproduces the old behaviour exactly if a
+like-for-like comparison is ever wanted.
+
+**Figure 1's cost is dominated by retraining the auxiliary encoder.** Measured
+at roughly 200 s per concatenation run, so 125 runs is about 7 hours serial, and
+most of each run is the auxiliary encoder, which is retrained per cell because it
+depends on the seed. Caching it per seed and task set across cells would cut
+around 150 s from each of the 22 concatenation cells, saving roughly an hour.
+Not done, because it trades a simple story for a faster one.
+
+**TabFM's row cap is not visible in the figure.** Figure 4 currently shows its
+result beside six regressors that saw the whole training set, with the caveat
+living only in this file and the module docstring.
+
+## Early numbers, not results
+
+One seed of three graph-network cells was run to measure wall clock:
+`chemeleon_pec50` 0.518, `concat_freeze2_hd512_clipoff` 0.504,
+`concat_predicted_readout` 0.542 phase-2 MAE, against a training-mean baseline of
+0.959. These are one seed each, they are not a sweep, and they must not be read
+against the leaderboard anchor.
