@@ -74,7 +74,7 @@ Per the N283T report, fitting an isotonic map on out-of-fold (OOF) predictions a
 
 *(paste `reporting/figures/figure-06.html` here as an HTML card)*
 
-*(caption TK)*
+**Figure 6. Isotonic calibration.** The panel reports test set MAE for **Our best overall** before and after isotonic calibration, each a mean across the same 5 seeds.
 
 ---
 
