@@ -156,7 +156,8 @@ def _stub_train(offset: float):
 
     def train(axes, seed, partitions):
         del axes, seed
-        return partitions.test[TARGET_COL].to_numpy(dtype=float) + offset
+        predictions = partitions.test[TARGET_COL].to_numpy(dtype=float) + offset
+        return predictions, {"epochs": 1}
 
     return train
 
@@ -178,6 +179,7 @@ def test_a_graph_network_run_writes_the_same_shape_as_a_tabular_one(spec, tiny):
     assert record["cell"] == cell.id
     assert record["axes"] == cell.axes
     assert record["seed"] == 1
+    assert record["training"] == {"epochs": 1}
     # aggregation identifies a run by its directory and cross-checks the record
     assert record["cell"] == run_dir.parent.name
 
@@ -206,7 +208,7 @@ def test_wrong_number_of_predictions_is_refused(spec, tiny):
 
     def short(axes, seed, partitions):
         del axes, seed
-        return partitions.test[TARGET_COL].to_numpy(dtype=float)[:-1]
+        return partitions.test[TARGET_COL].to_numpy(dtype=float)[:-1], {}
 
     with pytest.raises(sweep.SweepError, match="predictions for"):
         sweep.run_gnn_one(

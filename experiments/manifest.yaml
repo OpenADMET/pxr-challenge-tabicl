@@ -281,7 +281,8 @@ figures:
   - id: fig3
     title: Featureset combinations
     question: Which combination of blocks wins?
-    select: {kind: tabular, descriptor_pca: 128, calibration: none}
+    # a combination is two blocks or three; the single-block rows are figure 2's
+    select: {kind: tabular, n_blocks: [2, 3], descriptor_pca: 128, calibration: none}
 
   - id: fig4
     title: Regressor comparison
@@ -298,10 +299,16 @@ figures:
   - id: fig6
     title: Isotonic calibration
     question: Does post-hoc isotonic calibration help on the challenge split?
-    select: {kind: tabular, descriptor_pca: 128}
+    # no width is pinned here on purpose: the calibration stage runs on whatever
+    # width the gate before it settled, so pinning 128 would empty this figure
+    # whenever that gate chose 64 or 256
+    select: {kind: tabular}
     facet: calibration
 
   - id: fig7
     title: Predicted uncertainty against actual error
     question: Do the winning models' uncertainty estimates track their errors?
+    # every uncertainty-reporting run qualifies, so the renderer plots the
+    # leading configuration per regressor rather than every configuration at
+    # once, and never pools the two kinds of spread
     select: {kind: tabular, calibration: none, has_uncertainty: true}

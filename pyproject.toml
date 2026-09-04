@@ -12,6 +12,8 @@ dependencies = [
     "pyarrow>=15",
     "huggingface-hub>=0.24",
     "pyyaml>=6",
+    "matplotlib>=3.9",
+    "scikit-learn>=1.5",
 ]
 
 [dependency-groups]

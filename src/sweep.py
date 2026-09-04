@@ -53,8 +53,9 @@ VERSION = 1
 BLOCK_ORDER = ("embedding", "readout", "descriptors")
 
 # what the vendored architecture must supply: axes, seed and partitions in,
-# test-partition predictions out, in that partition's own row order
-TrainGnn = Callable[[dict[str, Any], int, "Partitions"], np.ndarray]
+# test-partition predictions in that partition's own row order, plus whatever
+# the training run wants recorded alongside them
+TrainGnn = Callable[[dict[str, Any], int, "Partitions"], tuple[np.ndarray, dict[str, Any]]]
 
 
 class SweepError(RuntimeError):
@@ -433,7 +434,8 @@ def run_gnn_one(
         return run_dir
 
     logger.info("%s seed=%d: training", cell.id, seed)
-    predicted = np.asarray(train(cell.axes, seed, partitions), dtype=np.float64)
+    raw, training_record = train(cell.axes, seed, partitions)
+    predicted = np.asarray(raw, dtype=np.float64)
     observed = partitions.test[TARGET_COL].to_numpy(dtype=np.float64)
     if predicted.shape != observed.shape:
         raise SweepError(
@@ -448,7 +450,12 @@ def run_gnn_one(
         smiles=partitions.test[CANONICAL_COL].to_numpy(),
         observed=observed,
         predicted=predicted,
-        record={"cell": cell.id, "axes": cell.axes, "n_fit": int(len(partitions.fit_train))},
+        record={
+            "cell": cell.id,
+            "axes": cell.axes,
+            "n_fit": int(len(partitions.fit_train)),
+            "training": training_record,
+        },
     )
     logger.info("%s seed=%d: mae=%.4f -> %s", cell.id, seed, scores["mae"], run_dir)
     return run_dir
@@ -509,3 +516,82 @@ def _seed_params(block: str, seed: int) -> dict[str, Any]:
     if spec is not None and getattr(spec, "seeded", False):
         return {"seed": seed}
     return {}
+
+
+def default_gnn_trainer() -> TrainGnn:
+    """Return the vendored concatenation architecture as a trainer.
+
+    Imported lazily so the sweep module stays importable without torch, and so
+    the dependency runs one way: this module knows the architecture only through
+    the callable it hands back.
+
+    Returns
+    -------
+    callable
+        Matching :data:`TrainGnn`.
+    """
+    from concat_arch import RunConfig, run_cell
+
+    def train(
+        axes: dict[str, Any], seed: int, partitions: Partitions
+    ) -> tuple[np.ndarray, dict[str, Any]]:
+        # run_cell reads the split files itself and returns predictions in the
+        # test file's row order, which is the order the partitions carry too
+        del partitions
+        result = run_cell(RunConfig.from_axes(axes), seed)
+        return result.predictions["prediction"].to_numpy(), result.record
+
+    return train
+
+
+def run_gnn_stage(
+    manifest: Manifest,
+    *,
+    seeds: Iterable[int] | None = None,
+    cells: Iterable[str] | None = None,
+    results_dir: Path = RESULTS_DIR,
+    train: TrainGnn | None = None,
+    force: bool = False,
+) -> list[Path]:
+    """Train every graph-network cell the manifest declares, at every seed.
+
+    Parameters
+    ----------
+    manifest : Manifest
+        Supplies the cells and the seeds.
+    seeds : iterable of int, optional
+        Which seeds to run. Defaults to the manifest's.
+    cells : iterable of str, optional
+        Restrict to these cell identifiers. Defaults to all of them.
+    results_dir : path-like, optional
+        Root the run directories hang off.
+    train : callable, optional
+        The architecture. Defaults to the vendored one.
+    force : bool, optional
+        Retrain even where a matching run is present.
+
+    Returns
+    -------
+    list of Path
+        The run directories, written or already complete.
+    """
+    partitions = load_partitions()
+    seeds = list(seeds if seeds is not None else manifest.seeds)
+    wanted = set(cells) if cells is not None else None
+    selected = [c for c in manifest.gnn_cells if wanted is None or c.id in wanted]
+    train = train or default_gnn_trainer()
+    logger.info("gnn: %d cells x %d seeds", len(selected), len(seeds))
+
+    return [
+        run_gnn_one(
+            cell,
+            manifest,
+            seed,
+            train=train,
+            partitions=partitions,
+            results_dir=results_dir,
+            force=force,
+        )
+        for cell in selected
+        for seed in seeds
+    ]
