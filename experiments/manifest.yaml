@@ -1,0 +1,781 @@
+# Coverage spec for the rebuild: every configuration the figures need, and every
+# configuration deliberately not run, with the prior evidence behind each call.
+#
+# Cells carry no copied metrics. Each names a prior configuration in
+# `experiments/prior_summary.csv`, and src/manifest.py joins the numbers at load
+# time, so the manifest and its evidence cannot drift apart. tests/test_manifest.py
+# re-checks every prune against the margin rule below.
+
+version: 1
+
+prior:
+  source: "main:reporting/results.parquet @ 00be37e"
+  summary: experiments/prior_summary.csv
+  # the prior sweep scored phase 1 and phase 2 pooled; these numbers rank
+  # configurations against each other and set no threshold and no target
+  eval: phase1+phase2 pooled, n=513
+  metric: rae
+  shortlist_margin_rae: 0.015
+  margin_basis: >
+    Median within-configuration seed spread in the prior sweep is 0.0076 RAE
+    (SEM 0.0034) over the 49 configurations with five seeds, so two
+    configurations closer than roughly two standard deviations are not
+    separated by the prior. The rebuild scores 260 compounds rather than 513
+    and will be noisier still, which is the direction that argues for the
+    wider margin rather than a tighter one.
+  comparison_rule: >
+    A prune compares a cell against a configuration run with the same
+    regressor. Cross-regressor differences in the prior confound the featureset
+    axis with the regressor axis and never justify a prune on their own.
+
+anchor:
+  name: N283T, challenge leaderboard, phase 2
+  n: 260
+  mae_ensemble: 0.4113
+  mae_single: 0.437
+  note: >
+    The only absolute reference in this repository. Prior metrics rank
+    configurations; they are not comparable to this number or to any phase-2
+    score produced by the rebuild.
+
+split:
+  fit: data/splits/fit_all.csv
+  fit_train: data/splits/fit_train.csv
+  fit_val: data/splits/fit_val.csv
+  test: data/splits/test_phase2.csv
+  n_fit: 4392
+  n_test: 260
+
+seeds: [0, 1, 2, 3, 4]
+
+# Regressors the pinned openadmet-models registers, verified against
+# 4a8df80 openadmet/models/architecture/. Anything outside this list would need
+# a vendored regressor, which the rebuild's scope excludes.
+regressors:
+  available:
+    - TabICLRegressorModel
+    - TabPFNRegressorModel
+    - LGBMRegressorModel
+    - XGBRegressorModel
+    - TabPFNPostHocRegressorModel
+    - CatBoostRegressorModel
+    - RFRegressorModel
+    - SVMRegressorModel
+  unavailable:
+    tabfm: >
+      The tabfm package is installed but openadmet-models registers no TabFM
+      model, so the prior's three TabFM ensemble-size rows cannot be
+      reproduced. They were within 0.004 RAE of each other in any case, so the
+      ensemble-size axis was never resolvable.
+    tabpfn-v2.6: &tabpfn_checkpoint_note >
+      TabPFNModelBase.build() constructs the estimator with device, random_state
+      and ignore_pretraining_limits alone, with no checkpoint selection, so the
+      prior's pinned TabPFN checkpoint variants are not expressible in a recipe.
+      The rebuild runs whatever checkpoint the installed tabpfn (8.2.0) defaults
+      to, captured per run in anvil_recipe.yaml.
+    tabpfn-v3: *tabpfn_checkpoint_note
+
+# Constraints discovered in the pinned dependency that shape how cells are built.
+dependency_notes:
+  same_class_blocks: >
+    FeatureConcatenator rejects two featurizers of the same class, because
+    per-block transforms key blocks by featurizer class name. The vendored
+    passthrough featurizer therefore registers one subclass per cached block
+    (embedding, readout, rdkit, mordred) rather than one parametrized class.
+  block_order: >
+    FeatureConcatenator sorts its featurizers by class name, so block order is
+    alphabetical rather than as-written. Per-block PCA is keyed by name and is
+    unaffected.
+  mordred_width: >
+    PCATransform's per-block path requires a stable column layout across
+    partitions, and its own docstring names Mordred as the featurizer that
+    violates this, since its columns are the union of descriptors that compute
+    on the rows given. Precomputing descriptors once over every compound fixes
+    the column set and removes that failure mode.
+
+figures:
+  - id: fig1
+    title: Graph-network baselines
+    question: Where does a fine-tuned message-passing network land on the challenge split?
+    gate: null
+    fixed:
+      model_kind: gnn
+    cells:
+      - id: fig1/chemeleon_pec50
+        status: run
+        role: baseline
+        axes:
+          model_kind: gnn
+          encoder_init: chemeleon
+          finetune_target: pec50
+          aux_encoder: null
+          ffn_hidden_dim: 512
+          freeze_epochs: 2
+          gradient_clip_val: null
+          calibration: none
+        prior:
+          config: pxr_baseline_chemeleon_pec50
+        reason: >
+          The plain CheMeleon fine-tune, with no auxiliary encoder, is the
+          figure's reference point. Its prior run produced no metrics, so it
+          carries no ranking evidence either way and is run because the figure
+          needs it.
+
+      - id: fig1/concat_freeze2_hd512_clipoff
+        status: run
+        role: shortlist
+        axes:
+          model_kind: gnn
+          encoder_init: chemeleon
+          finetune_target: pec50
+          aux_encoder:
+            target: log2fc
+            tasks: 2
+            use_observed_readout: false
+            use_predicted_readout: false
+          ffn_hidden_dim: 512
+          freeze_epochs: 2
+          gradient_clip_val: null
+          calibration: none
+        prior:
+          config: freeze2_hd512_clipoff
+          compared_to: freeze2_hd512_clipoff
+        reason: >
+          The only cell of the 18-cell freeze/width/clip grid whose metrics
+          survived into the prior aggregation, at five seeds, and so the best
+          evidenced concatenation-architecture configuration there is.
+
+      - id: fig1/concat_freeze2_hd512_clip1.0
+        status: run
+        role: shortlist
+        axes:
+          model_kind: gnn
+          encoder_init: chemeleon
+          finetune_target: pec50
+          aux_encoder:
+            target: log2fc
+            tasks: 2
+            use_observed_readout: false
+            use_predicted_readout: false
+          ffn_hidden_dim: 512
+          freeze_epochs: 2
+          gradient_clip_val: 1.0
+          calibration: none
+        prior:
+          config: freeze2_hd512_clip1.0
+        reason_kind: no_prior_metric
+        reason: >
+          The prior's own launch script (generate_feature_sweep_configs.py)
+          calls this "the earlier grid's best config" and builds every feature
+          -source variant on top of it, but no metrics for it survived into the
+          aggregation. The claim is unverifiable from the parquet, so the cell
+          is run rather than trusted or dropped.
+
+      - id: fig1/concat_predicted_readout
+        status: run
+        role: shortlist
+        axes:
+          model_kind: gnn
+          encoder_init: chemeleon
+          finetune_target: pec50
+          aux_encoder:
+            target: log2fc
+            tasks: 2
+            use_observed_readout: false
+            use_predicted_readout: true
+          ffn_hidden_dim: 512
+          freeze_epochs: 2
+          gradient_clip_val: 1.0
+          calibration: none
+        prior:
+          config: feat_predicted_native_2task
+          compared_to: freeze2_hd512_clipoff
+        reason: >
+          Concatenating the auxiliary encoder's own predicted log2FC readout
+          lands within the margin of the best evidenced grid cell, on a single
+          prior seed. A one-seed mean is exactly the case the margin exists to
+          protect, so the cell is re-run at five.
+
+      - id: fig1/e4_frozen
+        status: run
+        role: baseline
+        axes:
+          model_kind: gnn
+          encoder_init: log2fc_checkpoint
+          finetune_target: pec50
+          aux_encoder: null
+          ffn_hidden_dim: 512
+          freeze_epochs: 50
+          gradient_clip_val: 1.0
+          calibration: none
+        prior:
+          config: e4_frozen
+        reason: >
+          E4's literal recipe: a body pretrained on log2FC with only the
+          readout fine-tuned. Kept as a published baseline to reproduce, not as
+          a contender for the gate.
+
+      - id: fig1/e4_finetune
+        status: run
+        role: baseline
+        axes:
+          model_kind: gnn
+          encoder_init: log2fc_checkpoint
+          finetune_target: pec50
+          aux_encoder: null
+          ffn_hidden_dim: 512
+          freeze_epochs: 2
+          gradient_clip_val: 1.0
+          calibration: none
+        prior:
+          config: e4_finetune
+        reason: >
+          The warmup-then-unfreeze variant of the same baseline, kept for the
+          same reason.
+
+      - id: fig1/concat_grid_remainder
+        status: pruned
+        role: shortlist
+        covers:
+          - freeze0_hd512_clip1.0
+          - freeze0_hd512_clip5.0
+          - freeze0_hd512_clipoff
+          - freeze0_hd1024_clip1.0
+          - freeze0_hd1024_clip5.0
+          - freeze0_hd1024_clipoff
+          - freeze1_hd512_clip1.0
+          - freeze1_hd512_clip5.0
+          - freeze1_hd512_clipoff
+          - freeze1_hd1024_clip1.0
+          - freeze1_hd1024_clip5.0
+          - freeze1_hd1024_clipoff
+          - freeze2_hd512_clip5.0
+          - freeze2_hd1024_clip1.0
+          - freeze2_hd1024_clip5.0
+          - freeze2_hd1024_clipoff
+        reason_kind: no_prior_metric
+        reason: >
+          Sixteen remaining cells of the freeze/width/clip grid. None produced
+          metrics that survived into the prior aggregation, so none can be
+          ranked, and a hyperparameter search over the auxiliary architecture is
+          not what this figure asks. Backfilled at five seeds if either
+          shortlisted grid cell upsets the tabular results.
+
+      - id: fig1/concat_observed_readout
+        status: pruned
+        role: shortlist
+        covers:
+          - feat_observed_2task
+          - feat_observed_4task
+          - feat_observed_and_predicted_2task
+        prior:
+          config: feat_observed_2task
+          compared_to: freeze2_hd512_clipoff
+        reason: >
+          Every variant that concatenates the raw observed log2FC readout falls
+          far outside the margin, the four-task variant worst of all. The
+          predicted-readout variant carries the idea forward on its own.
+
+      - id: fig1/e4_drc_only
+        status: pruned
+        role: baseline
+        covers:
+          - e4_frozen_drc_only
+          - e4_finetune_drc_only
+        reason_kind: structural
+        reason: >
+          These differ from their twins only in training on dose-response
+          records alone. The rebuild fixes the training set to the challenge's
+          own train + phase 1, so the axis no longer exists.
+
+  - id: fig2
+    title: Single-ingredient tabular features
+    question: How far does each feature block get on its own?
+    gate: null
+    fixed:
+      regressor: TabICLRegressorModel
+      calibration: none
+    notes: >
+      The regressor is held at TabICL across figures 2, 3 and 5 so the
+      featureset axis is never read through a changing regressor; figure 4 is
+      where the regressor axis is answered. The prior ran these rows on TabPFN,
+      which is why their prior numbers rank the ingredients without predicting
+      the rebuild's values.
+    cells:
+      - id: fig2/log2fc_embedding
+        status: run
+        role: coverage
+        axes: &fs_log2fc_embedding
+          model_kind: tabular
+          blocks:
+            embedding: {source: log2fc_encoder, native_dim: 256, pca: null}
+            readout: null
+            descriptors: null
+          regressor: TabICLRegressorModel
+          calibration: none
+        prior:
+          config: tabpfn_embed_only_no_readout
+        reason: The embedding of our own log2FC-trained encoder, alone.
+
+      - id: fig2/log2fc_readout
+        status: run
+        role: coverage
+        axes:
+          model_kind: tabular
+          blocks:
+            embedding: null
+            readout: {source: log2fc_encoder, dim: 2}
+            descriptors: null
+          regressor: TabICLRegressorModel
+          calibration: none
+        prior:
+          config: tabpfn_readout_only_no_embed
+        reason: Two predicted log2FC columns, alone.
+
+      - id: fig2/mordred
+        status: run
+        role: coverage
+        axes:
+          model_kind: tabular
+          blocks:
+            embedding: null
+            readout: null
+            descriptors: {sources: [mordred], pca: 128}
+          regressor: TabICLRegressorModel
+          calibration: none
+        prior:
+          config: tabpfn_mordred_only_pca128_no_embed_no_readout
+        reason: Mordred descriptors, alone.
+
+      - id: fig2/rdkit
+        status: run
+        role: coverage
+        axes:
+          model_kind: tabular
+          blocks:
+            embedding: null
+            readout: null
+            descriptors: {sources: [rdkit], pca: 128}
+          regressor: TabICLRegressorModel
+          calibration: none
+        prior:
+          config: tabpfn_rdkit_only_pca128_no_embed_no_readout
+        reason: RDKit descriptors, alone.
+
+      - id: fig2/chemeleon_embedding
+        status: run
+        role: coverage
+        axes:
+          model_kind: tabular
+          blocks:
+            embedding: {source: chemeleon, native_dim: 2048, pca: 256}
+            readout: null
+            descriptors: null
+          regressor: TabICLRegressorModel
+          calibration: none
+        prior:
+          config: tabpfn_chemeleon_embed_only
+        reason: Off-the-shelf CheMeleon embedding, alone.
+
+  - id: fig3
+    title: Featureset combinations
+    question: Which combination of blocks wins?
+    gate: winning featureset
+    fixed:
+      regressor: TabICLRegressorModel
+      calibration: none
+    cells:
+      - id: fig3/chemeleon_readout
+        status: run
+        role: shortlist
+        axes: &fs_chemeleon_readout
+          model_kind: tabular
+          blocks:
+            embedding: {source: chemeleon, native_dim: 2048, pca: 256}
+            readout: {source: log2fc_encoder, dim: 2}
+            descriptors: null
+          regressor: TabICLRegressorModel
+          calibration: none
+        prior:
+          config: tabicl_chemeleon_readout_only
+          compared_to: tabicl_chemeleon_readout_only
+        reason: Best configuration in the prior sweep on any metric, at five seeds.
+
+      - id: fig3/chemeleon_readout_mordred64
+        status: run
+        role: shortlist
+        axes:
+          model_kind: tabular
+          blocks:
+            embedding: {source: chemeleon, native_dim: 2048, pca: 256}
+            readout: {source: log2fc_encoder, dim: 2}
+            descriptors: {sources: [mordred], pca: 64}
+          regressor: TabICLRegressorModel
+          calibration: none
+        prior:
+          config: tabicl_chemeleon_readout_descriptors_pca64
+          compared_to: tabicl_chemeleon_readout_only
+        reason: Within the margin of the prior winner.
+
+      - id: fig3/chemeleon_readout_mordred128
+        status: run
+        role: shortlist
+        axes: &fs_chemeleon_readout_mordred128
+          model_kind: tabular
+          blocks:
+            embedding: {source: chemeleon, native_dim: 2048, pca: 256}
+            readout: {source: log2fc_encoder, dim: 2}
+            descriptors: {sources: [mordred], pca: 128}
+          regressor: TabICLRegressorModel
+          calibration: none
+        covers:
+          - tabpfn_chemeleon_readout_descriptors
+          - tabpfn-v2.6_chemeleon_readout_descriptors
+          - tabpfn-v3_chemeleon_readout_descriptors
+          - tabfm_n32_chemeleon_readout_descriptors
+          - lgbm_chemeleon_readout_descriptors
+          - xgboost_chemeleon_readout_descriptors
+        prior:
+          config: tabicl_chemeleon_readout_descriptors
+          compared_to: tabicl_chemeleon_readout_only
+        reason: Within the margin of the prior winner.
+
+      - id: fig3/readout_mordred128
+        status: run
+        role: shortlist
+        axes:
+          model_kind: tabular
+          blocks:
+            embedding: null
+            readout: {source: log2fc_encoder, dim: 2}
+            descriptors: {sources: [mordred], pca: 128}
+          regressor: TabICLRegressorModel
+          calibration: none
+        covers:
+          - tabpfn_readout_mordred_pca128_no_embed
+          - tabpfn-v2.6_readout_mordred_pca128_no_embed
+          - tabpfn-v3_readout_mordred_pca128_no_embed
+          - tabfm_n32_readout_mordred_pca128_no_embed
+          - lgbm_readout_mordred_pca128_no_embed
+          - xgboost_readout_mordred_pca128_no_embed
+        prior:
+          config: tabicl_readout_mordred_pca128_no_embed
+          compared_to: tabicl_chemeleon_readout_only
+        reason: >
+          Within the margin of the prior winner, and the cheapest featureset in
+          the shortlist at 130 columns.
+
+      - id: fig3/log2fc_embed_readout_mordred128
+        status: run
+        role: reference
+        axes:
+          model_kind: tabular
+          blocks:
+            embedding: {source: log2fc_encoder, native_dim: 256, pca: null}
+            readout: {source: log2fc_encoder, dim: 2}
+            descriptors: {sources: [mordred], pca: 128}
+          regressor: TabICLRegressorModel
+          calibration: none
+        covers:
+          - tabpfn_embed_readout_mordred_pca128
+          - tabpfn_embed_readout_mordred_pca64
+          - tabpfn-v2.6_embed_readout_mordred_pca128
+          - tabpfn-v3_embed_readout_mordred_pca128
+          - tabfm_embed_readout_mordred_pca128
+          - tabfm_n16_embed_readout_mordred_pca128
+          - tabfm_n32_embed_readout_mordred_pca128
+          - tabfm_n64_embed_readout_mordred_pca128
+          - lgbm_embed_readout_mordred_pca128
+          - xgboost_embed_readout_mordred_pca128
+        prior:
+          config: tabicl_embed_readout_mordred_pca128
+          compared_to: tabicl_chemeleon_readout_only
+        reason: >
+          Falls just outside the margin, but this is the architecture the
+          published post argued for, so it is carried as a named reference row
+          rather than pruned. It does not compete for the gate.
+
+      - id: fig3/log2fc_embed_readout_rdkit_mordred
+        status: pruned
+        role: shortlist
+        covers:
+          - tabpfn_concat_pca64
+          - tabpfn_concat_pca256
+        prior:
+          config: tabpfn_concat_small_embed
+          compared_to: tabpfn_chemeleon_readout_descriptors
+        reason: >
+          Adding RDKit alongside Mordred lands outside the margin of the best
+          featureset run on the same regressor.
+
+      - id: fig3/log2fc_embed_mordred128
+        status: pruned
+        role: shortlist
+        prior:
+          config: tabpfn_embed_mordred_pca128_no_readout
+          compared_to: tabpfn_chemeleon_readout_descriptors
+        reason: Dropping the readout block costs more than the margin allows.
+
+      - id: fig3/log2fc_embed_readout
+        status: pruned
+        role: shortlist
+        covers:
+          - tabpfn_frozen_features
+        prior:
+          config: tabpfn_small_embed
+          compared_to: tabpfn_chemeleon_readout_descriptors
+        reason: Dropping descriptors entirely costs well over the margin.
+
+      - id: fig3/chemeleon_mordred128
+        status: pruned
+        role: shortlist
+        prior:
+          config: tabpfn_chemeleon_descriptors_only
+          compared_to: tabpfn_chemeleon_readout_descriptors
+        reason: >
+          CheMeleon embedding with descriptors but no readout block, far outside
+          the margin. Despite its prior directory name this row carries the
+          embedding; it is a combination, not a single ingredient.
+
+      - id: fig3/chemeleon_rdkit_mordred256
+        status: pruned
+        role: shortlist
+        prior:
+          config: tabpfn_chemeleon_static
+          compared_to: tabpfn_chemeleon_readout_descriptors
+        reason: The widest CheMeleon combination tried, and the worst of them.
+
+      - id: fig3/encoder_variants
+        status: pruned
+        role: shortlist
+        covers:
+          - tabpfn_pec50_chemeleon
+          - tabpfn_pec50_scratch
+          - tabpfn_pec50_scratch_mordred_pca128
+          - tabpfn_pec50_chemeleon_full
+        prior:
+          config: tabpfn_chemeleon_log2fc_mordred_pca128
+          compared_to: tabpfn_chemeleon_readout_descriptors
+        reason: >
+          The prior's encoder-init by training-target grid: an embedding encoder
+          started from CheMeleon rather than scratch, or trained directly on
+          pEC50 rather than on log2FC. The best of the four is well outside the
+          margin, so the rebuild keeps one encoder recipe and spends the runs on
+          featureset and regressor instead.
+
+      - id: fig3/log2fc_embed_readout_rdkit128
+        status: pruned
+        role: shortlist
+        prior:
+          config: tabpfn_embed_readout_rdkit_pca128
+          compared_to: tabpfn_chemeleon_readout_descriptors
+        reason: >
+          RDKit descriptors in place of Mordred alongside the log2FC embedding
+          and readout, outside the margin on a single prior seed.
+
+  - id: fig4
+    title: Regressor comparison
+    question: Which regressor wins on the featureset figure 3 selects?
+    gate: our best overall
+    depends_on_gate: fig3
+    provisional_featureset: fig3/chemeleon_readout
+    notes: >
+      Cells are defined against the featureset figure 3 selects. The axes below
+      assume the prior winner; select.py rewrites them if figure 3 upsets.
+    cells:
+      - id: fig4/tabicl
+        status: run
+        role: coverage
+        shares_runs_with: fig3/chemeleon_readout
+        prior:
+          config: tabicl_chemeleon_readout_only
+          compared_to: tabicl_chemeleon_readout_only
+        reason: >
+          Best regressor on this featureset in the prior sweep. Its runs are
+          figure 3's, not a second set.
+
+      - id: fig4/tabpfn
+        status: run
+        role: coverage
+        axes:
+          model_kind: tabular
+          blocks:
+            embedding: {source: chemeleon, native_dim: 2048, pca: 256}
+            readout: {source: log2fc_encoder, dim: 2}
+            descriptors: null
+          regressor: TabPFNRegressorModel
+          calibration: none
+        prior:
+          config: tabpfn_chemeleon_readout_only
+        reason: >
+          The regressor the published post used. Outside the margin in the
+          prior, but a regressor comparison that omits it answers nothing, and
+          the installed TabPFN checkpoint is not the one the prior ran.
+
+      - id: fig4/lgbm
+        status: run
+        role: coverage
+        axes:
+          model_kind: tabular
+          blocks:
+            embedding: {source: chemeleon, native_dim: 2048, pca: 256}
+            readout: {source: log2fc_encoder, dim: 2}
+            descriptors: null
+          regressor: LGBMRegressorModel
+          calibration: none
+        prior:
+          config: lgbm_chemeleon_readout_only
+        reason: Gradient-boosting reference point for the comparison.
+
+      - id: fig4/xgboost
+        status: run
+        role: coverage
+        axes:
+          model_kind: tabular
+          blocks:
+            embedding: {source: chemeleon, native_dim: 2048, pca: 256}
+            readout: {source: log2fc_encoder, dim: 2}
+            descriptors: null
+          regressor: XGBRegressorModel
+          calibration: none
+        prior:
+          config: xgboost_chemeleon_readout_only
+        reason: The second gradient-boosting reference point.
+
+      - id: fig4/tabfm
+        status: pruned
+        role: coverage
+        prior:
+          config: tabfm_n32_chemeleon_readout_only
+        reason_kind: unavailable
+        reason: >
+          No TabFM model is registered in the pinned openadmet-models, so this
+          cell cannot be expressed in a recipe without a vendored regressor.
+          Its prior result was outside the margin in any case.
+
+      - id: fig4/tabpfn_checkpoint_variants
+        status: pruned
+        role: coverage
+        covers:
+          - tabpfn-v2.6_chemeleon_readout_only
+          - tabpfn-v3_chemeleon_readout_only
+        reason_kind: unavailable
+        reason: >
+          TabPFN checkpoint selection is not exposed by the pinned dependency's
+          model wrapper, so the prior's version-pinned rows cannot be
+          reproduced.
+
+      - id: fig4/tabpfn_posthoc
+        status: pruned
+        role: coverage
+        reason_kind: no_prior_metric
+        reason: >
+          TabPFNPostHocRegressorModel is available and untried in the prior. It
+          would add a regressor axis the rebuild is not re-litigating; recorded
+          so its absence reads as a decision.
+
+      - id: fig4/oom_reproduction
+        status: pruned
+        role: coverage
+        prior:
+          config: cpu_oom_repro_tabfm_full_rows
+        reason_kind: structural
+        reason: >
+          A CPU out-of-memory reproduction the prior sweep left behind, scored
+          because it ran to completion. It is a debugging artifact rather than a
+          configuration under test, and its regressor is unavailable regardless.
+
+  - id: fig5
+    title: Descriptor PCA width
+    question: How much does the descriptor block's width matter?
+    gate: null
+    depends_on_gate: fig3
+    provisional_featureset: fig3/chemeleon_readout_mordred128
+    fixed:
+      regressor: TabICLRegressorModel
+      calibration: none
+    cells:
+      - id: fig5/pca64
+        status: run
+        role: coverage
+        shares_runs_with: fig3/chemeleon_readout_mordred64
+        prior:
+          config: tabicl_chemeleon_readout_descriptors_pca64
+        reason: Already run as a figure 3 shortlist cell; the same runs serve both.
+
+      - id: fig5/pca128
+        status: run
+        role: coverage
+        shares_runs_with: fig3/chemeleon_readout_mordred128
+        prior:
+          config: tabicl_chemeleon_readout_descriptors
+        reason: Already run as a figure 3 shortlist cell; the same runs serve both.
+
+      - id: fig5/pca256
+        status: run
+        role: coverage
+        axes:
+          model_kind: tabular
+          blocks:
+            embedding: {source: chemeleon, native_dim: 2048, pca: 256}
+            readout: {source: log2fc_encoder, dim: 2}
+            descriptors: {sources: [mordred], pca: 256}
+          regressor: TabICLRegressorModel
+          calibration: none
+        prior:
+          config: tabpfn_embed_readout_mordred_pca256
+        reason: >
+          The widest descriptor block the prior tried, never run on this
+          featureset or this regressor, so the figure needs it.
+
+  - id: fig6
+    title: Isotonic calibration
+    question: Does post-hoc isotonic calibration help on the challenge split?
+    gate: null
+    depends_on_gate: fig4
+    provisional_featureset: fig4/tabicl
+    cells:
+      - id: fig6/uncalibrated
+        status: run
+        role: coverage
+        shares_runs_with: fig4/tabicl
+        prior:
+          config: tabicl_chemeleon_readout_only
+        reason: The uncalibrated arm is figure 4's winning runs, not a second set.
+
+      - id: fig6/isotonic
+        status: run
+        role: coverage
+        axes:
+          model_kind: tabular
+          blocks:
+            embedding: {source: chemeleon, native_dim: 2048, pca: 256}
+            readout: {source: log2fc_encoder, dim: 2}
+            descriptors: null
+          regressor: TabICLRegressorModel
+          calibration: isotonic_oof
+        prior:
+          config: tabicl_chemeleon_readout_only_calibrated
+        reason: >
+          Calibration cost 0.020 RAE in the prior, against the N283T report's
+          claim that it closed a similar-sized gap for them. The figure exists
+          to settle that disagreement on the challenge's own split, so the cell
+          is run despite ranking below its uncalibrated twin.
+
+  - id: fig7
+    title: Predicted uncertainty against actual error
+    question: Do the winning model's uncertainty estimates track its errors?
+    gate: null
+    depends_on_gate: fig4
+    provisional_featureset: fig4/tabicl
+    cells:
+      - id: fig7/uncertainty
+        status: run
+        role: diagnostic
+        shares_runs_with: fig4/tabicl
+        prior:
+          config: tabpfn_uncertainty_mordred_pca128
+        reason: >
+          A diagnostic over the winning configuration's existing predictions
+          across five seeds, adding no runs of its own. The prior's uncertainty
+          configuration produced no metrics.
