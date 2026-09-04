@@ -42,7 +42,7 @@ We evaluated every subset of embedding, log<sub>2</sub>FC readout, and descripto
 
 *(paste `reporting/figures/figure-03.html` here as an HTML card)*
 
-*(caption TK)*
+**Figure 3. Combining embedding, log<sub>2</sub>FC readout, and descriptors.** The panel reports test set MAE for every subset of the three ingredients (embedding, log<sub>2</sub>FC readout, and descriptors), all fed to TabPFN v2.5. The embedding is either CheMeleon's off-the-shelf pretrained encoder or the log<sub>2</sub>FC-trained Chemprop encoder, and the descriptor set is Mordred throughout (RDKit is not used in this panel). The log<sub>2</sub>FC embedding and the log<sub>2</sub>FC readout both come from that Chemprop model, the embedding from its encoder and the readout from its prediction head. The Best single-ingredient, Concatenation architecture, and CheMeleon baseline rows repeat the single-ingredient best, the best GNN configuration, and the single-stage CheMeleon baseline from earlier figures for scale. The N283T ensemble, the N283T report target, and our best result overall are reproduced above the dashed divider for reference.
 
 ---
 
