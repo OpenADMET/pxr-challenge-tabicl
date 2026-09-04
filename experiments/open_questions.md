@@ -39,7 +39,43 @@ It costs one reduction per seed instead of one overall.
 **Rows with no pEC50 are dropped when a partition is loaded.** They are kept in
 the split files, since featurization still wants the structures.
 
+**The graph networks refit on the whole fit set, in two passes inside one run.**
+The first pass trains on `fit_train` and lets early stopping choose an epoch
+count; the second reinitialises from the same seed and retrains on `fit_train`
+plus `fit_val` for exactly that many epochs, with no validation partition and no
+early stopping, and the scored predictions come from that model. Both passes are
+recorded. This removes the 20% handicap the graph networks carried against the
+tabular models, and it matches what the challenge entry did: it retrained on the
+training set plus the released phase-1 compounds before submitting.
+
+The same rule now applies to every model in the pipeline that early-stops: the
+two log2FC encoders, the pEC50 encoder, and the auxiliary encoder inside the
+concatenation architecture. For the log2FC encoders it is the cleanest of the
+lot, since their labels come from a different assay and no pEC50 value is
+involved on either side, so the extra rows are free of any leakage argument.
+
+The graph network's second pass reuses its auxiliary encoder rather than
+retraining it, so the refit adds only the main model's cost, far less than a
+doubling.
+
+Two details worth knowing. The second pass runs the same *number of epochs* on
+25% more data, so it takes more gradient steps than the first; matching steps
+instead would be the alternative, and the record carries both the epoch count
+and the row count so the choice is visible rather than implied.
+`TrainingConfig(refit_on_all=False)` reproduces the single-pass behaviour.
+
 ## Open questions
+
+**The pEC50 encoder refits on everything too, under a uniform rule.** The rule
+adopted is that anything deciding how many epochs to run does so on held-out
+rows and then retrains on everything for that count. That covers the pEC50
+encoder, and it is worth being explicit that this makes its embedding a
+function of every training label rather than 80% of them, which strengthens a
+caveat already on record: cross-validation *inside the fit set* using that block
+reads optimistically. Scoring against phase 2 is unaffected either way, because
+no phase-2 label ever reaches the encoder. `EncoderConfig(refit_on_all=False)`
+reverses it for that block alone if the trade turns out not to be wanted.
+
 
 **TabICL's memory behaviour is not monotonic in batch size, and one setting does
 not fit every featureset.** Measured at the production data shape: 130 columns

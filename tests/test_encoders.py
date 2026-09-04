@@ -507,3 +507,27 @@ def test_the_vendored_architecture_finds_the_bridge():
     module = __import__(ENCODERS_MODULE)
     # the E4 arm resolves this by name at call time, so the contract is the name
     assert callable(getattr(module, ENCODERS_FACTORY, None))
+
+
+def test_encoders_refit_on_everything_by_default():
+    # the validation rows exist to choose a stopping point; once chosen there is
+    # no reason to leave them out of the encoder that gets used
+    assert encoders.EncoderConfig(seed=0).refit_on_all is True
+    assert encoders.EncoderConfig(seed=0, refit_on_all=False).refit_on_all is False
+
+
+def test_the_refit_switch_changes_the_cache_key(log2fc_set):
+    # a refitted encoder is a different encoder, so it must not be served from
+    # the single-pass entry's cache
+    base = encoders.EncoderConfig(seed=0, from_foundation=None)
+    single = encoders.EncoderConfig(seed=0, from_foundation=None, refit_on_all=False)
+    assert (
+        encoders.encoder_artifact("log2fc", base, log2fc_set).key
+        != encoders.encoder_artifact("log2fc", single, log2fc_set).key
+    )
+
+
+def test_the_encoder_version_moved_with_the_semantics():
+    # bumping this is what stops artifacts trained under the old single-pass
+    # behaviour from being served for the new one
+    assert encoders.VERSION >= 2

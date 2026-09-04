@@ -86,7 +86,7 @@ logger = logging.getLogger(__name__)
 CHECKPOINT_DIR = Path("data/encoders")
 
 # bumped when the meaning of a trained encoder changes, never for a cosmetic edit
-VERSION = 1
+VERSION = 2
 
 # columns of the single-concentration file this module reads
 LOG2FC_VALUE_COL = "log2_fc_estimate"
@@ -142,6 +142,12 @@ class EncoderConfig:
         checkpoint, None to initialise it randomly. A foundation checkpoint
         supplies its own width and depth, so ``message_hidden_dim`` and
         ``depth`` apply to the random-init case only.
+    refit_on_all : bool
+        After early stopping picks an epoch count on the training rows,
+        reinitialise and retrain on the training and validation rows together
+        for that many epochs, and keep that model. The validation rows exist to
+        choose a stopping point, and once chosen there is no reason to spend
+        them. Set false to keep the first pass's model.
     val_fraction : float or None
         Fraction of the log2FC pool held out for early stopping. Must be None
         for the pEC50 encoder, whose validation partition is a split resource.
@@ -149,6 +155,7 @@ class EncoderConfig:
 
     seed: int
     from_foundation: str | None = None
+    refit_on_all: bool = True
     val_fraction: float | None = 0.2
     message_hidden_dim: int = 256
     depth: int = 3
@@ -510,6 +517,9 @@ class _KeepBestWeights(L.Callback):
         self.monitor = monitor
         self.best_score: float | None = None
         self.best_state: dict[str, torch.Tensor] | None = None
+        # the epoch the best score came from, which is the epoch count a refit
+        # on the combined rows then trains for
+        self.best_epoch: int | None = None
 
     def on_validation_end(self, trainer: L.Trainer, pl_module: L.LightningModule) -> None:
         """Copy the state dict when the monitored metric improves."""
@@ -523,6 +533,7 @@ class _KeepBestWeights(L.Callback):
         if self.best_score is not None and score >= self.best_score:
             return
         self.best_score = score
+        self.best_epoch = trainer.current_epoch
         self.best_state = copy.deepcopy(
             {name: tensor.detach().cpu() for name, tensor in pl_module.state_dict().items()}
         )
@@ -648,6 +659,59 @@ def _train_encoder(target: str, config: EncoderConfig, training: TrainingSet) ->
         trainer.current_epoch,
         best.best_score if best.best_score is not None else float("nan"),
     )
+
+    if not config.refit_on_all:
+        return model
+    return _refit_on_all(target, config, training, epochs=(best.best_epoch or 0) + 1)
+
+
+def _refit_on_all(
+    target: str, config: EncoderConfig, training: TrainingSet, *, epochs: int
+) -> ChemPropModel:
+    """Retrain from scratch on the training and validation rows together.
+
+    The validation rows earned their keep by choosing the epoch count; spending
+    them on that alone would leave the encoder fitted on a fraction of what is
+    available. This pass reinitialises from the same seed, trains for exactly
+    the epochs the first pass settled, and watches nothing, so there is no
+    stopping decision to make and none to leak into.
+    """
+    L.seed_everything(config.seed, workers=True)
+
+    smiles = [*training.train_smiles, *training.val_smiles]
+    targets = np.vstack([training.train_targets, training.val_targets])
+    dataset = _dataset(smiles, targets)
+
+    # the scaler belongs to whatever this pass trains on, which is now both parts
+    scaler = dataset.normalize_targets()
+    loader = build_dataloader(
+        dataset,
+        batch_size=config.batch_size,
+        num_workers=config.num_workers,
+        shuffle=True,
+        seed=config.seed,
+    )
+
+    model = _build_model(config, len(training.task_names), scaler)
+    trainer = L.Trainer(
+        max_epochs=epochs,
+        accelerator=config.accelerator,
+        devices=1,
+        logger=False,
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+        gradient_clip_val=config.gradient_clip_val,
+        log_every_n_steps=1,
+        callbacks=[_FreezeMessagePassing(config.freeze_epochs)],
+    )
+    logger.info(
+        "%s: refitting on %d compounds for %d epoch(s), no validation",
+        target,
+        len(smiles),
+        epochs,
+    )
+    trainer.fit(model.estimator, loader)
     return model
 
 

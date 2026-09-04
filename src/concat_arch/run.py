@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 # bumped when the meaning of this module's output changes, so a cached result
 # from an older definition cannot be mistaken for a current one
 PRODUCER = "concat_arch"
-PRODUCER_VERSION = 1
+PRODUCER_VERSION = 2
 
 # columns of the split CSVs this module reads
 SMILES_COL = "SMILES"
@@ -230,21 +230,27 @@ def run_cell(config: RunConfig, seed: int, splits: SplitPaths | None = None) -> 
             )
 
     extra_dim = features["train"].shape[1] if features else 0
-    model = GraphRegressor(
-        build_mpnn(
-            body,
-            ffn_hidden_dim=config.ffn_hidden_dim,
-            ffn_num_layers=config.ffn_num_layers,
-            message_hidden_dim=config.message_hidden_dim,
-            depth=config.depth,
-            n_tasks=1,
-            extra_input_dim=extra_dim,
-        ),
-        freeze_epochs=config.freeze_epochs,
-        body_lr=config.training.mpnn_lr,
-        head_lr=config.training.ffn_lr,
-    )
 
+    def build_model() -> GraphRegressor:
+        """Build a freshly initialised model, so both passes start the same way."""
+        return GraphRegressor(
+            build_mpnn(
+                body,
+                ffn_hidden_dim=config.ffn_hidden_dim,
+                ffn_num_layers=config.ffn_num_layers,
+                message_hidden_dim=config.message_hidden_dim,
+                depth=config.depth,
+                n_tasks=1,
+                extra_input_dim=extra_dim,
+            ),
+            freeze_epochs=config.freeze_epochs,
+            body_lr=config.training.mpnn_lr,
+            head_lr=config.training.ffn_lr,
+        )
+
+    # first pass: train on the training partition and let early stopping choose
+    # how many epochs this cell and seed want
+    model = build_model()
     data = GraphDataModule(
         train=_dataset(fit_train, features.get("train")),
         val=_dataset(fit_val, features.get("val")),
@@ -253,6 +259,28 @@ def run_cell(config: RunConfig, seed: int, splits: SplitPaths | None = None) -> 
         seed=seed,
     )
     fit_record = _fit(model, data, config, max_epochs=config.training.max_epochs)
+
+    # second pass: rebuild from the same seed and retrain on both partitions for
+    # the epoch count the first pass settled, so the model that is scored has
+    # seen the whole fit set rather than 80% of it
+    refit_record: dict[str, Any] | None = None
+    if config.training.refit_on_all:
+        epochs = max(1, int(fit_record["selected_epoch"]) + 1)
+        fit_all = pd.concat([fit_train, fit_val], ignore_index=True)
+        features_all = np.vstack([features["train"], features["val"]]) if features else None
+
+        lightning.seed_everything(seed, workers=True)
+        model = build_model()
+        refit_data = GraphDataModule(
+            train=_dataset(fit_all, features_all),
+            val=None,
+            batch_size=config.training.batch_size,
+            num_workers=config.training.num_workers,
+            seed=seed,
+        )
+        refit_record = _fit(model, refit_data, config, max_epochs=epochs, validate=False)
+        refit_record["n_train"] = len(fit_all)
+        refit_record["epochs_requested"] = epochs
 
     predictions = model.predict(
         test[CANONICAL_COL].tolist(),
@@ -271,6 +299,8 @@ def run_cell(config: RunConfig, seed: int, splits: SplitPaths | None = None) -> 
         splits=splits.digests(),
     )
     record = {
+        "refit_on_all": refit_record is not None,
+        "refit": refit_record,
         "n_train": len(fit_train),
         "n_val": len(fit_val),
         "n_test": len(test),
@@ -343,24 +373,28 @@ def _pretrain_encoder(
     n_val = max(1, int(len(smiles) * config.training.aux_val_fraction))
     val_rows, train_rows = order[:n_val], order[n_val:]
 
-    encoder = GraphRegressor(
-        build_mpnn(
-            body,
-            ffn_hidden_dim=config.training.aux_ffn_hidden_dim,
-            ffn_num_layers=config.training.aux_ffn_num_layers,
-            message_hidden_dim=config.message_hidden_dim,
-            depth=config.depth,
-            n_tasks=len(tasks),
-        ),
-        freeze_epochs=config.training.aux_freeze_epochs,
-        body_lr=config.training.aux_lr,
-        head_lr=config.training.aux_lr,
-        prefix="aux_",
-    )
+    def build_encoder() -> GraphRegressor:
+        """Build a freshly initialised auxiliary encoder."""
+        return GraphRegressor(
+            build_mpnn(
+                body,
+                ffn_hidden_dim=config.training.aux_ffn_hidden_dim,
+                ffn_num_layers=config.training.aux_ffn_num_layers,
+                message_hidden_dim=config.message_hidden_dim,
+                depth=config.depth,
+                n_tasks=len(tasks),
+            ),
+            freeze_epochs=config.training.aux_freeze_epochs,
+            body_lr=config.training.aux_lr,
+            head_lr=config.training.aux_lr,
+            prefix="aux_",
+        )
 
     def partition(rows: np.ndarray) -> GraphDataset:
         return GraphDataset([smiles[i] for i in rows], values[rows], mask[rows])
 
+    # first pass: hold out a slice of the screen to choose an epoch count
+    encoder = build_encoder()
     data = GraphDataModule(
         train=partition(train_rows),
         val=partition(val_rows),
@@ -369,58 +403,106 @@ def _pretrain_encoder(
         seed=seed,
     )
     fit_record = _fit(encoder, data, config, max_epochs=config.training.aux_max_epochs)
+
+    # second pass: the held-out slice has done its job, so retrain on the whole
+    # screen for the epochs it settled
+    refit_record: dict[str, Any] | None = None
+    if config.training.refit_on_all:
+        epochs = max(1, int(fit_record["selected_epoch"]) + 1)
+        lightning.seed_everything(seed, workers=True)
+        encoder = build_encoder()
+        refit_data = GraphDataModule(
+            train=partition(order),
+            val=None,
+            batch_size=config.training.batch_size,
+            num_workers=config.training.num_workers,
+            seed=seed,
+        )
+        refit_record = _fit(encoder, refit_data, config, max_epochs=epochs, validate=False)
+        refit_record["n_train"] = len(order)
+        refit_record["epochs_requested"] = epochs
+
     return encoder, {
         "tasks": list(tasks),
         "n_train": len(train_rows),
         "n_val": len(val_rows),
         "n_excluded_as_test": len(exclude & set(smiles)),
+        "refit": refit_record,
         **fit_record,
     }
 
 
 def _fit(
-    model: GraphRegressor, data: GraphDataModule, config: RunConfig, *, max_epochs: int
+    model: GraphRegressor,
+    data: GraphDataModule,
+    config: RunConfig,
+    *,
+    max_epochs: int,
+    validate: bool = True,
 ) -> dict[str, Any]:
-    """Run one Lightning fit, optionally rewinding to the best validation epoch."""
-    stopper = EarlyStopping(
-        monitor=model.val_metric,
-        patience=config.training.patience,
-        min_delta=config.training.min_delta,
-        mode="min",
-    )
-    with tempfile.TemporaryDirectory(prefix="concat_arch_") as scratch:
-        checkpointer = ModelCheckpoint(
-            dirpath=scratch, monitor=model.val_metric, mode="min", save_top_k=1
+    """Run one Lightning fit, optionally rewinding to the best validation epoch.
+
+    With ``validate`` false there is no validation partition to watch, so
+    neither early stopping nor checkpoint selection applies and the fit simply
+    runs its epoch budget. That is the second pass of a refit, whose epoch count
+    was already chosen by the first.
+    """
+    callbacks: list[Any] = []
+    if validate:
+        callbacks.append(
+            EarlyStopping(
+                monitor=model.val_metric,
+                patience=config.training.patience,
+                min_delta=config.training.min_delta,
+                mode="min",
+            )
         )
+
+    with tempfile.TemporaryDirectory(prefix="concat_arch_") as scratch:
+        checkpointer = (
+            ModelCheckpoint(dirpath=scratch, monitor=model.val_metric, mode="min", save_top_k=1)
+            if validate
+            else None
+        )
+        if checkpointer is not None:
+            callbacks.append(checkpointer)
+
         trainer = lightning.Trainer(
             max_epochs=max_epochs,
             accelerator=config.training.accelerator,
             devices=1,
             gradient_clip_val=config.gradient_clip_val,
             gradient_clip_algorithm="norm",
-            callbacks=[stopper, checkpointer],
+            callbacks=callbacks,
             logger=False,
-            enable_checkpointing=True,
+            enable_checkpointing=validate,
             enable_progress_bar=False,
             enable_model_summary=False,
             log_every_n_steps=1,
+            num_sanity_val_steps=0 if not validate else 2,
         )
         trainer.fit(model, datamodule=data)
 
-        best_score = checkpointer.best_model_score
+        best_score = None if checkpointer is None else checkpointer.best_model_score
         best_epoch = trainer.current_epoch
-        if config.training.restore_best and checkpointer.best_model_path:
+        restored = False
+        if (
+            checkpointer is not None
+            and config.training.restore_best
+            and checkpointer.best_model_path
+        ):
             state = cast(
                 dict[str, Any],
                 torch.load(checkpointer.best_model_path, weights_only=True, map_location="cpu"),
             )
             model.load_state_dict(state["state_dict"])
             best_epoch = int(state.get("epoch", best_epoch))
+            restored = True
 
     return {
         "epochs_run": trainer.current_epoch,
         "selected_epoch": best_epoch,
         "best_val_loss": None if best_score is None else float(best_score),
-        "restored_best": bool(config.training.restore_best and checkpointer.best_model_path),
+        "restored_best": restored,
         "body_unfroze": not model.body_is_frozen,
     }

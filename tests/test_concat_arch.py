@@ -19,6 +19,7 @@ from concat_arch import (
     LeakageError,
     RunConfig,
     SplitPaths,
+    TrainingConfig,
     build_features,
     build_mpnn,
     feature_dim,
@@ -485,3 +486,28 @@ def test_a_full_size_fit_beats_predicting_the_training_mean():
     model_mae = float((result.predictions["prediction"] - result.predictions["pEC50"]).abs().mean())
     baseline_mae = float((truth - baseline).abs().mean())
     assert model_mae < baseline_mae
+
+    # the scored model is the refit one, and it saw the whole fit set rather
+    # than the 80% the first pass early-stopped on
+    refit = result.record["refit"]
+    assert result.record["refit_on_all"] is True
+    assert refit["n_train"] == result.record["n_train"] + result.record["n_val"]
+    assert refit["n_train"] == 4392
+    assert refit["epochs_requested"] == result.record["main"]["selected_epoch"] + 1
+    # the second pass has no validation partition, so nothing was early-stopped
+    # or rewound there
+    assert refit["best_val_loss"] is None
+    assert refit["restored_best"] is False
+
+
+def test_refitting_on_everything_is_the_default_and_can_be_turned_off():
+    # the graph networks would otherwise train on 3,514 compounds while the
+    # tabular models train on 4,392, which is the comparison figure 1 makes
+    assert TrainingConfig().refit_on_all is True
+    assert TrainingConfig(refit_on_all=False).refit_on_all is False
+
+
+def test_the_refit_epoch_count_comes_from_the_first_pass():
+    # a fit that selected epoch 0 still has to train for one epoch, not zero
+    for selected, expected in ((0, 1), (7, 8), (29, 30)):
+        assert max(1, selected + 1) == expected

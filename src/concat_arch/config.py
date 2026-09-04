@@ -128,6 +128,14 @@ class TrainingConfig:
         Early-stopping patience, in epochs, for both models.
     min_delta : float
         Improvement below which an epoch does not reset the patience counter.
+    refit_on_all : bool
+        After early stopping picks an epoch count on the training partition,
+        reinitialise and retrain on the training and validation partitions
+        together for that many epochs, and predict from that model. This is
+        what makes the graph networks see the same 4,392 compounds the tabular
+        models do, and it is what the challenge entry itself did: it retrained
+        on the training set plus the released phase-1 compounds before
+        submitting. Set false to predict from the first pass alone.
     restore_best : bool
         Whether the weights predictions are made from are the epoch with the
         best validation loss rather than the last epoch run. The prior sweep
@@ -152,6 +160,7 @@ class TrainingConfig:
     aux_val_fraction: float = 0.2
     patience: int = 5
     min_delta: float = 1e-3
+    refit_on_all: bool = True
     restore_best: bool = True
     accelerator: str = "auto"
     num_workers: int = 0
