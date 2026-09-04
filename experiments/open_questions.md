@@ -66,6 +66,11 @@ and the row count so the choice is visible rather than implied.
 
 ## Open questions
 
+Three decisions are deferred and tracked on PR #2 rather than here: TabICL's
+per-featureset batch size, how TabFM's capped row count is reported, and whether
+to reproduce the N283T report's own calibration. They are listed there so this
+file holds only what is still unassigned.
+
 **The pEC50 encoder refits on everything too, under a uniform rule.** The rule
 adopted is that anything deciding how many epochs to run does so on held-out
 rows and then retrains on everything for that count. That covers the pEC50
@@ -75,24 +80,6 @@ caveat already on record: cross-validation *inside the fit set* using that block
 reads optimistically. Scoring against phase 2 is unaffected either way, because
 no phase-2 label ever reaches the encoder. `EncoderConfig(refit_on_all=False)`
 reverses it for that block alone if the trade turns out not to be wanted.
-
-
-**TabICL's memory behaviour is not monotonic in batch size, and one setting does
-not fit every featureset.** Measured at the production data shape: 130 columns
-runs out of memory at the library default, while 258 columns fits in 13.5 s and
-386 in 19.8 s on that same setting. The previous generation found 130 columns
-needs batch size 2. So the setting has to be found per featureset. You said to
-park this and revisit with memory flags or a CPU fallback; the adapter currently
-takes batch size as an ordinary parameter, does not retry, and re-raises an
-out-of-memory failure naming the resolved parameters, so nothing is hidden. The
-sweep will stop on the first featureset that does not fit until this is settled.
-
-**TabFM sees a fraction of the training set the other regressors see.** Its
-attention would not fit 4,392 rows on this GPU, so in-context rows are capped at
-500. That is a handicap to report next to its result rather than a property of
-the model, and it means its row in the regressor comparison is not quite
-like-for-like. Worth deciding whether to say so in the figure or only in the
-text.
 
 **Figure 5 has nothing to sweep if the winning configuration carries no
 descriptor block.** The manifest says the stage is skipped in that case. The
@@ -128,25 +115,11 @@ depends on the seed. Caching it per seed and task set across cells would cut
 around 150 s from each of the 22 concatenation cells, saving roughly an hour.
 Not done, because it trades a simple story for a faster one.
 
-**TabFM's row cap is not visible in the figure.** Figure 4 currently shows its
-result beside six regressors that saw the whole training set, with the caveat
-living only in this file and the module docstring.
-
-**The calibration figure does not reproduce the report's calibration.** Reading
-the N283T report directly rather than through the previous generation's notes:
-they fitted an **affine** map, over **out-of-fold predictions spanning all 4,140
-training compounds**, weighted per compound by a density ratio from a
-Morgan-fingerprint classifier separating train from test, validated under 5-fold
-nested cross-validation. The pipeline as built fits an **isotonic** map on a
-single held-out partition. Three ways forward: implement their method, keep ours
-and stop describing it as reproducing theirs, or run both arms. The manifest now
-says plainly that this figure asks a question of its own.
-
-**Their cross-validation was a UMAP cluster split**, Morgan fingerprints through
-UMAP into KMeans, not a random carve-out. If a validation partition here only
-picks an epoch count, a random split is defensible; if it is ever read as an
-estimate of generalization, a cluster split is the stricter and more comparable
-choice.
+**The N283T report's cross-validation was a UMAP cluster split**, Morgan
+fingerprints through UMAP into KMeans, not a random carve-out. If a validation
+partition here only picks an epoch count, a random split is defensible. If it is
+ever read as an estimate of generalization, a cluster split is the stricter and
+more comparable choice.
 
 **Their phase-2 submission retrained on train plus the released phase-1
 compounds**, about 4,393, which is exactly this repository's `fit_all` at 4,392.
