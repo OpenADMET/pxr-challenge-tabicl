@@ -1,20 +1,23 @@
-"""Load and check the experiment manifest, the rebuild's coverage spec.
+"""Load the experiment manifest and expand its axes into configurations.
 
-The manifest at ``experiments/manifest.yaml`` names every configuration each
-figure needs and every configuration deliberately not run. It carries no copied
-metrics: a cell names a configuration in the prior-sweep summary, and the
-numbers are joined here at load time so the spec and its evidence cannot drift
-apart.
+The manifest at ``experiments/manifest.yaml`` declares what the rebuild sweeps:
+the tabular feature-block axes, the regressors, and the stages that sweep them.
+It is a declaration rather than an enumeration because the first stage alone
+crosses 39 featuresets with 7 regressors, and writing 273 configurations out by
+hand would be a worse description than the cross product that generates them.
 
-Loading validates the manifest's internal structure. The pruning rule (a cell
-dropped for ranking below a rival must be outside the margin, against a rival
-run with the same regressor) is checked separately by ``prune_violations``, so
-a design question reads as a failing test rather than an import error.
+Two rules the expansion enforces, which are not the same rule. No level of any
+axis is dropped on the prior sweep's evidence, because the prior scored a
+different compound set and cannot rank anything on this split. But dimensions
+are swept one stage at a time, each stage holding fixed what an earlier gate
+already settled here. The first is about what counts as evidence; the second is
+only about compute.
 
-Run directories follow from cell identifiers: cell ``fig3/chemeleon_readout``
-at seed 2 lives in ``results/fig3/chemeleon_readout/seed2``. ``coverage``
-compares the directories a sweep produced against the ones the manifest calls
-for, so a missing run and an unplanned one are both visible.
+A configuration's identity is its slug, which is also its run directory, so a
+run can be found by reading its configuration and a directory can be read back
+into one. The prior summary is joined for context and to check that no
+configuration family the previous generation explored has been forgotten; it
+decides nothing.
 """
 
 from __future__ import annotations
@@ -22,7 +25,9 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
+from itertools import product
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import yaml
@@ -32,19 +37,8 @@ logger = logging.getLogger(__name__)
 MANIFEST_PATH = Path("experiments/manifest.yaml")
 RESULTS_DIR = Path("results")
 
-# a cell is either run at every seed or recorded as deliberately not run
-STATUSES = frozenset({"run", "pruned"})
-
-# why a cell is not run, where the reason is not a ranking one; a prune without
-# one of these has to point at a rival it lost to
-REASON_KINDS = frozenset({"structural", "unavailable", "no_prior_metric"})
-
-# what a cell is for, which decides whether the margin rule applies to it
-ROLES = frozenset({"shortlist", "baseline", "reference", "coverage", "diagnostic"})
-
-# roles that compete at a figure's gate, and so must justify their status
-# against the margin
-COMPETING_ROLES = frozenset({"shortlist"})
+# the axes a tabular configuration is made of, in slug order
+TABULAR_AXES = ("embedding", "readout", "descriptors", "descriptor_pca", "regressor", "calibration")
 
 
 class ManifestError(ValueError):
@@ -52,75 +46,89 @@ class ManifestError(ValueError):
 
 
 @dataclass(frozen=True)
-class Cell:
-    """One configuration the manifest either calls for or excludes.
+class TabularConfig:
+    """One tabular configuration: which blocks, reduced how, fitted by what."""
 
-    Attributes
-    ----------
-    id : str
-        Identifier, ``<figure>/<name>``, which is also the run directory path.
-    figure : str
-        Identifier of the figure the cell belongs to.
-    status : str
-        ``run`` or ``pruned``.
-    role : str
-        What the cell is for; only ``shortlist`` cells face the margin rule.
-    reason : str
-        Prose justification, required on every cell.
-    axes : dict or None
-        The configuration to run. None for a cell that shares another's runs
-        or is pruned.
-    prior_config : str or None
-        Configuration in the prior summary this cell's evidence comes from.
-    compared_to : str or None
-        Configuration in the prior summary the margin is measured against.
-    covers : tuple of str
-        Further prior configurations this cell accounts for, so that a single
-        pruned cell can retire a whole family.
-    reason_kind : str or None
-        Non-ranking justification, one of ``REASON_KINDS``.
-    shares_runs_with : str or None
-        Identifier of the cell whose runs serve this one.
-    """
-
-    id: str
-    figure: str
-    status: str
-    role: str
-    reason: str
-    axes: dict | None = None
-    prior_config: str | None = None
-    compared_to: str | None = None
-    covers: tuple[str, ...] = ()
-    reason_kind: str | None = None
-    shares_runs_with: str | None = None
+    embedding: str
+    readout: str
+    descriptors: str
+    descriptor_pca: int
+    regressor: str
+    calibration: str
 
     @property
-    def owns_runs(self) -> bool:
-        """Whether this cell's runs are its own rather than another cell's."""
-        return self.status == "run" and self.shares_runs_with is None
+    def has_descriptors(self) -> bool:
+        """Whether this configuration carries a descriptor block."""
+        return self.descriptors != "none"
+
+    @property
+    def n_blocks(self) -> int:
+        """How many feature blocks the configuration draws on."""
+        present = [self.embedding != "none", self.readout != "none", self.has_descriptors]
+        return sum(present)
+
+    @property
+    def slug(self) -> str:
+        """A readable, deterministic identifier, used as the run directory name."""
+        descriptors = (
+            self.descriptors
+            if not self.has_descriptors
+            else (f"{self.descriptors}{self.descriptor_pca}")
+        )
+        return (
+            f"emb-{self.embedding}__ro-{self.readout}__desc-{descriptors}"
+            f"__reg-{self.regressor}__cal-{self.calibration}"
+        )
 
     def run_dir(self, seed: int, results_dir: Path = RESULTS_DIR) -> Path:
-        """Return the directory a given seed of this cell writes to."""
-        return results_dir / self.id / f"seed{seed}"
+        """Where this configuration writes a given seed's run."""
+        return results_dir / "tabular" / self.slug / f"seed{seed}"
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the configuration as plain data, for a cache key or a record."""
+        return {axis: getattr(self, axis) for axis in TABULAR_AXES}
 
 
 @dataclass(frozen=True)
-class Figure:
-    """A figure and the cells that make it up."""
+class GnnCell:
+    """One graph-network configuration, enumerated rather than crossed."""
 
     id: str
     title: str
-    question: str
-    gate: str | None
-    cells: tuple[Cell, ...]
-    depends_on_gate: str | None = None
-    provisional_featureset: str | None = None
+    axes: dict[str, Any]
+    prior: str | None = None
+
+    def run_dir(self, seed: int, results_dir: Path = RESULTS_DIR) -> Path:
+        """Where this cell writes a given seed's run."""
+        return results_dir / "gnn" / self.id / f"seed{seed}"
+
+
+@dataclass(frozen=True)
+class Gate:
+    """A decision taken from a completed stage, fixing axes for later stages."""
+
+    id: str
+    chooses: tuple[str, ...]
+    rule: str
+
+
+@dataclass(frozen=True)
+class Stage:
+    """One sweep: the axes it varies, and what it holds fixed while doing so."""
+
+    id: str
+    figures: tuple[str, ...]
+    sweeps: tuple[str, ...]
+    fixed: dict[str, Any] = field(default_factory=dict)
+    fixed_from: str | None = None
+    gate: Gate | None = None
+    reuses_runs: bool = False
+    note: str | None = None
 
 
 @dataclass(frozen=True)
 class Coverage:
-    """The difference between the runs a manifest calls for and those on disk."""
+    """The difference between the runs a stage calls for and those on disk."""
 
     expected: tuple[Path, ...]
     missing: tuple[Path, ...]
@@ -137,68 +145,95 @@ class Manifest:
     """The parsed coverage spec, joined to the prior sweep's evidence."""
 
     seeds: tuple[int, ...]
-    margin_rae: float
     anchor: dict
     split: dict
-    regressors: dict
-    figures: tuple[Figure, ...]
+    axes: dict
+    stages: tuple[Stage, ...]
+    gnn_cells: tuple[GnnCell, ...]
+    figures: tuple[dict, ...]
     prior: pd.DataFrame = field(repr=False)
 
-    @property
-    def cells(self) -> dict[str, Cell]:
-        """Every cell, keyed by identifier."""
-        return {cell.id: cell for figure in self.figures for cell in figure.cells}
+    def stage(self, stage_id: str) -> Stage:
+        """Return one stage by identifier."""
+        for stage in self.stages:
+            if stage.id == stage_id:
+                return stage
+        raise KeyError(f"no stage {stage_id!r}; known: {[s.id for s in self.stages]}")
 
-    def prior_metric(self, cell: Cell, metric: str = "rae_mean") -> float | None:
-        """Return a cell's prior value for a metric, or None if it has none.
+    def expand(self, stage_id: str, resolved: dict[str, Any] | None = None) -> list[TabularConfig]:
+        """Return every configuration a stage runs.
 
         Parameters
         ----------
-        cell : Cell
-            The cell whose prior evidence is wanted.
-        metric : str, optional
-            Column of the prior summary to read. Defaults to mean RAE.
+        stage_id : str
+            Which stage to expand.
+        resolved : dict, optional
+            Axis values an earlier gate settled. Required for a stage that
+            names ``fixed_from``, since it cannot know what to hold fixed
+            until the gate before it has been decided.
 
         Returns
         -------
-        float or None
-            The prior value, or None when the cell names no prior configuration
-            or that configuration produced no metrics.
-        """
-        if cell.prior_config is None:
-            return None
-        value = self.prior.at[cell.prior_config, metric]
-        if pd.isna(value):
-            return None
-        # pandas types a cell as Scalar, which nominally includes complex
-        return float(value)  # pyright: ignore[reportArgumentType]
+        list of TabularConfig
+            The stage's configurations, in a deterministic order.
 
-    def planned_runs(self, results_dir: Path = RESULTS_DIR) -> list[Path]:
-        """Return every run directory the manifest calls for, in cell order."""
+        Raises
+        ------
+        ManifestError
+            If the stage depends on a gate whose choices were not supplied.
+        """
+        stage = self.stage(stage_id)
+        if stage.reuses_runs:
+            return []
+
+        settled = dict(resolved or {})
+        if stage.fixed_from is not None and not settled:
+            raise ManifestError(
+                f"{stage_id}: fixed_from {stage.fixed_from!r} means this stage needs the axes "
+                "that gate chose, but none were supplied"
+            )
+
+        levels: dict[str, list[Any]] = {}
+        for axis in TABULAR_AXES:
+            if axis in stage.sweeps:
+                levels[axis] = list(self._levels(axis))
+            elif axis in stage.fixed:
+                levels[axis] = [stage.fixed[axis]]
+            elif axis in settled:
+                levels[axis] = [settled[axis]]
+            else:
+                raise ManifestError(
+                    f"{stage_id}: axis {axis!r} is neither swept, fixed, nor settled"
+                )
+
+        configs = [
+            TabularConfig(**dict(zip(TABULAR_AXES, values, strict=True)))
+            for values in product(*(levels[axis] for axis in TABULAR_AXES))
+        ]
+        # a width sweep over a featureset with no descriptors would repeat one
+        # configuration under three names
+        return [c for c in _deduplicate(configs) if c.n_blocks > 0]
+
+    def planned_runs(
+        self,
+        stage_id: str,
+        resolved: dict[str, Any] | None = None,
+        results_dir: Path = RESULTS_DIR,
+    ) -> list[Path]:
+        """Return every run directory a stage calls for."""
         return [
-            cell.run_dir(seed, results_dir)
-            for cell in self.cells.values()
-            if cell.owns_runs
+            config.run_dir(seed, results_dir)
+            for config in self.expand(stage_id, resolved)
             for seed in self.seeds
         ]
 
-    def coverage(self, produced: Iterable[Path], results_dir: Path = RESULTS_DIR) -> Coverage:
-        """Compare produced run directories against the ones planned.
+    def gnn_runs(self, results_dir: Path = RESULTS_DIR) -> list[Path]:
+        """Return every run directory the graph-network cells call for."""
+        return [cell.run_dir(seed, results_dir) for cell in self.gnn_cells for seed in self.seeds]
 
-        Parameters
-        ----------
-        produced : iterable of Path
-            Run directories a sweep actually wrote.
-        results_dir : path-like, optional
-            Root the planned directories hang off. Defaults to ``results``.
-
-        Returns
-        -------
-        Coverage
-            The expected set, those missing from it, and those produced without
-            being planned.
-        """
-        expected = self.planned_runs(results_dir)
+    def coverage(self, expected: Iterable[Path], produced: Iterable[Path]) -> Coverage:
+        """Compare produced run directories against those expected."""
+        expected = list(expected)
         expected_set = set(expected)
         produced_set = set(produced)
         return Coverage(
@@ -207,20 +242,21 @@ class Manifest:
             unplanned=tuple(sorted(produced_set - expected_set)),
         )
 
+    def _levels(self, axis: str) -> Iterator[Any]:
+        """Yield every level of an axis, whether it is a mapping or a list."""
+        values = self.axes[axis]
+        yield from (values.keys() if isinstance(values, dict) else values)
 
-def load(
-    path: Path = MANIFEST_PATH,
-    prior_summary: Path | None = None,
-) -> Manifest:
+
+def load(path: Path = MANIFEST_PATH, prior_summary: Path | None = None) -> Manifest:
     """Read the manifest and join it to the prior-sweep summary.
 
     Parameters
     ----------
     path : path-like, optional
-        The manifest YAML. Defaults to ``experiments/manifest.yaml``.
+        The manifest YAML.
     prior_summary : path-like, optional
-        The prior evidence CSV. Defaults to the path the manifest names,
-        resolved relative to the manifest's parent's parent.
+        The prior evidence CSV. Defaults to the path the manifest names.
 
     Returns
     -------
@@ -240,28 +276,31 @@ def load(
     if not prior.index.is_unique:
         raise ManifestError(f"{summary_path}: duplicate configurations in the prior summary")
 
-    figures = tuple(_parse_figure(entry) for entry in raw["figures"])
+    tabular = raw["tabular"]
+    axes = dict(tabular["axes"])
+    stages = tuple(_parse_stage(entry) for entry in tabular["stages"])
+    gnn_cells = tuple(_parse_gnn(raw["gnn"]))
+
     manifest = Manifest(
         seeds=tuple(raw["seeds"]),
-        margin_rae=float(raw["prior"]["shortlist_margin_rae"]),
         anchor=raw["anchor"],
         split=raw["split"],
-        regressors=raw["regressors"],
-        figures=figures,
+        axes=axes,
+        stages=stages,
+        gnn_cells=gnn_cells,
+        figures=tuple(raw["figures"]),
         prior=prior,
     )
     _validate(manifest)
     return manifest
 
 
-def prune_violations(manifest: Manifest) -> list[str]:
-    """Return every place the manifest's pruning rule is broken.
+def uncovered_prior_levels(manifest: Manifest) -> dict[str, set[str]]:
+    """Return prior axis levels the manifest's vocabulary cannot express.
 
-    A shortlist cell that is run must be within the margin of the rival it
-    names, and one that is pruned must be outside it, unless a non-ranking
-    reason kind excuses it. Both sides of a comparison must have been run with
-    the same regressor, since a cross-regressor gap confounds the axis under
-    test.
+    The prior sweep decides nothing, but a family it explored that this grid
+    cannot even name would be an oversight rather than a decision. This reports
+    any such gap per axis, so an empty result means nothing was forgotten.
 
     Parameters
     ----------
@@ -270,181 +309,118 @@ def prune_violations(manifest: Manifest) -> list[str]:
 
     Returns
     -------
-    list of str
-        One message per violation; empty when the manifest obeys its own rule.
+    dict of str to set of str
+        Axis name mapped to the prior levels it cannot express. Empty when the
+        vocabulary covers everything the prior ran.
     """
-    violations: list[str] = []
-    for cell in manifest.cells.values():
-        if cell.role not in COMPETING_ROLES or cell.reason_kind in REASON_KINDS:
-            continue
+    prior = manifest.prior
+    gaps: dict[str, set[str]] = {}
 
-        if cell.compared_to is None:
-            violations.append(f"{cell.id}: shortlist cell names no rival to compare against")
-            continue
+    # descriptor sources: the prior wrote a combined block as "all"
+    prior_sources = {str(s) for s in prior["descriptor_sources"].dropna().unique() if s}
+    descriptor_translation = {"all": "rdkit_mordred"}
+    ours = {"mordred", "rdkit", "rdkit_mordred"}
+    missing_sources = {descriptor_translation.get(s, s) for s in prior_sources} - ours
+    if missing_sources:
+        gaps["descriptors"] = missing_sources
 
-        rival = Cell(
-            id=cell.compared_to,
-            figure=cell.figure,
-            status="run",
-            role="shortlist",
-            reason="",
-            prior_config=cell.compared_to,
+    # regressors: the prior's bare "tabpfn" was the v2.5 checkpoint, and its
+    # three TabFM ensemble sizes were all recorded under one name
+    prior_regressors = {str(r) for r in prior["regressor"].dropna().unique() if r != "N/A"}
+    regressor_translation = {"tabpfn": "tabpfn-v2.5"}
+    declared = {str(r) for r in manifest.axes["regressor"]}
+    missing_regressors = {
+        name
+        for name in (regressor_translation.get(r, r) for r in prior_regressors)
+        if name not in declared and not name.startswith("tabfm")
+    }
+    if missing_regressors:
+        gaps["regressor"] = missing_regressors
+
+    return gaps
+
+
+def _deduplicate(configs: Iterable[TabularConfig]) -> list[TabularConfig]:
+    """Drop configurations whose slugs coincide, keeping the first of each."""
+    seen: dict[str, TabularConfig] = {}
+    for config in configs:
+        seen.setdefault(config.slug, config)
+    return list(seen.values())
+
+
+def _parse_stage(entry: dict) -> Stage:
+    """Build one stage from the manifest's YAML."""
+    gate = entry.get("gate")
+    return Stage(
+        id=entry["id"],
+        figures=tuple(entry.get("figures", ())),
+        sweeps=tuple(entry.get("sweeps", ())),
+        fixed=dict(entry.get("fixed") or {}),
+        fixed_from=entry.get("fixed_from"),
+        gate=None
+        if not gate
+        else Gate(id=gate["id"], chooses=tuple(gate["chooses"]), rule=gate["rule"]),
+        reuses_runs=bool(entry.get("reuses_runs", False)),
+        note=entry.get("note"),
+    )
+
+
+def _parse_gnn(entry: dict) -> Iterator[GnnCell]:
+    """Yield every graph-network cell, expanding the declared sub-grids."""
+    for grid in entry.get("grids", ()):
+        axis_names = list(grid["axes"])
+        short = grid.get("slug_names", {})
+        for values in product(*(grid["axes"][name] for name in axis_names)):
+            varied = dict(zip(axis_names, values, strict=True))
+            slug = "_".join(
+                f"{short.get(name, name)}{_slugify(value)}" for name, value in varied.items()
+            )
+            yield GnnCell(
+                id=f"{grid['id']}_{slug}",
+                title=grid["title"],
+                axes={**grid["fixed"], **varied},
+            )
+    for cell in entry.get("cells", ()):
+        yield GnnCell(
+            id=cell["id"], title=cell["title"], axes=cell["axes"], prior=cell.get("prior")
         )
-        own = manifest.prior_metric(cell)
-        against = manifest.prior_metric(rival)
-        if own is None or against is None:
-            violations.append(f"{cell.id}: comparison needs metrics on both sides")
-            continue
-
-        # a cross-regressor gap confounds the axis under test with the regressor
-        own_group = _comparison_group(manifest, str(cell.prior_config))
-        rival_group = _comparison_group(manifest, cell.compared_to)
-        if own_group != rival_group:
-            violations.append(
-                f"{cell.id}: compares {own_group} against {rival_group}; "
-                "a prune must be measured within one regressor"
-            )
-            continue
-
-        margin = own - against
-        if cell.status == "run" and margin > manifest.margin_rae:
-            violations.append(
-                f"{cell.id}: run as a shortlist cell but {margin:.4f} RAE behind "
-                f"{cell.compared_to}, outside the {manifest.margin_rae} margin"
-            )
-        if cell.status == "pruned" and margin <= manifest.margin_rae:
-            violations.append(
-                f"{cell.id}: pruned but only {margin:.4f} RAE behind {cell.compared_to}, "
-                f"inside the {manifest.margin_rae} margin"
-            )
-    return violations
 
 
-def _comparison_group(manifest: Manifest, config: str) -> str:
-    """Return the group a prior configuration may be compared within.
-
-    Graph-network runs record no regressor, so a null reads as its own group
-    rather than as unequal to itself.
-    """
-    kind = manifest.prior.at[config, "model_kind"]
-    regressor = manifest.prior.at[config, "regressor"]
-    return f"{kind}:{'none' if pd.isna(regressor) else regressor}"
-
-
-def prior_configs_claimed(manifest: Manifest) -> set[str]:
-    """Return every prior configuration some cell accounts for."""
-    claimed: set[str] = set()
-    for cell in manifest.cells.values():
-        if cell.prior_config is not None:
-            claimed.add(cell.prior_config)
-        claimed.update(cell.covers)
-    return claimed
-
-
-def _parse_figure(entry: dict) -> Figure:
-    """Build one figure and its cells from the manifest's YAML."""
-    cells = tuple(_parse_cell(entry["id"], cell) for cell in entry["cells"])
-    return Figure(
-        id=entry["id"],
-        title=entry["title"],
-        question=entry["question"],
-        gate=entry.get("gate"),
-        cells=cells,
-        depends_on_gate=entry.get("depends_on_gate"),
-        provisional_featureset=entry.get("provisional_featureset"),
-    )
-
-
-def _parse_cell(figure_id: str, entry: dict) -> Cell:
-    """Build one cell from the manifest's YAML."""
-    prior = entry.get("prior") or {}
-    return Cell(
-        id=entry["id"],
-        figure=figure_id,
-        status=entry["status"],
-        role=entry["role"],
-        reason=entry["reason"],
-        axes=entry.get("axes"),
-        prior_config=prior.get("config"),
-        compared_to=prior.get("compared_to"),
-        covers=tuple(entry.get("covers", ())),
-        reason_kind=entry.get("reason_kind"),
-        shares_runs_with=entry.get("shares_runs_with"),
-    )
+def _slugify(value: Any) -> str:
+    """Render an axis value for a run directory name."""
+    if value is None:
+        return "off"
+    return str(value).replace(".", "p")
 
 
 def _validate(manifest: Manifest) -> None:
     """Check the manifest's structure, raising on the first problem found."""
-    cells = manifest.cells
-    for problem in _structural_problems(manifest, cells):
+    for problem in _problems(manifest):
         raise ManifestError(problem)
 
 
-def _structural_problems(manifest: Manifest, cells: dict[str, Cell]) -> Iterator[str]:
-    """Yield every structural problem in the manifest, in cell order."""
+def _problems(manifest: Manifest) -> Iterator[str]:
+    """Yield every structural problem in the manifest."""
+    gates = {stage.gate.id for stage in manifest.stages if stage.gate}
+    figures = {figure["id"] for figure in manifest.figures}
+
+    for stage in manifest.stages:
+        if stage.fixed_from is not None and stage.fixed_from not in gates:
+            yield f"{stage.id}: fixed_from names {stage.fixed_from!r}, which no stage gates"
+        for axis in (*stage.sweeps, *stage.fixed):
+            if axis not in TABULAR_AXES:
+                yield f"{stage.id}: unknown axis {axis!r}"
+        for figure in stage.figures:
+            if figure not in figures:
+                yield f"{stage.id}: names figure {figure!r}, which the manifest does not declare"
+        overlap = set(stage.sweeps) & set(stage.fixed)
+        if overlap:
+            yield f"{stage.id}: {sorted(overlap)} is both swept and fixed"
+
     seen: set[str] = set()
-    for figure in manifest.figures:
-        if figure.provisional_featureset and figure.provisional_featureset not in cells:
-            yield (
-                f"{figure.id}: provisional featureset {figure.provisional_featureset} is not a cell"
-            )
-
-        for cell in figure.cells:
-            if cell.id in seen:
-                yield f"{cell.id}: duplicate cell identifier"
-            seen.add(cell.id)
-
-            if not cell.id.startswith(f"{figure.id}/"):
-                yield f"{cell.id}: identifier does not sit under {figure.id}"
-            if cell.status not in STATUSES:
-                yield f"{cell.id}: unknown status {cell.status!r}"
-            if cell.role not in ROLES:
-                yield f"{cell.id}: unknown role {cell.role!r}"
-            if cell.reason_kind is not None and cell.reason_kind not in REASON_KINDS:
-                yield f"{cell.id}: unknown reason kind {cell.reason_kind!r}"
-            if not cell.reason.strip():
-                yield f"{cell.id}: no reason given"
-
-            # a cell that owns its runs has to say what to run
-            if cell.owns_runs and not cell.axes:
-                yield f"{cell.id}: runs its own seeds but declares no axes"
-            if cell.status == "pruned" and cell.axes:
-                yield f"{cell.id}: pruned cells declare no axes"
-
-            yield from _sharing_problems(cell, cells)
-            yield from _evidence_problems(manifest, cell)
-
-
-def _sharing_problems(cell: Cell, cells: dict[str, Cell]) -> Iterator[str]:
-    """Yield problems with a cell's claim to reuse another cell's runs.
-
-    Sharing chains: a figure 6 arm can point at figure 4's winner, which itself
-    points at the figure 3 cell that owns the runs. The chain is followed to
-    whichever cell owns runs, and a cycle is reported rather than looped on.
-    """
-    if cell.shares_runs_with is None:
-        return
-
-    seen = [cell.id]
-    current = cell
-    while current.shares_runs_with is not None:
-        target = cells.get(current.shares_runs_with)
-        if target is None:
-            yield f"{cell.id}: shares runs with {current.shares_runs_with}, which is not a cell"
-            return
-        if target.id in seen:
-            yield f"{cell.id}: sharing chain cycles through {' -> '.join([*seen, target.id])}"
-            return
-        seen.append(target.id)
-        current = target
-
-    if not current.owns_runs:
-        yield f"{cell.id}: sharing chain ends at {current.id}, which owns no runs"
-
-
-def _evidence_problems(manifest: Manifest, cell: Cell) -> Iterator[str]:
-    """Yield problems with the prior configurations a cell names."""
-    named = [c for c in (cell.prior_config, cell.compared_to, *cell.covers) if c is not None]
-    for config in named:
-        if config not in manifest.prior.index:
-            yield f"{cell.id}: prior configuration {config!r} is not in the prior summary"
+    for cell in manifest.gnn_cells:
+        if cell.id in seen:
+            yield f"{cell.id}: duplicate graph-network cell identifier"
+        seen.add(cell.id)
+        if cell.prior is not None and cell.prior not in manifest.prior.index:
+            yield f"{cell.id}: prior configuration {cell.prior!r} is not in the prior summary"
