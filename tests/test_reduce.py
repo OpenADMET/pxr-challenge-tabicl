@@ -43,7 +43,7 @@ def test_pca_is_fitted_on_the_fit_rows_alone(tmp_path):
     # fit the same estimators by hand on the fit rows only, then apply to all
     values = frame.to_numpy(dtype=np.float64)
     imputer = SimpleImputer(strategy="mean", keep_empty_features=True).fit(values[: len(FIT)])
-    filled = imputer.transform(values)
+    filled = np.asarray(imputer.transform(values), dtype=np.float64)
     pca = PCA(n_components=3, random_state=0).fit(filled[: len(FIT)])
     expected = pca.transform(filled)
 
@@ -110,3 +110,35 @@ def test_fit_molecules_are_the_fit_partition_and_exclude_phase_two():
     # the rows every reduction is fitted on must never include a scored compound
     assert fit.isdisjoint(test)
     assert fit | test == set(features.unique_molecules())
+
+
+def test_several_blocks_are_reduced_together(tmp_path):
+    first, frame = _block(tmp_path)
+    second = provenance.Artifact(tmp_path / "other", provenance.block_spec("other", 1))
+    second.root.mkdir(parents=True, exist_ok=True)
+    frame.add_prefix("x").to_parquet(second.path)
+    second.write_record()
+
+    artifact = reduction.build(
+        [first, second], width=3, fit_smiles=FIT, cache_dir=tmp_path / "reduced"
+    )
+    # one projection over the joined columns, not two projections glued together
+    assert reduction.load(artifact).shape == (len(FIT) + len(HELD), 3)
+    assert artifact.read_record()["spec"]["block"] == "synthetic+other"
+    assert len(artifact.read_record()["spec"]["inputs"]) == 2
+
+
+def test_joining_blocks_that_cover_different_molecules_is_refused(tmp_path):
+    first, frame = _block(tmp_path)
+    second = provenance.Artifact(tmp_path / "short", provenance.block_spec("short", 1))
+    second.root.mkdir(parents=True, exist_ok=True)
+    frame.iloc[:10].to_parquet(second.path)
+    second.write_record()
+
+    with pytest.raises(reduction.LeakageError, match="different molecules"):
+        reduction.build([first, second], width=3, fit_smiles=FIT, cache_dir=tmp_path / "reduced")
+
+
+def test_a_reduction_needs_at_least_one_block(tmp_path):
+    with pytest.raises(ValueError, match="at least one block"):
+        reduction.build([], width=3, fit_smiles=FIT, cache_dir=tmp_path / "reduced")

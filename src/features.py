@@ -219,10 +219,20 @@ def _compute_chemeleon(
 class _Block:
     """A named feature block: what computes it, and what changes its meaning."""
 
-    def __init__(self, version: int, compute: Callable[..., pd.DataFrame], defaults: dict):
+    def __init__(
+        self,
+        version: int,
+        compute: Callable[..., pd.DataFrame],
+        defaults: dict,
+        *,
+        seeded: bool = False,
+    ):
         self.version = version
         self.compute = compute
         self.defaults = defaults
+        # a seeded block is computed once per replicate seed, because a trained
+        # encoder produces different features each time it is trained
+        self.seeded = seeded
 
 
 # Bump a block's version when the meaning of its output changes; never for a

@@ -54,7 +54,7 @@ def fit_molecules(split_dir: Path = SPLIT_DIR, partition: str = FIT_PARTITION) -
 
 
 def build(
-    block: provenance.Artifact,
+    blocks: provenance.Artifact | Sequence[provenance.Artifact],
     *,
     width: int | None,
     fit_smiles: Sequence[str],
@@ -67,8 +67,11 @@ def build(
 
     Parameters
     ----------
-    block : Artifact
-        The stage-one block to reduce.
+    blocks : Artifact or sequence of Artifact
+        The stage-one block or blocks to reduce. Several blocks are joined
+        column-wise and reduced together, which is what a combined descriptor
+        featureset means: RDKit and Mordred concatenated, then projected once,
+        rather than projected separately and glued.
     width : int or None
         Number of principal components. None imputes but does not rotate.
     fit_smiles : sequence of str
@@ -95,24 +98,29 @@ def build(
         If the fit partition names molecules the block does not contain, which
         would otherwise silently narrow what is fitted on.
     """
+    blocks = [blocks] if isinstance(blocks, provenance.Artifact) else list(blocks)
+    if not blocks:
+        raise ValueError("a reduction needs at least one block")
+    name = "+".join(block.spec["name"] for block in blocks)
+
     fit_smiles = sorted(set(fit_smiles))
     spec = provenance.block_spec(
         "pca" if width is not None else "impute_only",
         VERSION,
         params={"width": width, "impute": impute, "seed": seed},
-        inputs=[block],
-        block=block.spec["name"],
+        inputs=blocks,
+        block=name,
         fit_partition=provenance.spec_key({"smiles": fit_smiles}),
         n_fit_molecules=len(fit_smiles),
     )
-    artifact = provenance.Artifact(cache_dir / block.spec["name"], spec)
+    artifact = provenance.Artifact(cache_dir / name, spec)
 
     if artifact.is_cached and not force:
-        logger.info("%s w=%s: cached (%s)", block.spec["name"], width, artifact.key)
+        logger.info("%s w=%s: cached (%s)", name, width, artifact.key)
         return artifact
 
-    raw = features.load(block)
-    fit_index = _fit_index(raw, fit_smiles, block.spec["name"])
+    raw = _join(blocks)
+    fit_index = _fit_index(raw, fit_smiles, name)
 
     # infinities are as unusable to PCA as NaN, and RDKit emits them; both
     # become missing values for the imputer to fill from fit rows
@@ -125,13 +133,13 @@ def build(
 
     if width is None:
         reduced = filled
-        columns = [f"{block.spec['name']}_{name}" for name in raw.columns]
+        columns = list(raw.columns)
         explained = None
     else:
         pca = PCA(n_components=width, random_state=seed)
         pca.fit(filled[fit_index])
         reduced = np.asarray(pca.transform(filled), dtype=np.float64)
-        columns = [f"{block.spec['name']}_pc{i:03d}" for i in range(width)]
+        columns = [f"{name}_pc{i:03d}" for i in range(width)]
         explained = float(pca.explained_variance_ratio_.sum())
 
     frame = pd.DataFrame(reduced, index=raw.index.copy(), columns=columns)
@@ -146,7 +154,7 @@ def build(
     )
     logger.info(
         "%s w=%s: %d x %d, fitted on %d rows%s",
-        block.spec["name"],
+        name,
         width,
         *frame.shape,
         int(fit_index.sum()),
@@ -158,6 +166,24 @@ def build(
 def load(artifact: provenance.Artifact) -> pd.DataFrame:
     """Read a cached reduction, indexed by canonical SMILES."""
     return pd.read_parquet(artifact.path)
+
+
+def _join(blocks: Sequence[provenance.Artifact]) -> pd.DataFrame:
+    """Join several blocks column-wise, requiring them to cover the same molecules."""
+    frames = [features.load(block) for block in blocks]
+    reference = frames[0].index
+    for block, frame in zip(blocks, frames, strict=True):
+        if not frame.index.equals(reference):
+            raise LeakageError(
+                f"{block.spec['name']}: block covers different molecules than "
+                f"{blocks[0].spec['name']}, so joining them would misalign rows"
+            )
+    # prefix each column with its block so a combined frame has no name collisions
+    named = [
+        frame.add_prefix(f"{block.spec['name']}_")
+        for block, frame in zip(blocks, frames, strict=True)
+    ]
+    return pd.concat(named, axis=1)
 
 
 def _fit_index(raw: pd.DataFrame, fit_smiles: Sequence[str], name: str) -> np.ndarray:
