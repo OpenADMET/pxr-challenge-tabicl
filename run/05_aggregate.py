@@ -156,10 +156,19 @@ def main() -> None:
 
     if not frame.empty and args.top > 0:
         summary = aggregate.summarize(frame)
-        ensembles = summary.loc[summary["aggregation"] == aggregate.ENSEMBLE]
-        leaders = ensembles.nsmallest(args.top, "mae")
-        print(f"leading ensembles by mae ({len(ensembles)} configurations):")
-        print(leaders[["config_id", "n_seeds", "mae", "rmse", "r2"]].to_string(index=False))
+        # the seed mean leads because that is what a single model scores and
+        # what the gates rank; the ensemble is beside it because the anchor is
+        # one, and is the only quantity comparable to it
+        means = summary.loc[summary["aggregation"] == aggregate.SEED_MEAN]
+        ensembles = summary.loc[summary["aggregation"] == aggregate.ENSEMBLE].set_index("config_id")
+        leaders = means.nsmallest(args.top, "mae").copy()
+        leaders["ensemble_mae"] = leaders["config_id"].map(ensembles["mae"])
+        print(f"leading single models by mean mae over seeds ({len(means)} configurations):")
+        print(
+            leaders[["config_id", "n_seeds", "mae", "mae_std", "ensemble_mae"]].to_string(
+                index=False
+            )
+        )
 
     resolve_gates(spec, args.results, regate=args.regate)
 
