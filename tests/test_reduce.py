@@ -166,15 +166,24 @@ def test_a_reducible_block_is_planned_at_every_width_its_axis_declares(spec):
     planned = planned_reductions(spec)
     widths = {width for names, width in planned if names == ["mordred"]}
 
+    # Mordred is too wide to run unreduced, so it gets no unrotated pass
+    assert widths == {32, 64, 128, 256}
+
+
+def test_a_block_narrow_enough_to_keep_whole_is_planned_unrotated(spec):
+    planned = planned_reductions(spec)
+    widths = {width for names, width in planned if names == ["rdkit"]}
+
     # "native" is planned as an unrotated pass, which the reduction spells None
-    assert widths == {None, 32, 64, 128, 256}
+    assert None in widths
+    assert widths == {None, 32, 64, 128}
 
 
 def test_an_embedding_takes_its_widths_from_the_embedding_axis(spec):
     planned = planned_reductions(spec)
     widths = {width for names, width in planned if names == ["chemeleon"]}
 
-    assert widths == {None, 32, 64, 128, 256}
+    assert widths == {32, 64, 128, 256}
 
 
 def test_a_block_that_is_passed_through_is_planned_once_and_unrotated(spec):

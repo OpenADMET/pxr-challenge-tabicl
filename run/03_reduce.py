@@ -117,7 +117,9 @@ def planned_reductions(
             columns = level.get("n_features")
             for width in available:
                 if width in (manifest_module.NATIVE, manifest_module.NOT_REDUCED):
-                    wanted.append((names, None))
+                    # only for a block narrow enough to be run unreduced
+                    if columns is None or columns <= spec.native_max_features:
+                        wanted.append((names, None))
                 elif columns is None or width < columns:
                     wanted.append((names, width))
 

@@ -68,8 +68,9 @@ tabular:
     # a width axis carries the level "native", meaning the block is kept whole.
     # It is the reference the reduced widths are measured against: without it a
     # probe compares reductions only to each other and cannot say what reducing
-    # costs. A block declaring reduce: true takes its width from the matching
-    # width axis, so a width has exactly one home. A block without it is passed
+    # costs. It is only run for a block narrow enough to fit unreduced, which
+    # native_max_features below decides. A block declaring reduce: true takes
+    # its width from the matching width axis, so a width has exactly one home. A block without it is passed
     # through at its native size. n_features is the block's own column count,
     # and a width at or above it is not a reduction: RDKit has 217 columns, so
     # projecting it to 256 is not a configuration that exists. A test checks
@@ -104,10 +105,23 @@ tabular:
       - none
       - isotonic_fitval
 
+  # widest block that is run unreduced. Mordred at 1,613 columns and Mordred
+  # with RDKit at 1,830 do not fit the tabular models on this GPU, and the
+  # CheMeleon embedding at 2,048 is wider still and past TabPFN's documented
+  # 2,000-feature pretraining regime as well. RDKit's 217 columns do fit, so the
+  # descriptor probe keeps one unreduced reference and the others are measured
+  # against their own widest reduction instead. This is a stated budget rather
+  # than a measured ceiling, and raising it adds arms rather than changing any.
+  native_max_features: 512
+
   constraints:
     non_empty: >
       A featureset with no embedding, no readout and no descriptors is not a
       configuration; it is dropped from the cross product.
+    native_needs_a_narrow_block: >
+      Keeping a block whole is only a configuration where the block fits
+      unreduced, which native_max_features decides. Where it does not, the
+      block's widest reduction is the reference and the figure says so.
     width_below_its_block: >
       A width at or above a block's own column count is not a reduction, so it
       is dropped rather than run. RDKit's 217 columns cannot be projected to

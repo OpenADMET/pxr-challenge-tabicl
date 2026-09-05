@@ -187,6 +187,7 @@ class Manifest:
     anchor: dict
     split: dict
     axes: dict
+    native_max_features: int
     stages: tuple[Stage, ...]
     gnn_cells: tuple[GnnCell, ...]
     figures: tuple[dict, ...]
@@ -242,7 +243,31 @@ class Manifest:
         # otherwise repeat one configuration under several names, and a width at
         # or above its block's own size is not a reduction at all
         kept = [c for c in _deduplicate(configs) if c.n_blocks > 0]
-        return [c for c in kept if _widths_reduce(c, self.axes)]
+        return [c for c in kept if self._widths_are_possible(c)]
+
+    def _widths_are_possible(self, config: TabularConfig) -> bool:
+        """Whether every width this configuration asks for is one its blocks can take.
+
+        Two things make a width impossible. Projecting a block to at least as
+        many components as it has columns is not a reduction and the
+        decomposition refuses it. Keeping a block whole is only a configuration
+        where the block fits unreduced, which ``native_max_features`` decides:
+        Mordred's 1,613 columns do not fit the tabular models here, so its
+        reference is its own widest reduction rather than the raw block.
+        """
+        for width_axis, block_axis in WIDTH_AXES.items():
+            width = getattr(config, width_axis)
+            if width == NOT_REDUCED:
+                continue
+            columns = native_width(self.axes, block_axis, getattr(config, block_axis))
+            if columns is None:
+                continue
+            if width == NATIVE:
+                if columns > self.native_max_features:
+                    return False
+            elif width >= columns:
+                return False
+        return True
 
     def _stage_levels(self, stage: Stage, axis: str, settled: dict[str, Any]) -> list[Any]:
         """Return the levels of one axis this stage runs."""
@@ -346,6 +371,7 @@ def load(path: Path = MANIFEST_PATH, prior_summary: Path | None = None) -> Manif
         anchor=raw["anchor"],
         split=raw["split"],
         axes=axes,
+        native_max_features=int(raw["tabular"]["native_max_features"]),
         stages=stages,
         gnn_cells=gnn_cells,
         figures=tuple(raw["figures"]),
@@ -417,28 +443,6 @@ def native_width(axes: dict, block_axis: str, level: str) -> int | None:
     levels = axes.get(block_axis)
     spec = levels.get(level) if isinstance(levels, dict) else None
     return (spec or {}).get("n_features")
-
-
-def _widths_reduce(config: TabularConfig, axes: dict) -> bool:
-    """Whether every width this configuration asks for actually reduces its block.
-
-    Projecting a block to at least as many components as it has columns is not
-    a reduction, and the decomposition refuses it outright: RDKit's 217
-    descriptors cannot become 256 components. Such a configuration is dropped
-    here rather than failing partway through a sweep.
-    """
-    for width_axis, block_axis in WIDTH_AXES.items():
-        width = getattr(config, width_axis)
-        if width == NOT_REDUCED:
-            continue
-        if width == NATIVE:
-            # keeping every column is always possible, and is the reference the
-            # reduced widths are measured against
-            continue
-        columns = native_width(axes, block_axis, getattr(config, block_axis))
-        if columns is not None and width >= columns:
-            return False
-    return True
 
 
 def _normalize(config: TabularConfig, axes: dict) -> TabularConfig:
