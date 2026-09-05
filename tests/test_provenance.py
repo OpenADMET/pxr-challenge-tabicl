@@ -139,3 +139,36 @@ def test_a_timer_reports_elapsed_seconds_after_its_block_ends():
     # the callable stays valid afterwards, so the figure can be handed to the
     # record written just after the work it measures
     assert elapsed() >= first
+
+
+def test_the_dirty_flag_describes_the_source_and_not_the_results():
+    # results are tracked, so a run that writes several of them would make the
+    # tree dirty for everything it writes afterwards: the first gate of a stage
+    # would record a clean tree and the rest a dirty one, from the same code
+    assert "results" not in provenance.SOURCE_PATHS
+    assert "src" in provenance.SOURCE_PATHS
+    assert "experiments" in provenance.SOURCE_PATHS
+
+
+def test_writing_a_result_does_not_make_the_environment_dirty(tmp_path, monkeypatch):
+    import subprocess
+
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "results").mkdir()
+    (repo / "src" / "thing.py").write_text("x = 1\n")
+    for args in (
+        ["init", "-q"],
+        ["add", "-A"],
+        ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "initial"],
+    ):
+        subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+
+    monkeypatch.chdir(repo)
+    assert provenance.environment()["repo"]["dirty"] is False
+
+    (repo / "results" / "gate.json").write_text("{}")
+    assert provenance.environment()["repo"]["dirty"] is False
+
+    (repo / "src" / "thing.py").write_text("x = 2\n")
+    assert provenance.environment()["repo"]["dirty"] is True

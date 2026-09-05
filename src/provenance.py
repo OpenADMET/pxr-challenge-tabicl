@@ -181,6 +181,11 @@ def environment() -> dict[str, Any]:
     }
 
 
+# what the dirty flag describes: the code and the declarations that decide an
+# artifact's content, and not the artifacts themselves
+SOURCE_PATHS = ("src", "run", "tests", "tools", "experiments", "pyproject.toml", "uv.lock")
+
+
 @dataclass(frozen=True)
 class Artifact:
     """One cached file, named by the specification that produces it.
@@ -328,8 +333,21 @@ def _git_commit(path: Path) -> str | None:
 
 
 def _git_is_dirty(path: Path) -> bool | None:
-    """Return whether a checkout has uncommitted changes, or None if unknown."""
-    status = _git(path, "status", "--porcelain")
+    """Return whether a checkout's source has uncommitted changes.
+
+    Scoped to :data:`SOURCE_PATHS` rather than the whole tree. Results are
+    tracked here, and a run that writes several of them makes the tree dirty
+    for everything it writes afterwards: the first gate of a stage would record
+    a clean tree and the rest a dirty one, from the same code. What this flag is
+    for is saying whether the code that produced an artifact was committed, so
+    it asks about the code.
+
+    Returns
+    -------
+    bool or None
+        None when git is unavailable.
+    """
+    status = _git(path, "status", "--porcelain", "--", *SOURCE_PATHS)
     return None if status is None else bool(status)
 
 
