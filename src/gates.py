@@ -288,7 +288,7 @@ def evidence(
         "gate": stage.gate.id,
         "stage": stage_id,
         "version": VERSION,
-        "question": stage.gate.rule,
+        "question": stage.gate.question,
         "chooses": list(stage.gate.chooses),
         "metric": RANK_METRIC,
         "leader_slug": ranked[0]["config"].slug,
@@ -300,47 +300,65 @@ def evidence(
     }
 
 
-def decide(
+def confirm(
     manifest: Manifest,
     stage_id: str,
-    chosen: dict[str, Any],
-    reason: str,
     *,
-    decided_by: str,
     results_dir: Path = aggregate.RESULTS_DIR,
     gates_dir: Path | None = None,
     n_resamples: int = 10000,
 ) -> dict[str, Any]:
-    """Record a decision for a stage's gate, with the evidence behind it.
+    """Check a stage's declared decision against its runs, and record both.
+
+    The decision is read from the manifest rather than computed, because at the
+    top of these tables the configurations are statistically tied and any
+    tie-break is a preference. Declaring it keeps the preference legible and
+    the pipeline autonomous: this verifies it and writes the evidence beside
+    it, and never chooses.
+
+    A choice the evidence now separates from the leader is still honoured, and
+    logged as a warning. That is the case worth seeing rather than silently
+    overriding: the runs have moved and the declared preference may no longer
+    be defensible, which is a judgement for whoever reads the log.
 
     Parameters
     ----------
     manifest : Manifest
-        The parsed coverage spec.
+        The parsed coverage spec, carrying the declared decision.
     stage_id : str
-        The stage whose gate is being decided.
-    chosen : dict
-        Axis to level, covering exactly the axes the gate chooses.
-    reason : str
-        Why, in prose. Recorded verbatim and shown wherever the decision is.
-    decided_by : str
-        Who decided.
+        The stage whose gate is being confirmed.
     results_dir, gates_dir, n_resamples : optional
         Passed to :func:`evidence`.
 
     Returns
     -------
     dict
-        The decision and its evidence, ready to be written.
+        The decision, its reason, and the evidence behind it.
 
     Raises
     ------
     GateError
-        If the choice does not cover the gate's axes, names a configuration the
-        stage did not run, or carries no reason.
+        If the gate declares no decision, the decision has no reason, it does
+        not cover exactly the axes the gate settles, or it names a
+        configuration the stage did not run.
     """
-    if not reason.strip():
-        raise GateError("a decision needs a reason; it is the only defence it has")
+    stage = manifest.stage(stage_id)
+    if stage.gate is None:
+        raise GateError(f"stage {stage_id!r} has no gate")
+    if not stage.gate.decision:
+        raise GateError(
+            f"{stage.gate.id}: undecided. Declare the choice under this gate's "
+            f"decision: in the manifest, with a reason, then run this again"
+        )
+    if not stage.gate.reason.strip():
+        raise GateError(f"{stage.gate.id}: a decision needs a reason; it is its only defence")
+
+    chosen = dict(stage.gate.decision)
+    expected = set(stage.gate.chooses)
+    if set(chosen) != expected:
+        raise GateError(
+            f"{stage.gate.id}: decision must cover exactly {sorted(expected)}, got {sorted(chosen)}"
+        )
 
     measured = evidence(
         manifest,
@@ -349,26 +367,34 @@ def decide(
         gates_dir=gates_dir,
         n_resamples=n_resamples,
     )
-    expected = set(measured["chooses"])
-    if set(chosen) != expected:
-        raise GateError(
-            f"{measured['gate']}: choose exactly {sorted(expected)}, got {sorted(chosen)}"
-        )
-
     matching = [
         row
         for row in measured["ranking"]
         if all(row["config"][axis] == value for axis, value in chosen.items())
     ]
     if not matching:
-        raise GateError(f"{measured['gate']}: no configuration this stage ran matches {chosen}")
+        raise GateError(f"{stage.gate.id}: no configuration this stage ran matches {chosen}")
+
+    slug = matching[0]["slug"]
+    separated = (
+        slug not in measured["indistinguishable_from_leader"] and slug != measured["leader_slug"]
+    )
+    if separated:
+        logger.warning(
+            "%s: the declared choice %s is now separated from the leader %s; "
+            "the runs may have moved since it was written",
+            stage.gate.id,
+            slug,
+            measured["leader_slug"],
+        )
 
     return {
         **measured,
         "chosen": chosen,
-        "chosen_slug": matching[0]["slug"],
-        "reason": reason.strip(),
-        "decided_by": decided_by,
+        "chosen_slug": slug,
+        "reason": stage.gate.reason.strip(),
+        "is_leader": slug == measured["leader_slug"],
+        "separated_from_leader": separated,
         "environment": provenance.environment(),
     }
 

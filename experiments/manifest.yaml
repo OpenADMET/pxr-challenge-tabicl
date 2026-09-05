@@ -235,7 +235,17 @@ tabular:
       gate:
         id: canonical_descriptors
         chooses: [descriptors, descriptor_pca]
-        rule: >
+        # To promote a different configuration, change this and its reason. The
+        # pipeline checks the choice against the runs and records the evidence
+        # beside it; it warns if the choice is one the evidence now separates
+        # from the leader, and honours it anyway, because that is a judgement
+        decision: {descriptors: rdkit, descriptor_pca: 128}
+        reason: >
+          RDKit beats Mordred and the concatenation of the two at every width.
+          128 components are indistinguishable from keeping all 217 columns
+          (p = 0.77) at a little over half the width, and 64 is where reducing
+          starts to cost.
+        question: >
           Which descriptor block, and how far it reduces.
 
           A gate is a judgement, made by a person and recorded with its reason,
@@ -287,7 +297,12 @@ tabular:
       gate:
         id: embedding_reduction
         chooses: [embedding_pca]
-        rule: >
+        decision: {embedding_pca: 256}
+        reason: >
+          Indistinguishable from 384 (p = 0.689) at two thirds of the columns
+          and materially less memory. 512 is separated and worse, and is also
+          the width at which TabPFN v3 begins adapting its own inference.
+        question: >
           How far the frozen CheMeleon embedding reduces. Measured the same
           way as the descriptor gate, and decided the same way: by a person,
           with the reason recorded.
@@ -316,7 +331,14 @@ tabular:
       gate:
         id: best_featureset
         chooses: [embedding, readout, descriptors]
-        rule: >
+        decision: {embedding: chemeleon, readout: chemprop_log2fc, descriptors: none}
+        reason: >
+          Descriptors add nothing detectable on top of an embedding and a
+          readout. Among the featuresets nothing distinguishes from the leader,
+          this one needs a single trained encoder rather than two, since the
+          frozen CheMeleon embedding is off the shelf, and it has the steadiest
+          seeds of the candidates.
+        question: >
           Which blocks carry signal, and which combination of them wins.
           Measured and decided as the width gates are. This gate may choose no
           descriptor block at all, superseding what the descriptor probe
@@ -338,7 +360,11 @@ tabular:
       gate:
         id: best_regressor
         chooses: [regressor]
-        rule: Which regressor, on the featureset the stage before settled.
+        # undecided: the stage has not finished. Declare the choice here with a
+        # reason once it has, and the pipeline will verify and record it
+        decision: null
+        reason: ""
+        question: Which regressor, on the featureset the stage before settled.
 
     - id: uncertainty
       figures: [fig7]

@@ -490,9 +490,14 @@ REGRESSORS: dict[str, _Spec] = {
         _resolve_tabpfn,
     ),
     "tabicl": _Spec(
-        1,
+        2,
         {
-            "device": "auto",
+            # CPU rather than the accelerator, and not by preference. At 4,392
+            # rows and 258 columns TabICL asks for 9.5 GiB on top of the 14 GiB
+            # it already holds, which does not fit in 24 GiB, and the batch
+            # size, key-value cache and offload settings below are already at
+            # their cheapest. On CPU it fits and takes about 160 seconds a fit.
+            "device": "cpu",
             "batch_size": TABICL_BATCH_SIZE,
             "kv_cache": TABICL_KV_CACHE,
             "offload_mode": TABICL_OFFLOAD_MODE,

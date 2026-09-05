@@ -284,6 +284,16 @@ def run_one(
     prediction = regressors.fit_predict(config.regressor, x_fit, y_fit, x_test, seed=seed)
     predicted = prediction.mean
 
+    # a regressor that returns nothing usable must fail here rather than write a
+    # run whose metrics are all NaN. Recorded, such a run reads as complete, and
+    # the absence only surfaces as a hole in a ranking several stages later
+    finite = np.isfinite(predicted)
+    if not finite.all():
+        raise SweepError(
+            f"{config.slug} seed={seed}: {int((~finite).sum())} of {predicted.size} "
+            f"predictions are not finite, so the fit produced nothing to score"
+        )
+
     scores = write_run(
         run_dir,
         spec=spec,

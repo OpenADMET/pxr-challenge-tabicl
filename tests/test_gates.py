@@ -103,76 +103,106 @@ def test_the_seed_mean_is_ranked_on_and_the_ensemble_is_carried_alongside(spec, 
     assert order == sorted(order)
 
 
-def test_a_decision_records_its_reason_and_who_made_it(spec, tmp_path, monkeypatch):
-    monkeypatch.setattr(gates, "GATES_DIR", tmp_path / "gates")
+def _with_decision(spec, stage_id, decision, reason="because"):
+    """Return the manifest with one gate's declared decision replaced."""
+    import dataclasses
+
+    stages = []
+    for stage in spec.stages:
+        if stage.id == stage_id and stage.gate is not None:
+            gate = dataclasses.replace(stage.gate, decision=decision, reason=reason)
+            stage = dataclasses.replace(stage, gate=gate)
+        stages.append(stage)
+    return dataclasses.replace(spec, stages=tuple(stages))
+
+
+def test_a_declared_decision_is_confirmed_against_the_runs(spec, tmp_path):
     configs = spec.expand("descriptor_width")
     write_runs(tmp_path, configs, ranked_offsets(configs, configs[0].slug))
     pick = configs[3]
-
-    decision = gates.decide(
+    declared = _with_decision(
         spec,
         "descriptor_width",
         {"descriptors": pick.descriptors, "descriptor_pca": pick.descriptor_pca},
-        "cheaper and nothing separates it from the leader",
-        decided_by="tester",
-        results_dir=tmp_path,
-        n_resamples=200,
+        "cheaper and nothing separates it",
     )
 
+    decision = gates.confirm(declared, "descriptor_width", results_dir=tmp_path, n_resamples=200)
+
     assert decision["chosen_slug"] == pick.slug
-    assert decision["decided_by"] == "tester"
-    assert "nothing separates it" in decision["reason"]
+    assert decision["reason"] == "cheaper and nothing separates it"
+    assert decision["is_leader"] is False
     # the evidence travels with the decision
     assert len(decision["ranking"]) == len(configs)
     assert decision["significance"]["fdr"] == gates.FDR
 
 
-def test_a_decision_without_a_reason_is_refused(spec, tmp_path):
+def test_an_undeclared_gate_says_how_to_declare_it(spec, tmp_path):
     configs = spec.expand("descriptor_width")
     write_runs(tmp_path, configs, ranked_offsets(configs, configs[0].slug))
+    undeclared = _with_decision(spec, "descriptor_width", None, "")
+
+    with pytest.raises(gates.GateError, match="undecided"):
+        gates.confirm(undeclared, "descriptor_width", results_dir=tmp_path, n_resamples=200)
+
+
+def test_a_declared_decision_without_a_reason_is_refused(spec, tmp_path):
+    configs = spec.expand("descriptor_width")
+    write_runs(tmp_path, configs, ranked_offsets(configs, configs[0].slug))
+    unreasoned = _with_decision(
+        spec, "descriptor_width", {"descriptors": "rdkit", "descriptor_pca": 128}, "  "
+    )
 
     with pytest.raises(gates.GateError, match="needs a reason"):
-        gates.decide(
-            spec,
-            "descriptor_width",
-            {"descriptors": "rdkit", "descriptor_pca": 128},
-            "   ",
-            decided_by="tester",
-            results_dir=tmp_path,
-            n_resamples=200,
-        )
+        gates.confirm(unreasoned, "descriptor_width", results_dir=tmp_path, n_resamples=200)
 
 
-def test_a_decision_must_name_a_configuration_the_stage_ran(spec, tmp_path):
+def test_a_decision_naming_a_configuration_that_never_ran_is_refused(spec, tmp_path):
     configs = spec.expand("descriptor_width")
     write_runs(tmp_path, configs, ranked_offsets(configs, configs[0].slug))
+    impossible = _with_decision(
+        spec,
+        "descriptor_width",
+        {"descriptors": "rdkit", "descriptor_pca": 999},
+        "a width nothing ran at",
+    )
 
     with pytest.raises(gates.GateError, match="no configuration"):
-        gates.decide(
-            spec,
-            "descriptor_width",
-            {"descriptors": "rdkit", "descriptor_pca": 999},
-            "a width nothing ran at",
-            decided_by="tester",
-            results_dir=tmp_path,
-            n_resamples=200,
-        )
+        gates.confirm(impossible, "descriptor_width", results_dir=tmp_path, n_resamples=200)
 
 
-def test_a_decision_must_cover_exactly_the_axes_the_gate_chooses(spec, tmp_path):
+def test_a_decision_must_cover_exactly_the_axes_the_gate_settles(spec, tmp_path):
     configs = spec.expand("descriptor_width")
     write_runs(tmp_path, configs, ranked_offsets(configs, configs[0].slug))
+    partial = _with_decision(
+        spec, "descriptor_width", {"descriptors": "rdkit"}, "missing the width"
+    )
 
-    with pytest.raises(gates.GateError, match="choose exactly"):
-        gates.decide(
-            spec,
-            "descriptor_width",
-            {"descriptors": "rdkit"},
-            "missing the width",
-            decided_by="tester",
-            results_dir=tmp_path,
-            n_resamples=200,
+    with pytest.raises(gates.GateError, match="cover exactly"):
+        gates.confirm(partial, "descriptor_width", results_dir=tmp_path, n_resamples=200)
+
+
+def test_a_choice_the_evidence_separates_is_honoured_and_flagged(spec, tmp_path, caplog):
+    # the runs may have moved since the decision was written. Overriding it
+    # silently would hide that; the judgement belongs to whoever reads the log
+    configs = spec.expand("descriptor_width")
+    worst = configs[-1]
+    write_runs(tmp_path, configs, ranked_offsets(configs, configs[0].slug))
+    declared = _with_decision(
+        spec,
+        "descriptor_width",
+        {"descriptors": worst.descriptors, "descriptor_pca": worst.descriptor_pca},
+        "written before the runs moved",
+    )
+
+    with caplog.at_level("WARNING"):
+        decision = gates.confirm(
+            declared, "descriptor_width", results_dir=tmp_path, n_resamples=200
         )
+
+    assert decision["chosen_slug"] == worst.slug, "the declaration is honoured"
+    assert decision["separated_from_leader"] is True
+    assert "separated from the leader" in caplog.text
 
 
 def test_a_partial_stage_cannot_be_decided(spec, tmp_path):
@@ -194,22 +224,19 @@ def test_a_decision_round_trips_through_the_file_it_is_written_to(spec, tmp_path
     write_runs(tmp_path, configs, ranked_offsets(configs, configs[1].slug))
 
     pick = configs[1]
-    decision = gates.decide(
+    declared = _with_decision(
         spec,
         "descriptor_width",
         {"descriptors": pick.descriptors, "descriptor_pca": pick.descriptor_pca},
         "the one this test picked",
-        decided_by="tester",
-        results_dir=tmp_path,
-        n_resamples=200,
     )
+    decision = gates.confirm(declared, "descriptor_width", results_dir=tmp_path, n_resamples=200)
     path = gates.write(decision)
 
     assert path.exists()
     written = gates.read("canonical_descriptors")
     assert written["chosen"] == decision["chosen"]
-    assert written["reason"] == decision["reason"]
-    assert written["decided_by"] == "tester"
+    assert written["reason"] == "the one this test picked"
 
 
 def test_a_stage_reads_what_the_gates_before_it_chose(spec, tmp_path, monkeypatch):

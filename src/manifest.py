@@ -138,11 +138,36 @@ class GnnCell:
 
 @dataclass(frozen=True)
 class Gate:
-    """A decision taken from a completed stage, fixing axes for later stages."""
+    """A decision taken from a completed stage, fixing axes for later stages.
+
+    The decision is declared here and verified against the runs, rather than
+    computed from them. At the top of these tables the configurations are
+    statistically tied and any tie-break is a preference, so the preference is
+    written down where it can be read and argued with. Declaring it is also
+    what keeps a fresh clone autonomous: the pipeline checks the choice against
+    the evidence and records both, and never has to stop and ask.
+
+    Attributes
+    ----------
+    id : str
+        The gate's name, and the file it is recorded in.
+    chooses : tuple of str
+        The axes it settles.
+    question : str
+        What the stage is asking.
+    decision : dict or None
+        Axis to level. None leaves the gate undecided, which blocks every
+        stage waiting on it until a decision is written.
+    reason : str
+        Why this configuration and not another. Recorded with the decision and
+        shown wherever it is; a decision with no reason has no defence.
+    """
 
     id: str
     chooses: tuple[str, ...]
-    rule: str
+    question: str
+    decision: dict[str, Any] | None = None
+    reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -491,7 +516,13 @@ def _parse_stage(entry: dict) -> Stage:
         restrict={axis: tuple(levels) for axis, levels in (entry.get("restrict") or {}).items()},
         gate=None
         if not gate
-        else Gate(id=gate["id"], chooses=tuple(gate["chooses"]), rule=gate["rule"]),
+        else Gate(
+            id=gate["id"],
+            chooses=tuple(gate["chooses"]),
+            question=gate.get("question", gate.get("rule", "")),
+            decision=gate.get("decision"),
+            reason=gate.get("reason", ""),
+        ),
         reuses_runs=bool(entry.get("reuses_runs", False)),
         note=entry.get("note"),
     )

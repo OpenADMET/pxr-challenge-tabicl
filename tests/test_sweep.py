@@ -1,10 +1,12 @@
 import json
 
+import numpy as np
 import pandas as pd
 import pytest
 
 import features
 import manifest as manifest_module
+import regressors
 import sweep
 from data import CANONICAL_COL, SPLIT_DIR, TARGET_COL
 
@@ -248,3 +250,17 @@ def test_a_run_records_how_long_it_took(spec, tiny):
     # timing is a property of the run, not of what produced it, so recording it
     # must not rename the artifact and rerun everything already fitted
     assert "wall_clock_s" not in record["spec"]
+
+
+def test_a_fit_that_predicts_nothing_is_refused(spec, tiny, monkeypatch):
+    # a regressor returning NaN wrote a run whose metrics were all NaN and which
+    # read as complete; the hole only appeared as a gap in a ranking later
+    partitions, tmp_path = tiny
+
+    def all_nan(name, x_fit, y_fit, x_test, *, seed):
+        return regressors.Prediction(mean=np.full(len(x_test), np.nan), std=None)
+
+    monkeypatch.setattr(sweep.regressors, "fit_predict", all_nan)
+
+    with pytest.raises(sweep.SweepError, match="not finite"):
+        _run(_config(), spec, partitions, tmp_path)
