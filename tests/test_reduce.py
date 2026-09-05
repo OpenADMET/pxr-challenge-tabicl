@@ -212,3 +212,50 @@ def test_restricting_to_raw_blocks_leaves_out_the_encoder_reductions(spec):
     # must not drag encoder blocks in
     assert named == {"rdkit", "mordred", "chemeleon"}
     assert planned
+
+
+def test_a_widening_reduction_is_refused_with_its_own_message(tmp_path):
+    # the synthetic block has six columns, so six components is not a reduction
+    block, _ = _block(tmp_path)
+
+    with pytest.raises(reduction.ReductionError, match="not a reduction"):
+        reduction.build(block, width=6, fit_smiles=FIT, cache_dir=tmp_path / "reduced", seed=0)
+
+
+@pytest.mark.parametrize(
+    ("axis", "level"),
+    [
+        ("descriptors", "rdkit"),
+        ("descriptors", "mordred"),
+        ("descriptors", "rdkit_mordred"),
+        ("embedding", "chemeleon"),
+    ],
+)
+def test_the_declared_column_count_matches_the_block_it_names(spec, axis, level, tmp_path):
+    # the manifest declares each reducible block's own width so that a width
+    # which cannot reduce it is never generated. Declaring it twice invites
+    # drift, so the declaration is checked against the block itself
+    declared = manifest.native_width(spec.axes, axis, level)
+    names = spec.axes[axis][level].get("blocks") or [spec.axes[axis][level]["block"]]
+    if not all((features.CACHE_DIR / name).exists() for name in names):
+        pytest.skip("block not built; run run/02_featurize.py")
+
+    columns = sum(
+        features.load(features.build(name, cache_dir=features.CACHE_DIR)).shape[1] for name in names
+    )
+
+    assert declared == columns
+
+
+def test_no_planned_reduction_would_widen_its_block(spec):
+    for names, width in planned_reductions(spec):
+        if width is None:
+            continue
+        declared = [
+            manifest.native_width(spec.axes, axis, level)
+            for axis in ("descriptors", "embedding")
+            for level, entry in spec.axes[axis].items()
+            if entry and (entry.get("blocks") or [entry.get("block")]) == names
+        ]
+        for columns in declared:
+            assert columns is None or width < columns

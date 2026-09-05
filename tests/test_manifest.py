@@ -42,14 +42,30 @@ def test_the_width_probes_lead_and_wait_on_nothing(spec):
         assert spec.stage(stage_id).depends_on == ()
 
 
-def test_the_descriptor_probe_crosses_every_block_with_every_width(spec):
+def test_the_descriptor_probe_crosses_every_block_with_every_width_it_can(spec):
     configs = spec.expand("descriptor_width")
-    # 3 descriptor blocks x 4 widths; the empty featureset is not a configuration
-    assert len(configs) == 12
+    # 3 blocks x 4 widths, less RDKit at 256: it has 217 columns, so that is
+    # not a reduction and the decomposition refuses it
+    assert len(configs) == 11
     assert sorted({c.descriptor_pca for c in configs}) == [32, 64, 128, 256]
     assert {c.descriptors for c in configs} == {"mordred", "rdkit", "rdkit_mordred"}
     assert {c.regressor for c in configs} == {"tabpfn-v3"}
     assert {c.embedding for c in configs} == {"none"}
+
+
+def test_a_width_that_would_not_reduce_its_block_is_not_a_configuration(spec):
+    widths = {
+        c.descriptors: sorted(
+            x.descriptor_pca
+            for x in spec.expand("descriptor_width")
+            if x.descriptors == c.descriptors
+        )
+        for c in spec.expand("descriptor_width")
+    }
+
+    assert widths["rdkit"] == [32, 64, 128]
+    assert widths["mordred"] == [32, 64, 128, 256]
+    assert widths["rdkit_mordred"] == [32, 64, 128, 256]
 
 
 def test_the_embedding_probe_sweeps_width_on_the_frozen_embedding(spec):

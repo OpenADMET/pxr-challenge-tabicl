@@ -103,10 +103,16 @@ def planned_reductions(
             if level is None:
                 continue
             names = list(level.get("blocks", [level["block"]] if "block" in level else []))
-            if width_axis and level.get("reduce"):
-                wanted.extend((names, width) for width in available)
-            else:
+            if not (width_axis and level.get("reduce")):
                 wanted.append((names, None))
+                continue
+
+            # a width at or above the block's own size is not a reduction, and
+            # the decomposition refuses it; the manifest declares the size
+            columns = level.get("n_features")
+            wanted.extend(
+                (names, width) for width in available if columns is None or width < columns
+            )
 
     if blocks is None:
         return wanted

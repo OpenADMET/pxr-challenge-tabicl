@@ -43,6 +43,10 @@ VERSION = 1
 FIT_PARTITION = "fit_all.csv"
 
 
+class ReductionError(ValueError):
+    """A reduction was asked for that does not exist, such as a widening PCA."""
+
+
 class LeakageError(RuntimeError):
     """A reduction was asked to fit on rows outside the fit partition."""
 
@@ -136,6 +140,13 @@ def build(
         columns = list(raw.columns)
         explained = None
     else:
+        # a width at or above the block's own size is not a reduction, and the
+        # decomposition's own message names neither the block nor the caller
+        if width >= filled.shape[1]:
+            raise ReductionError(
+                f"{name}: asked for {width} components from {filled.shape[1]} columns, "
+                "which is not a reduction; drop the width from the axis for this block"
+            )
         pca = PCA(n_components=width, random_state=seed)
         pca.fit(filled[fit_index])
         reduced = np.asarray(pca.transform(filled), dtype=np.float64)

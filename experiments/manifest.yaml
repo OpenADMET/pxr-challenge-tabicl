@@ -67,13 +67,16 @@ tabular:
   axes:
     # a block declaring reduce: true takes its width from the matching width
     # axis, so a width has exactly one home. A block without it is passed
-    # through at its native size
+    # through at its native size. n_features is the block's own column count,
+    # and a width at or above it is not a reduction: RDKit has 217 columns, so
+    # projecting it to 256 is not a configuration that exists. A test checks
+    # every count here against the block it names, so this cannot drift
     embedding:
       none: null
-      chemeleon: {block: chemeleon, reduce: true}
+      chemeleon: {block: chemeleon, reduce: true, n_features: 2048}
       chemprop_log2fc: {block: chemprop_log2fc_embedding}
-      chemeleon_log2fc: {block: chemeleon_log2fc_embedding, reduce: true}
-      chemeleon_pec50: {block: chemeleon_pec50_embedding, reduce: true}
+      chemeleon_log2fc: {block: chemeleon_log2fc_embedding, reduce: true, n_features: 2048}
+      chemeleon_pec50: {block: chemeleon_pec50_embedding, reduce: true, n_features: 2048}
     embedding_pca: [32, 64, 128, 256]
     readout:
       none: null
@@ -82,9 +85,9 @@ tabular:
       chemprop_log2fc: {block: chemprop_log2fc_readout}
     descriptors:
       none: null
-      mordred: {blocks: [mordred], reduce: true}
-      rdkit: {blocks: [rdkit], reduce: true}
-      rdkit_mordred: {blocks: [rdkit, mordred], reduce: true}
+      mordred: {blocks: [mordred], reduce: true, n_features: 1613}
+      rdkit: {blocks: [rdkit], reduce: true, n_features: 217}
+      rdkit_mordred: {blocks: [rdkit, mordred], reduce: true, n_features: 1830}
     descriptor_pca: [32, 64, 128, 256]
     regressor:
       - lgbm
@@ -102,6 +105,11 @@ tabular:
     non_empty: >
       A featureset with no embedding, no readout and no descriptors is not a
       configuration; it is dropped from the cross product.
+    width_below_its_block: >
+      A width at or above a block's own column count is not a reduction, so it
+      is dropped rather than run. RDKit's 217 columns cannot be projected to
+      256, and sklearn refuses outright; the descriptor probe therefore runs 11
+      configurations rather than 12, and says which one is absent and why.
     width_needs_its_block: >
       A width axis means nothing where its block is absent or passed through
       unreduced, so it is normalized to 0 before a configuration is built.

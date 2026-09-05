@@ -232,8 +232,10 @@ class Manifest:
             for values in product(*(levels[axis] for axis in TABULAR_AXES))
         ]
         # a width sweep over a featureset that carries no such block would
-        # otherwise repeat one configuration under several names
-        return [c for c in _deduplicate(configs) if c.n_blocks > 0]
+        # otherwise repeat one configuration under several names, and a width at
+        # or above its block's own size is not a reduction at all
+        kept = [c for c in _deduplicate(configs) if c.n_blocks > 0]
+        return [c for c in kept if _widths_reduce(c, self.axes)]
 
     def _stage_levels(self, stage: Stage, axis: str, settled: dict[str, Any]) -> list[Any]:
         """Return the levels of one axis this stage runs."""
@@ -395,6 +397,31 @@ def _as_tuple(value: Any) -> tuple[str, ...]:
     if value is None:
         return ()
     return (value,) if isinstance(value, str) else tuple(value)
+
+
+def native_width(axes: dict, block_axis: str, level: str) -> int | None:
+    """Return a block level's own column count, where the manifest declares one."""
+    levels = axes.get(block_axis)
+    spec = levels.get(level) if isinstance(levels, dict) else None
+    return (spec or {}).get("n_features")
+
+
+def _widths_reduce(config: TabularConfig, axes: dict) -> bool:
+    """Whether every width this configuration asks for actually reduces its block.
+
+    Projecting a block to at least as many components as it has columns is not
+    a reduction, and the decomposition refuses it outright: RDKit's 217
+    descriptors cannot become 256 components. Such a configuration is dropped
+    here rather than failing partway through a sweep.
+    """
+    for width_axis, block_axis in WIDTH_AXES.items():
+        width = getattr(config, width_axis)
+        if width == NOT_REDUCED:
+            continue
+        columns = native_width(axes, block_axis, getattr(config, block_axis))
+        if columns is not None and width >= columns:
+            return False
+    return True
 
 
 def _normalize(config: TabularConfig, axes: dict) -> TabularConfig:
