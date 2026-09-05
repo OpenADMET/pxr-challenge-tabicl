@@ -352,25 +352,31 @@ def write_run(
     frame = pd.DataFrame({CANONICAL_COL: smiles, "observed": observed, "predicted": predicted})
     if std is not None:
         frame["predicted_std"] = std
-    frame.to_csv(run_dir / "predictions.csv", index=False)
-    (run_dir / "metrics.json").write_text(json.dumps(scores, indent=2) + "\n")
-    (run_dir / "run.json").write_text(
-        json.dumps(
-            {
-                "key": provenance.spec_key(spec),
-                "seed": seed,
-                "spec": spec,
-                **(record or {}),
-                "n_test": int(len(observed)),
-                "metrics": scores,
-                "environment": provenance.environment(),
-                "written_at": datetime.now(tz=UTC).isoformat(timespec="seconds"),
-            },
-            indent=2,
-            default=str,
+    with provenance.atomic(run_dir / "predictions.csv") as partial:
+        frame.to_csv(partial, index=False)
+    with provenance.atomic(run_dir / "metrics.json") as partial:
+        partial.write_text(json.dumps(scores, indent=2) + "\n")
+
+    # the record lands last, because it is what marks the run complete: a run
+    # interrupted between the two is redone rather than read as finished
+    with provenance.atomic(run_dir / "run.json") as partial:
+        partial.write_text(
+            json.dumps(
+                {
+                    "key": provenance.spec_key(spec),
+                    "seed": seed,
+                    "spec": spec,
+                    **(record or {}),
+                    "n_test": int(len(observed)),
+                    "metrics": scores,
+                    "environment": provenance.environment(),
+                    "written_at": datetime.now(tz=UTC).isoformat(timespec="seconds"),
+                },
+                indent=2,
+                default=str,
+            )
+            + "\n"
         )
-        + "\n"
-    )
     return scores
 
 

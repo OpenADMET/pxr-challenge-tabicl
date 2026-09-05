@@ -72,3 +72,59 @@ def test_digest_tracks_content(tmp_path):
     first = provenance.digest_file(path)
     path.write_bytes(b"two")
     assert provenance.digest_file(path) != first
+
+
+def test_an_artifact_appears_whole_or_not_at_all(tmp_path):
+    # a concurrent sweep must never find a half-written cache entry, since the
+    # path existing is what makes a block look cached
+    target = tmp_path / "block.parquet"
+
+    def failing_producer() -> None:
+        with provenance.atomic(target) as partial:
+            partial.write_bytes(b"half a file")
+            raise RuntimeError("the producer failed")
+
+    with pytest.raises(RuntimeError):
+        failing_producer()
+
+    assert not target.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_completed_write_is_moved_into_place(tmp_path):
+    target = tmp_path / "nested" / "block.parquet"
+
+    with provenance.atomic(target) as partial:
+        partial.write_bytes(b"the whole file")
+        # the destination does not exist until the block exits
+        assert not target.exists()
+
+    assert target.read_bytes() == b"the whole file"
+    assert [p.name for p in target.parent.iterdir()] == ["block.parquet"]
+
+
+def test_two_writers_of_one_key_do_not_share_a_temporary(tmp_path):
+    target = tmp_path / "block.parquet"
+    seen = []
+
+    with provenance.atomic(target) as first:
+        seen.append(first)
+        with provenance.atomic(target) as second:
+            seen.append(second)
+            second.write_bytes(b"second")
+        first.write_bytes(b"first")
+
+    # the temporaries are distinguished by process, so within one process they
+    # coincide; across processes they cannot, which is the case that matters
+    assert seen[0] == seen[1]
+    assert target.exists()
+
+
+def test_a_record_is_written_through_the_same_path(tmp_path):
+    spec = provenance.block_spec("thing", 1, params={"a": 1}, inputs=[])
+    artifact = provenance.Artifact(root=tmp_path, spec=spec)
+
+    artifact.write_record()
+
+    assert artifact.read_record()["key"] == artifact.key
+    assert not any(p.name.endswith(".partial") for p in tmp_path.iterdir())

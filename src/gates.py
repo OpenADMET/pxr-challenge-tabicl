@@ -203,7 +203,8 @@ def write(decision: dict[str, Any], gates_dir: Path | None = None) -> Path:
     resolved = _dir(gates_dir)
     resolved.mkdir(parents=True, exist_ok=True)
     path = gate_path(decision["gate"], resolved)
-    path.write_text(json.dumps(decision, indent=2, sort_keys=True) + "\n")
+    with provenance.atomic(path) as partial:
+        partial.write_text(json.dumps(decision, indent=2, sort_keys=True) + "\n")
     logger.info("gate %s chose %s", decision["gate"], decision["chosen"])
     return path
 

@@ -29,6 +29,8 @@ from chemprop.models import MPNN
 from chemprop.nn import BondMessagePassing, MeanAggregation, RegressionFFN
 from torch import nn
 
+import provenance
+
 from .config import RANDOM_BODY
 
 logger = logging.getLogger(__name__)
@@ -152,8 +154,8 @@ def write_body_checkpoint(
     if not body:
         raise BackboneError(f"no key in the state dict begins with {prefix!r}")
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"hyper_parameters": dict(hyper_parameters), "state_dict": body}, path)
+    with provenance.atomic(path) as partial:
+        torch.save({"hyper_parameters": dict(hyper_parameters), "state_dict": body}, partial)
     return path
 
 

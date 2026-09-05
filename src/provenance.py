@@ -11,6 +11,14 @@ along with the environment that produced it. Nothing has to be reconstructed
 from a launch script or inferred from a directory name, and there is one
 account of how an artifact came to exist rather than several to reconcile.
 
+Every artifact is written through :func:`atomic`, which builds it under a
+temporary name in the same directory and moves it into place in one step. A
+cache entry therefore appears whole or not at all, so two processes sweeping
+different stages at once cannot leave each other a half-written block that
+still looks cached. Two processes that miss the same key both compute it and
+one overwrites the other, which is wasted work rather than a corrupt file:
+the key is a hash of the specification, so their output is the same.
+
 Producer semantics are versioned by hand. A ``version`` field in a
 specification is what separates "the same Mordred block" from "the Mordred
 block after we changed how it handles a parse failure", since hashing the
@@ -24,8 +32,10 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import subprocess
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
@@ -37,6 +47,35 @@ logger = logging.getLogger(__name__)
 # characters of the hex digest used to name an artifact; 12 leaves a collision
 # vanishingly unlikely across the few thousand artifacts a full sweep produces
 KEY_LENGTH = 12
+
+
+@contextmanager
+def atomic(path: Path) -> Iterator[Path]:
+    """Yield a temporary path that is moved onto ``path`` when the block exits.
+
+    The temporary sits in the destination's own directory, so the move is a
+    rename within one filesystem and cannot be observed half-done. A block that
+    raises leaves the destination untouched and removes the temporary.
+
+    Parameters
+    ----------
+    path : path-like
+        Where the finished artifact belongs. Parent directories are created.
+
+    Yields
+    ------
+    Path
+        The path to write to.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # the pid keeps two processes racing on one key from sharing a temporary
+    partial = path.with_name(f".{path.name}.{os.getpid()}.partial")
+    try:
+        yield partial
+        partial.replace(path)
+    finally:
+        partial.unlink(missing_ok=True)
+
 
 # packages whose versions can change a numeric result, recorded with every artifact
 TRACKED_PACKAGES = (
@@ -178,7 +217,6 @@ class Artifact:
         Path
             The record's path.
         """
-        self.root.mkdir(parents=True, exist_ok=True)
         record = {
             "key": self.key,
             "artifact": self.path.name,
@@ -187,7 +225,8 @@ class Artifact:
             "written_at": datetime.now(tz=UTC).isoformat(timespec="seconds"),
             **extra,
         }
-        self.record_path.write_text(json.dumps(record, indent=2, default=_encode) + "\n")
+        with atomic(self.record_path) as partial:
+            partial.write_text(json.dumps(record, indent=2, default=_encode) + "\n")
         return self.record_path
 
     def read_record(self) -> dict[str, Any]:

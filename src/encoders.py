@@ -745,16 +745,17 @@ def _ensure_encoder(
         return model
 
     model = _train_encoder(target, config, training)
-    artifact.root.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {
-            "task_names": training.task_names,
-            "state_dict": {
-                name: tensor.detach().cpu() for name, tensor in model.estimator.state_dict().items()
+    with provenance.atomic(artifact.path) as partial:
+        torch.save(
+            {
+                "task_names": training.task_names,
+                "state_dict": {
+                    name: tensor.detach().cpu()
+                    for name, tensor in model.estimator.state_dict().items()
+                },
             },
-        },
-        artifact.path,
-    )
+            partial,
+        )
     artifact.write_record(
         target=target,
         tasks=training.task_names,
