@@ -33,30 +33,31 @@ a file happened to carry.
 
 ## Environment
 
-`uv sync` alone does not produce a working environment. The modelling stack
-(PyTorch, chemprop, the CheMeleon weights, and the tabular foundation models
-TabPFN, TabICL and TabFM) is not in this project's dependency list, and the
-GPU build of PyTorch depends on the machine besides.
-
-The layout the tooling expects is a shared environment and an `openadmet-models`
-checkout as siblings of this repository:
-
-```
-<parent directory>/
-├── .venv/              the shared environment, holding the modelling stack
-├── openadmet-models/   editable checkout, pinned in pyproject.toml
-└── pxr-challenge/      this repository
+```bash
+uv sync
 ```
 
-`pyproject.toml` pins `openadmet-models` to an exact commit, and every artifact
-this pipeline writes records the package versions and repo commit it was
-produced under, so an environment that has drifted is detectable after the fact
-even though it is not yet reproducible from a lockfile alone. Closing that gap
-is open work, tracked on the pull request.
+That installs everything, including the modelling stack: PyTorch, chemprop and
+the tabular foundation models TabPFN, TabICL and TabFM. The result-affecting
+packages are pinned to exact versions rather than floored, because they decide
+the numbers; every artifact records the versions it was built under, and a
+resolver free to take a newer minor would hand you a stack that never produced
+the results here.
 
-Activate the sibling environment and run everything below from the repository
-root. No `PYTHONPATH` is needed: the `run/` scripts add `src/` to the path
-themselves, and pytest is configured with it in `pyproject.toml`.
+One thing `uv sync` cannot decide for you is which PyTorch build your
+accelerator needs. The lockfile carries the default `torch` wheel from PyPI. On
+an AMD card, install the ROCm build over it:
+
+```bash
+uv pip install --index-url https://download.pytorch.org/whl/rocm6.2 \
+    torch==2.5.1
+```
+
+The CheMeleon weights download on first use and cache under `~/.chemprop`.
+
+Run everything below from the repository root. No `PYTHONPATH` is needed: the
+`run/` scripts add `src/` to the path themselves, and pytest is configured with
+it in `pyproject.toml`.
 
 ```bash
 python -m pytest                 # fast tests
