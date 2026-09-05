@@ -215,9 +215,10 @@ tabular:
           smaller than the leader's spread across seeds.
 
     - id: ingredients
-      figures: [fig2, fig3, fig4]
-      sweeps: [embedding, readout, regressor]
+      figures: [fig2, fig3]
+      sweeps: [embedding, readout]
       fixed:
+        regressor: tabpfn-v3
         calibration: none
       fixed_from: [canonical_descriptors, embedding_reduction]
       restrict:
@@ -226,25 +227,47 @@ tabular:
         # combination readings possible from one table
         descriptors: [none, "@gate"]
       note: >
-        The featureset and the regressor are swept together rather than in
-        sequence, because neither can be fixed first without pre-committing to
-        the other, and choosing a starting regressor from the prior sweep is the
-        one thing this rebuild will not do. Figures 2, 3 and 4 are three
-        readings of this one table: the single-block rows, the combinations, and
-        the regressor facet. The descriptor rows at the settled width under
-        TabPFN v3 were already run by the width probe and are skipped by cache
-        rather than repeated.
+        Which blocks carry signal, and which combination of them wins. The
+        regressor is held at the same one the width probes used, on the same
+        argument: the question is about the features rather than the model, and
+        running seven of them multiplies the sweep by seven without sharpening
+        the answer. Figures 2 and 3 are two readings of this one table, the
+        single-block rows and the combinations. Nineteen featuresets at five
+        seeds is 95 runs, against 665 for the same sweep crossed with every
+        regressor.
       gate:
-        id: best_configuration
-        chooses: [embedding, readout, descriptors, regressor]
+        id: best_featureset
+        chooses: [embedding, readout, descriptors]
         rule: >
-          Same rule as the width gates: lowest five-seed ensemble MAE, ties
-          decided on cost and recorded.
+          Same rule as the width gates: ensemble MAE, a paired bootstrap over
+          the 260 compounds, and a saving accepted only when it is smaller than
+          the leader's spread across seeds. This gate may choose no descriptor
+          block at all, superseding what the descriptor probe settled, if an
+          embedding on its own is what wins.
+
+    - id: regressor
+      figures: [fig4]
+      sweeps: [regressor]
+      fixed:
+        calibration: none
+      fixed_from: [canonical_descriptors, embedding_reduction, best_featureset]
+      note: >
+        The regressor question, asked once on the featureset the stage before
+        settled rather than across all nineteen. Seven configurations at five
+        seeds is 35 runs, one of which the ingredient stage already fitted and
+        content-addressing skips. The trade is that this cannot say whether the
+        regressor ranking depends on the featureset; figure 4 asks which
+        regressor wins on the featureset this split chose, and says so.
+      gate:
+        id: best_regressor
+        chooses: [regressor]
+        rule: Same rule again, on the same 260 compounds.
 
     - id: calibration
       figures: [fig6]
       sweeps: [calibration]
-      fixed_from: [best_configuration, canonical_descriptors, embedding_reduction]
+      fixed_from:
+        [canonical_descriptors, embedding_reduction, best_featureset, best_regressor]
       gate: null
       note: >
         Held until the calibration question is settled. The report fitted an
@@ -255,7 +278,8 @@ tabular:
     - id: uncertainty
       figures: [fig7]
       sweeps: []
-      fixed_from: [best_configuration, canonical_descriptors, embedding_reduction]
+      fixed_from:
+        [canonical_descriptors, embedding_reduction, best_featureset, best_regressor]
       reuses_runs: true
       note: >
         A diagnostic over predictions the earlier stages already wrote, adding
@@ -389,6 +413,8 @@ figures:
 
   - id: fig2
     title: Single-ingredient tabular features
+    # every bar is TabPFN v3: the ingredient stage holds the regressor fixed,
+    # and figure 4 asks the regressor question separately
     question: How far does each feature block get on its own?
     # 0 is the width of a block that is absent or unreduced, so this keeps the
     # embedding-only and readout-only rows alongside the settled descriptor ones
@@ -414,10 +440,14 @@ figures:
 
   - id: fig4
     title: Regressor comparison
-    question: Which regressor wins, and does the answer depend on the featureset?
+    # the regressors are compared on one featureset, the one the stage before
+    # settled, so this cannot say whether the ranking depends on the featureset
+    question: Which regressor wins on the featureset this split chose?
     select:
       kind: tabular
-      descriptors: [none, "@gate"]
+      embedding: "@gate"
+      readout: "@gate"
+      descriptors: "@gate"
       descriptor_pca: [0, "@gate"]
       embedding_pca: [0, "@gate"]
       calibration: none

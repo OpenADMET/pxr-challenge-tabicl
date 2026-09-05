@@ -266,11 +266,11 @@ def slice_for(spec: Manifest, figure_id: str, frame: pd.DataFrame) -> pd.DataFra
         The annotated rows this figure is drawn from, possibly empty.
     """
     declaration = figure_declaration(spec, figure_id)
-    select = resolve_select(declaration.get("select") or {}, figure_id)
+    select = resolve_select(spec, declaration.get("select") or {}, figure_id)
     return select_rows(annotate(frame), select)
 
 
-def resolve_select(select: dict[str, Any], figure_id: str) -> dict[str, Any]:
+def resolve_select(spec: Manifest, select: dict[str, Any], figure_id: str) -> dict[str, Any]:
     """Replace every ``@gate`` reference with the value the gates chose.
 
     A figure that pinned a winner in its own declaration would be a second
@@ -283,7 +283,7 @@ def resolve_select(select: dict[str, Any], figure_id: str) -> dict[str, Any]:
     FigureError
         If a reference names an axis no resolved gate has chosen.
     """
-    chosen = gates.all_chosen()
+    chosen = gates.all_chosen(spec)
 
     def resolve(axis: str, level: Any) -> Any:
         if level != manifest_module.GATE_REF:

@@ -108,32 +108,50 @@ def settled(manifest: Manifest, stage_id: str, gates_dir: Path | None = None) ->
         Axis name mapped to the level a gate chose. Empty for a stage that
         depends on no gate.
 
+    Notes
+    -----
+    A stage lists its gates in the order they were decided, and a later one
+    supersedes an earlier one on any axis both chose. That is deliberate rather
+    than a conflict: the descriptor probe settles which descriptor block to
+    carry, and the featureset sweep afterwards may find that carrying none of
+    it wins. The override is logged so it is visible rather than silent.
+
     Raises
     ------
     GateError
-        If a gate the stage depends on has not been resolved, or if two of
-        them chose the same axis differently.
+        If a gate the stage depends on has not been resolved.
     """
     resolved: dict[str, Any] = {}
     for gate_id in manifest.stage(stage_id).depends_on:
         for axis, value in read(gate_id, gates_dir)["chosen"].items():
             if axis in resolved and resolved[axis] != value:
-                raise GateError(
-                    f"{stage_id}: gates disagree on {axis!r}, {resolved[axis]!r} against {value!r}"
+                logger.info(
+                    "%s: %s supersedes %r with %r on %s",
+                    stage_id,
+                    gate_id,
+                    resolved[axis],
+                    value,
+                    axis,
                 )
             resolved[axis] = value
     return resolved
 
 
-def all_chosen(gates_dir: Path | None = None) -> dict[str, Any]:
+def all_chosen(manifest: Manifest, gates_dir: Path | None = None) -> dict[str, Any]:
     """Return every axis value the resolved gates have chosen so far.
 
     Figures read this rather than restating a winner, so a selection cannot
-    drift from the decision it is supposed to follow.
+    drift from the decision it is supposed to follow. The gates are walked in
+    the order their stages run, so where two chose the same axis the later one
+    stands, exactly as it does for a stage reading its own dependencies.
     """
     chosen: dict[str, Any] = {}
-    for path in sorted(_dir(gates_dir).glob("*.json")):
-        chosen.update(json.loads(path.read_text())["chosen"])
+    for stage in manifest.stages:
+        if stage.gate is None:
+            continue
+        path = gate_path(stage.gate.id, gates_dir)
+        if path.exists():
+            chosen.update(json.loads(path.read_text())["chosen"])
     return chosen
 
 

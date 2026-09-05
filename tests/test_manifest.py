@@ -31,6 +31,7 @@ def test_manifest_loads(spec):
         "descriptor_width",
         "embedding_width",
         "ingredients",
+        "regressor",
         "calibration",
         "uncertainty",
     ]
@@ -123,13 +124,34 @@ def test_no_configuration_is_empty(spec):
     assert all(c.n_blocks > 0 for c in spec.expand("ingredients", SETTLED))
 
 
-def test_the_ingredient_stage_crosses_featureset_with_regressor(spec):
+def test_the_ingredient_stage_sweeps_featuresets_at_one_regressor(spec):
     configs = spec.expand("ingredients", SETTLED)
-    n_regressors = len(spec.axes["regressor"])
     # 5 embeddings x 2 readouts x (no descriptors, or the settled block), less
-    # the empty featureset
-    assert len(configs) == 19 * n_regressors
+    # the empty featureset. The regressor question is its own stage, so this
+    # is 19 configurations rather than 19 times seven
+    assert len(configs) == 19
+    assert {c.regressor for c in configs} == {"tabpfn-v3"}
     assert len({c.slug for c in configs}) == len(configs)
+
+
+def test_the_regressor_stage_asks_one_question_on_one_featureset(spec):
+    winner = {**SETTLED, "embedding": "chemeleon", "readout": "none"}
+    configs = spec.expand("regressor", winner)
+
+    assert len(configs) == len(spec.axes["regressor"])
+    assert {(c.embedding, c.readout, c.descriptors) for c in configs} == {
+        ("chemeleon", "none", "mordred")
+    }
+
+
+def test_the_featureset_gate_may_supersede_the_descriptor_probe(spec):
+    # an embedding on its own may beat every featureset carrying descriptors,
+    # so the later gate has to be able to choose "none" for an axis the earlier
+    # one settled
+    chooses = spec.stage("ingredients").gate.chooses
+
+    assert "descriptors" in chooses
+    assert "descriptors" in spec.stage("descriptor_width").gate.chooses
 
 
 def test_the_ingredient_stage_holds_what_the_probes_settled(spec):

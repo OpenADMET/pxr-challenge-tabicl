@@ -26,6 +26,7 @@ from manifest import TabularConfig  # noqa: E402
 GATE_DECISIONS = {
     "canonical_descriptors": {"descriptors": "rdkit", "descriptor_pca": 128},
     "embedding_reduction": {"embedding_pca": 256},
+    "best_featureset": {"embedding": "chemeleon", "readout": "none", "descriptors": "rdkit"},
 }
 
 
@@ -101,13 +102,15 @@ CALIBRATED = TabularConfig(
     calibration="isotonic_fitval",
 )
 
-# the two regressors that report a spread, and the kinds differ between them
+# the two regressors that report a spread, and the kinds differ between them.
+# They sit on the same featureset as COMBINED, which is the one the featureset
+# gate settles below, so the regressor figure has more than one bar to draw
 TABPFN = TabularConfig(
     embedding="chemeleon",
     embedding_pca=256,
     readout="none",
-    descriptors="none",
-    descriptor_pca=0,
+    descriptors="rdkit",
+    descriptor_pca=128,
     regressor="tabpfn-v2.5",
     calibration="none",
 )
@@ -115,8 +118,8 @@ TABICL = TabularConfig(
     embedding="chemeleon",
     embedding_pca=256,
     readout="none",
-    descriptors="none",
-    descriptor_pca=0,
+    descriptors="rdkit",
+    descriptor_pca=128,
     regressor="tabicl",
     calibration="none",
 )

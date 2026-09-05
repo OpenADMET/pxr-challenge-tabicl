@@ -198,7 +198,28 @@ def test_a_stage_reads_what_the_gates_before_it_chose(spec, tmp_path, monkeypatc
     settled = gates.settled(spec, "ingredients")
 
     assert settled == {"descriptors": "mordred", "descriptor_pca": 128, "embedding_pca": 64}
-    assert gates.all_chosen() == settled
+    assert gates.all_chosen(spec) == settled
+
+
+def test_a_later_gate_supersedes_an_earlier_one_on_a_shared_axis(spec, tmp_path, monkeypatch):
+    # the descriptor probe settles which block to carry; the featureset sweep
+    # afterwards may find that carrying none of it wins, and that is a decision
+    # rather than a conflict
+    monkeypatch.setattr(gates, "GATES_DIR", tmp_path)
+    for gate_id, chosen in (
+        ("canonical_descriptors", {"descriptors": "rdkit", "descriptor_pca": 128}),
+        ("embedding_reduction", {"embedding_pca": 256}),
+        ("best_featureset", {"embedding": "chemeleon", "readout": "none", "descriptors": "none"}),
+    ):
+        (tmp_path / f"{gate_id}.json").write_text(json.dumps({"gate": gate_id, "chosen": chosen}))
+
+    settled = gates.settled(spec, "regressor")
+
+    assert settled["descriptors"] == "none"
+    assert settled["descriptor_pca"] == 128
+    # and the figures read the same precedence, by stage order rather than by
+    # whatever order the files happen to sort in
+    assert gates.all_chosen(spec)["descriptors"] == "none"
 
 
 def test_a_stage_whose_gate_is_undecided_says_so_rather_than_guessing(spec, tmp_path, monkeypatch):
