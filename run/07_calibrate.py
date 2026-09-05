@@ -260,6 +260,17 @@ def main() -> None:
     }
 
     out_dir.mkdir(parents=True, exist_ok=True)
+    # the out-of-fold predictions are the whole cost of this step, so they are
+    # kept: refitting the map unweighted, or under another clip, is then free
+    with provenance.atomic(out_dir / "out_of_fold.csv") as tmp:
+        pd.DataFrame(
+            {
+                CANONICAL_COL: partitions.fit[CANONICAL_COL].to_numpy(),
+                "observed": partitions.fit[TARGET_COL].to_numpy(dtype=np.float64),
+                "out_of_fold": out_of_fold,
+            }
+        ).to_csv(tmp, index=False)
+
     predictions = pd.DataFrame(
         {
             CANONICAL_COL: test_smiles,

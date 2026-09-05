@@ -39,7 +39,7 @@ from rdkit import Chem, RDLogger
 from rdkit.Chem import rdFingerprintGenerator
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, StratifiedKFold, cross_val_predict
 
 logger = logging.getLogger(__name__)
 
@@ -81,10 +81,13 @@ class AffineCalibration:
         Minimum, median, maximum and clipped fraction of the density-ratio
         weights, which is what says whether the ratio did anything.
     classifier_auc : float
-        In-sample ROC AUC of the train-versus-test separator. A value near 0.5
-        means the two sets are indistinguishable on this fingerprint, and the
-        weights are then all near 1 and the calibration is unweighted in
-        everything but name.
+        Out-of-fold ROC AUC of the train-versus-test separator. Near 0.5 means
+        the two sets are indistinguishable on this fingerprint and the weights
+        are all near 1, leaving the calibration unweighted in everything but
+        name. Near 1 means the opposite and is no better: with almost no
+        overlap the ratio has nothing to grade, every fit compound is pinned at
+        the lower clip, and the map is fitted on a handful of test-like
+        outliers. The weight summary's clipped fraction says which has happened.
     """
 
     slope: float
@@ -215,9 +218,23 @@ def density_ratio_weights(
     model = LogisticRegression(
         C=CLASSIFIER_C, max_iter=2000, class_weight="balanced", random_state=seed
     )
-    model.fit(x, y)
 
-    auc = float(roc_auc_score(y, model.predict_proba(x)[:, 1]))
+    # scored out of fold, not in sample. A linear model on 2,048 Morgan bits
+    # over a few thousand compounds can nearly memorise the split, so an
+    # in-sample AUC says only that it fitted. What the weight needs is whether
+    # the two sets are separable at all, which is an out-of-fold question
+    smallest = int(min(np.bincount(y.astype(int))))
+    n_splits = min(5, smallest)
+    if n_splits < 2:
+        # too few of one class to hold any out, which happens only on toy
+        # inputs; the weights below are still well defined
+        auc = float("nan")
+    else:
+        folds = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+        out_of_fold = cross_val_predict(model, x, y, cv=folds, method="predict_proba")[:, 1]
+        auc = float(roc_auc_score(y, out_of_fold))
+
+    model.fit(x, y)
 
     probability = model.predict_proba(x[: len(fit_smiles)])[:, 1]
     # guard the ratio against a probability of exactly one, which the clip
