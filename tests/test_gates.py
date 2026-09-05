@@ -25,12 +25,17 @@ def spec():
     return manifest_module.load()
 
 
-def write_runs(results_root, configs, offsets: dict[str, float | np.ndarray]):
+def write_runs(results_root, configs, offsets: dict[str, float | np.ndarray], jitter=0.0):
     """Write one synthetic run per configuration and seed, at a chosen error.
 
-    Every seed of a configuration gets the same offset, so its ensemble carries
-    that offset exactly and the ranking is known in advance.
+    Every seed of a configuration carries the same offset, so its ensemble
+    carries that offset and the ranking is known in advance. ``jitter`` adds a
+    per-seed draw on top, shared by every configuration at that seed, which
+    gives each one a spread for the gate's second bar to measure while leaving
+    the differences between configurations exactly their offsets.
     """
+    rng = np.random.default_rng(1234)
+    noise = {s: rng.normal(0.0, jitter, len(COMPOUNDS)) if jitter else 0.0 for s in SEEDS}
     for config in configs:
         offset = offsets[config.slug]
         for seed in SEEDS:
@@ -40,7 +45,7 @@ def write_runs(results_root, configs, offsets: dict[str, float | np.ndarray]):
                 {
                     CANONICAL_COL: COMPOUNDS,
                     "observed": OBSERVED,
-                    "predicted": OBSERVED + offset,
+                    "predicted": OBSERVED + offset + noise[seed],
                 }
             ).to_csv(run_dir / "predictions.csv", index=False)
             (run_dir / "run.json").write_text(json.dumps({"config": config.as_dict()}))
@@ -80,21 +85,57 @@ def test_the_ranking_records_every_configuration_the_rule_saw(spec, tmp_path):
     assert all(row["n_seeds"] == len(SEEDS) for row in decision["ranking"])
 
 
+def test_only_a_saving_within_the_seed_spread_can_win_a_tie(spec, tmp_path):
+    # the bootstrap at 260 compounds waves through differences many times the
+    # run-to-run noise, so cheapness alone would trade accuracy for columns
+    configs = spec.expand("descriptor_width")
+    write_runs(tmp_path, configs, ranked_offsets(configs, configs[0].slug), jitter=0.25)
+
+    decision = gates.resolve(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
+
+    by_slug = {row["slug"]: row for row in decision["ranking"]}
+    leader = by_slug[decision["leader_slug"]]
+    budget = decision["seed_spread_budget"]
+
+    assert budget == pytest.approx(leader["seed_spread"])
+    assert set(decision["within_seed_spread"]) <= set(decision["tied_with_leader"])
+    for slug in decision["within_seed_spread"]:
+        assert by_slug[slug]["mae"] - leader["mae"] <= budget
+    for slug in set(decision["tied_with_leader"]) - set(decision["within_seed_spread"]):
+        assert by_slug[slug]["mae"] - leader["mae"] > budget
+    assert decision["chosen_slug"] in {decision["leader_slug"], *decision["within_seed_spread"]}
+
+
+def test_without_seed_variation_no_saving_is_free(spec, tmp_path):
+    # every seed identical means the metric does not move at all when the seed
+    # changes, so there is no budget and the leader stands however cheap the
+    # alternatives are
+    configs = spec.expand("descriptor_width")
+    write_runs(tmp_path, configs, ranked_offsets(configs, configs[-1].slug))
+
+    decision = gates.resolve(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
+
+    assert decision["seed_spread_budget"] == 0.0
+    assert decision["within_seed_spread"] == []
+    assert decision["chosen_slug"] == decision["leader_slug"]
+    assert decision["tie_broken_on_cost"] is False
+
+
 def test_a_tie_is_broken_towards_the_cheaper_configuration(spec, tmp_path):
     configs = spec.expand("descriptor_width")
     mordred = {c.descriptor_pca: c for c in configs if c.descriptors == "mordred"}
     narrow, wide = mordred[32], mordred[256]
 
-    # two noisy predictors of the same quality: the difference between them
-    # moves compound by compound, so a bootstrap over these compounds cannot
-    # separate them. The wider one is given the smaller error, so the leader and
-    # the cheaper configuration are not the same run and cost has to decide
+    # two predictors of the same quality, the narrower one a hair behind: no
+    # bootstrap over these compounds can separate them and the gap is far inside
+    # the seed spread, so the leader and the affordable configuration are
+    # different runs and cost has to decide between them
     rng = np.random.default_rng(0)
-    residuals = [rng.normal(0.0, 0.3, len(COMPOUNDS)) for _ in range(2)]
-    residuals.sort(key=lambda values: float(np.abs(values).mean()))
+    base = rng.normal(0.0, 0.3, len(COMPOUNDS))
     offsets: dict[str, float | np.ndarray] = {config.slug: 0.9 for config in configs}
-    offsets[wide.slug], offsets[narrow.slug] = residuals
-    write_runs(tmp_path, configs, offsets)
+    offsets[wide.slug] = base
+    offsets[narrow.slug] = base + 0.001
+    write_runs(tmp_path, configs, offsets, jitter=0.25)
 
     decision = gates.resolve(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
 
@@ -102,6 +143,7 @@ def test_a_tie_is_broken_towards_the_cheaper_configuration(spec, tmp_path):
     assert decision["chosen_slug"] == narrow.slug
     assert decision["tie_broken_on_cost"] is True
     assert narrow.slug in decision["tied_with_leader"]
+    assert narrow.slug in decision["within_seed_spread"]
 
 
 def test_a_clear_winner_is_not_recorded_as_a_tie_break(spec, tmp_path):

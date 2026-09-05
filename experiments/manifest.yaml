@@ -179,11 +179,17 @@ tabular:
         id: canonical_descriptors
         chooses: [descriptors, descriptor_pca]
         rule: >
-          Lowest MAE of the five-seed ensemble on phase 2. Every configuration
-          the leader does not separate from under a paired bootstrap over the
-          260 compounds counts as tied with it, and the cheapest of that tied
-          set wins, cheap meaning fewer blocks and then a narrower reduction.
-          The tie and the tie-break are both recorded.
+          Lowest MAE of the five-seed ensemble on phase 2, then two bars before
+          a cheaper configuration may displace it. A paired bootstrap over the
+          260 compounds decides which configurations the leader does not
+          separate from. That bar alone is too weak to act on, since at this
+          sample size it fails to separate differences ten times the run-to-run
+          noise, so a second bar applies: the gap to the leader must be no
+          larger than the leader's own standard deviation across seeds, which
+          is to say the saving must cost less than changing the training seed
+          does. The cheapest configuration clearing both wins, cheap meaning
+          fewer blocks and then fewer columns. The tied set, the affordable
+          subset, the budget and the tie-break are all recorded.
 
     - id: embedding_width
       figures: [fig5b]
@@ -203,7 +209,10 @@ tabular:
       gate:
         id: embedding_reduction
         chooses: [embedding_pca]
-        rule: Same rule as the descriptor gate, on the same 260 compounds.
+        rule: >
+          Same rule as the descriptor gate: ensemble MAE, a paired bootstrap
+          over the same 260 compounds, and a saving accepted only when it is
+          smaller than the leader's spread across seeds.
 
     - id: ingredients
       figures: [fig2, fig3, fig4]

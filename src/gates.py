@@ -12,12 +12,20 @@ and written to ``results/gates/<gate_id>.json``. The file carries the chosen
 axis values, the rule that chose them, the ranking that rule was applied to,
 and the keys of the runs it read. Later stages load it instead of being told.
 
-Ties are decided rather than hidden. The ranking is by mean MAE across seeds,
-but a difference smaller than compound sampling noise is not a result, so the
-leader is compared to every other configuration by a paired bootstrap over the
-260 phase-2 compounds and the ones it does not separate from are recorded as
-tied. The cheapest of that tied set wins, cheap meaning fewer feature blocks
-and then fewer columns, and the file says the choice was a tie-break.
+Ties are decided rather than hidden, and by two bars rather than one. The
+ranking is by ensemble MAE. A difference smaller than compound sampling noise
+is not a result, so the leader is compared to every other configuration by a
+paired bootstrap over the 260 phase-2 compounds, and the ones it does not
+separate from are recorded as tied.
+
+That bar alone is too weak to decide on. At 260 compounds the bootstrap fails
+to separate configurations differing by ten times the run-to-run noise, so
+taking the cheapest thing it waves through would trade real accuracy for
+columns. A second bar decides: a saving counts as free only when it moves the
+metric less than changing the training seed does, measured by the leader's own
+spread across seeds. The cheapest configuration clearing both wins, cheap
+meaning fewer feature blocks and then fewer columns, and the file records the
+tied set, the affordable subset, the budget and whether cost decided it.
 """
 
 from __future__ import annotations
@@ -26,6 +34,8 @@ import json
 import logging
 from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 import aggregate
 import evaluate
@@ -196,7 +206,14 @@ def resolve(
         # a lead smaller than compound sampling noise is not a result, so
         # everything the leader does not separate from is a candidate on cost
         tied = _tied_with(leader, ranked[1:], n_resamples=n_resamples)
-    candidates = [leader, *tied]
+
+    # the bootstrap is a weak bar at 260 compounds: it fails to separate
+    # configurations differing by far more than run-to-run noise. A saving
+    # only counts as free if it moves the metric less than changing the
+    # training seed does
+    budget = leader["seed_spread"]
+    affordable = [row for row in tied if row[RANK_METRIC] - leader[RANK_METRIC] <= budget]
+    candidates = [leader, *affordable]
     chosen_row = min(candidates, key=lambda row: cost(row["config"], manifest.axes))
     chosen = {axis: getattr(chosen_row["config"], axis) for axis in stage.gate.chooses}
 
@@ -212,6 +229,8 @@ def resolve(
         "leader_slug": leader["config"].slug,
         "tie_broken_on_cost": chosen_row is not leader,
         "tied_with_leader": [row["config"].slug for row in tied],
+        "within_seed_spread": [row["config"].slug for row in affordable],
+        "seed_spread_budget": budget,
         "ranking": [_public(row) for row in ranked],
         "n_resamples": n_resamples,
         "wall_clock_s": elapsed(),
@@ -248,11 +267,16 @@ def _score(
         # rank on it rather than on a mean of seed-wise scores
         stacked, observed = aggregate.stack_predictions(run_dirs)
         pooled = evaluate.ensemble_mean(stacked)
+
+        # how far the metric moves when only the training seed changes, which
+        # is the yardstick a cost saving has to come in under
+        per_seed = [evaluate.metrics(observed, row)[RANK_METRIC] for row in stacked]
         rows.append(
             {
                 "config": config,
                 "observed": observed,
                 "prediction": pooled,
+                "seed_spread": float(np.std(per_seed, ddof=1)) if len(per_seed) > 1 else 0.0,
                 "n_seeds": len(run_dirs),
                 **evaluate.metrics(observed, pooled),
             }
@@ -284,5 +308,6 @@ def _public(row: dict[str, Any]) -> dict[str, Any]:
         "slug": row["config"].slug,
         "config": row["config"].as_dict(),
         "n_seeds": int(row["n_seeds"]),
+        "seed_spread": float(row["seed_spread"]),
         **{name: float(row[name]) for name in evaluate.METRIC_NAMES if name in row},
     }
