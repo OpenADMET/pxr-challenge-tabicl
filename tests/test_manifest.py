@@ -106,7 +106,7 @@ def test_a_kept_block_and_an_absent_one_are_different_configurations():
 
 def test_the_embedding_probe_sweeps_width_on_the_frozen_embedding(spec):
     configs = spec.expand("embedding_width")
-    assert sorted(c.embedding_pca for c in configs) == [32, 64, 128, 256]
+    assert sorted(c.embedding_pca for c in configs) == [32, 64, 128, 256, 384, 512]
     # a fine-tuned embedding would need an encoder, and the probe runs before
     # any encoder is trained
     assert {c.embedding for c in configs} == {"chemeleon"}

@@ -183,7 +183,10 @@ def test_an_embedding_takes_its_widths_from_the_embedding_axis(spec):
     planned = planned_reductions(spec)
     widths = {width for names, width in planned if names == ["chemeleon"]}
 
-    assert widths == {32, 64, 128, 256}
+    # the embedding axis runs wider than the descriptor one, and carries no
+    # unrotated pass: 2,048 columns do not fit the tabular models here
+    assert widths == {32, 64, 128, 256, 384, 512}
+    assert None not in widths
 
 
 def test_a_block_that_is_passed_through_is_planned_once_and_unrotated(spec):
