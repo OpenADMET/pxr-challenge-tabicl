@@ -39,7 +39,7 @@ import provenance
 import reduce as reduction
 import regressors
 from data import CANONICAL_COL, SPLIT_DIR, TARGET_COL
-from manifest import GnnCell, Manifest, TabularConfig
+from manifest import WIDTH_OF, GnnCell, Manifest, TabularConfig
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +51,6 @@ VERSION = 1
 # the order feature blocks are joined in, so a matrix's columns are a function
 # of the configuration and not of dictionary iteration order
 BLOCK_ORDER = ("embedding", "readout", "descriptors")
-
-# which width axis reduces which block group; a group absent from this mapping
-# is never reduced
-WIDTH_OF = {"embedding": "embedding_pca", "descriptors": "descriptor_pca"}
 
 # what the vendored architecture must supply: axes, seed and partitions in,
 # test-partition predictions in that partition's own row order, plus whatever

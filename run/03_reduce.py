@@ -39,7 +39,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         nargs="+",
         type=int,
         metavar="N",
-        help="descriptor PCA widths to build; defaults to those the manifest declares",
+        help="PCA widths to build; defaults to those each width axis declares",
+    )
+    parser.add_argument(
+        "--blocks",
+        nargs="+",
+        metavar="NAME",
+        help=(
+            "restrict to reductions drawing only on these raw blocks; use it to "
+            "prepare a stage without training the encoders it does not need"
+        ),
     )
     parser.add_argument(
         "--seeds",
@@ -57,16 +66,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def planned_reductions(
-    spec: manifest_module.Manifest, widths: list[int] | None
+    spec: manifest_module.Manifest,
+    widths: list[int] | None = None,
+    blocks: list[str] | None = None,
 ) -> list[tuple[list[str], int | None]]:
     """Return every (block names, width) reduction the axes call for.
+
+    A block level declaring ``reduce: true`` is built at every level of the
+    width axis that belongs to it; anything else is imputed but not rotated.
+    The widths come from the manifest rather than from here, so this script
+    cannot drift from what the sweep will ask for.
 
     Parameters
     ----------
     spec : Manifest
-        The coverage spec, whose axis levels name their raw blocks and widths.
+        The coverage spec, whose axis levels name their raw blocks.
     widths : list of int or None
-        Descriptor widths to build. Defaults to the ``descriptor_pca`` axis.
+        Override the widths to build. Defaults to each width axis's own levels.
+    blocks : list of str or None
+        Keep only reductions drawing entirely on these raw blocks. Defaults to
+        every block, which includes the ones a trained encoder produces.
 
     Returns
     -------
@@ -77,19 +96,22 @@ def planned_reductions(
     axes: dict[str, Any] = spec.axes
     wanted: list[tuple[list[str], int | None]] = []
 
-    for group in ("embedding", "readout"):
+    for group in ("embedding", "readout", "descriptors"):
+        width_axis = manifest_module.WIDTH_OF.get(group)
+        available = widths if widths is not None else list(axes.get(width_axis or "", []))
         for level in axes[group].values():
             if level is None:
                 continue
-            wanted.append(([level["block"]], level.get("pca")))
+            names = list(level.get("blocks", [level["block"]] if "block" in level else []))
+            if width_axis and level.get("reduce"):
+                wanted.extend((names, width) for width in available)
+            else:
+                wanted.append((names, None))
 
-    descriptor_widths = widths if widths is not None else list(axes["descriptor_pca"])
-    for level in axes["descriptors"].values():
-        if level is None:
-            continue
-        wanted.extend((list(level["blocks"]), width) for width in descriptor_widths)
-
-    return wanted
+    if blocks is None:
+        return wanted
+    allowed = set(blocks)
+    return [(names, width) for names, width in wanted if allowed.issuperset(names)]
 
 
 def _seed_params(name: str, seed: int) -> dict[str, Any]:
@@ -106,7 +128,7 @@ def main() -> None:
     spec = manifest_module.load()
     seeds = args.seeds if args.seeds is not None else list(spec.seeds)
     fit_smiles = reduction.fit_molecules()
-    wanted = planned_reductions(spec, args.widths)
+    wanted = planned_reductions(spec, args.widths, args.blocks)
     logger.info(
         "%d reductions x %d seeds, fitted on %d molecules",
         len(wanted),

@@ -1,12 +1,18 @@
+import runpy
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
 from sklearn.decomposition import PCA
 from sklearn.impute import SimpleImputer
 
+import encoders
 import features
+import manifest
 import provenance
 import reduce as reduction
+import sweep
 from data import CANONICAL_COL, SPLIT_DIR
 
 FIT = [f"FIT{i}" for i in range(60)]
@@ -142,3 +148,67 @@ def test_joining_blocks_that_cover_different_molecules_is_refused(tmp_path):
 def test_a_reduction_needs_at_least_one_block(tmp_path):
     with pytest.raises(ValueError, match="at least one block"):
         reduction.build([], width=3, fit_smiles=FIT, cache_dir=tmp_path / "reduced")
+
+
+# the precompute script's plan, which has to ask for exactly what the sweep
+# will later ask for; a mismatch here quietly builds the wrong cache
+_PRECOMPUTE = runpy.run_path(str(Path(__file__).resolve().parents[1] / "run" / "03_reduce.py"))
+planned_reductions = _PRECOMPUTE["planned_reductions"]
+
+
+@pytest.fixture(scope="module")
+def spec():
+    encoders.register()
+    return manifest.load()
+
+
+def test_a_reducible_block_is_planned_at_every_width_its_axis_declares(spec):
+    planned = planned_reductions(spec)
+    widths = {width for names, width in planned if names == ["mordred"]}
+
+    assert widths == set(spec.axes["descriptor_pca"])
+
+
+def test_an_embedding_takes_its_widths_from_the_embedding_axis(spec):
+    planned = planned_reductions(spec)
+    widths = {width for names, width in planned if names == ["chemeleon"]}
+
+    assert widths == set(spec.axes["embedding_pca"])
+
+
+def test_a_block_that_is_passed_through_is_planned_once_and_unrotated(spec):
+    planned = planned_reductions(spec)
+    readout = [(names, width) for names, width in planned if names == ["chemprop_log2fc_readout"]]
+
+    # the two predicted log2FC columns mean something column by column, so a
+    # rotation of them would not be the same feature
+    assert readout == [(["chemprop_log2fc_readout"], None)]
+
+
+def test_the_plan_matches_what_the_sweep_asks_for(spec):
+    # the sweep resolves a width per configuration; every one of those has to
+    # be in the precomputed plan, or the cache misses and the run pays twice
+    planned = {(tuple(names), width) for names, width in planned_reductions(spec)}
+    settled = {"descriptors": "mordred", "descriptor_pca": 128, "embedding_pca": 256}
+    configs = spec.expand("descriptor_width") + spec.expand("ingredients", settled)
+
+    for config in configs:
+        for group in sweep.BLOCK_ORDER:
+            level = getattr(config, group)
+            if level == "none":
+                continue
+            axis = spec.axes[group][level]
+            names = tuple(axis.get("blocks", [axis["block"]] if "block" in axis else []))
+            width_axis = manifest.WIDTH_OF.get(group)
+            width = getattr(config, width_axis) if width_axis and axis.get("reduce") else None
+            assert (names, width) in planned
+
+
+def test_restricting_to_raw_blocks_leaves_out_the_encoder_reductions(spec):
+    planned = planned_reductions(spec, blocks=["rdkit", "mordred", "chemeleon"])
+    named = {name for names, _ in planned for name in names}
+
+    # the two width probes run before any encoder is trained, so preparing them
+    # must not drag encoder blocks in
+    assert named == {"rdkit", "mordred", "chemeleon"}
+    assert planned

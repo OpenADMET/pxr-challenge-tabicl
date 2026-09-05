@@ -52,7 +52,8 @@ TABULAR_AXES = (
 # on an absent block is not a configuration, so it is normalized to NOT_REDUCED
 # before a config is built; otherwise two runs would share a directory under
 # different specifications and each would think the other's results were stale
-WIDTH_AXES = {"embedding_pca": "embedding", "descriptor_pca": "descriptors"}
+WIDTH_OF = {"embedding": "embedding_pca", "descriptors": "descriptor_pca"}
+WIDTH_AXES = {width: block for block, width in WIDTH_OF.items()}
 
 # the width of a block that is passed through unreduced, or is not there at all
 NOT_REDUCED = 0
