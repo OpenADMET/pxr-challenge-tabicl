@@ -309,6 +309,9 @@ def run_one(
             "n_features": int(x_fit.shape[1]),
             "n_fit": int(x_fit.shape[0]),
             "calibrated": calibrator is not None,
+            # what the library said about this fit, such as adapting its own
+            # memory settings, which means it did not run under the pinned ones
+            "regressor_notes": list(prediction.notes),
             "wall_clock_s": round(time.perf_counter() - started, 3),
         },
     )

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
+import logging
 
 import numpy as np
 import pytest
@@ -236,3 +238,41 @@ def test_tabfm_reports_no_predictive_spread(data):
     prediction = regressors.fit_predict("tabfm", x_train, y_train, x_test, seed=0)
 
     assert prediction.std is None
+
+
+def test_a_library_warning_during_a_fit_reaches_the_prediction(monkeypatch):
+    # TabPFN halves its row chunk when it runs out of memory and says so
+    # through the logging module; a record that omits it describes a fit that
+    # ran under parameters nobody pinned
+    def noisy(params):
+        class _Model:
+            def fit(self, x, y):
+                logging.getLogger("tabpfn.architectures.tabpfn_v3").warning(
+                    "OOM: halving row_chunk_size to 1024"
+                )
+
+            def predict(self, x):
+                return np.zeros(len(x))
+
+        return _Model()
+
+    monkeypatch.setitem(
+        regressors.REGRESSORS,
+        "lgbm",
+        dataclasses.replace(regressors.REGRESSORS["lgbm"], construct=noisy),
+    )
+
+    prediction = regressors.fit_predict(
+        "lgbm", np.zeros((4, 2)), np.zeros(4), np.zeros((2, 2)), seed=0
+    )
+
+    assert any("halving row_chunk_size" in note for note in prediction.notes)
+    assert any(note.startswith("tabpfn.architectures") for note in prediction.notes)
+
+
+def test_a_quiet_fit_records_no_notes():
+    prediction = regressors.fit_predict(
+        "lgbm", np.zeros((8, 2)), np.arange(8, dtype=float), np.zeros((2, 2)), seed=0
+    )
+
+    assert prediction.notes == ()

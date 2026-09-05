@@ -38,8 +38,9 @@ point estimate only and report ``None``.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -105,10 +106,17 @@ class Prediction:
         for the TabPFN checkpoints and a normal-equivalent scale taken from the
         10th and 90th predictive percentiles for TabICL, so it is comparable
         within a model but is a width, not a moment, across models.
+    notes : tuple of str
+        Warnings the library raised while fitting. A model that quietly adapts
+        to the machine it is on, as TabPFN does by halving its row chunk when
+        it runs out of memory, has not run under the parameters that were
+        pinned for it. That has to reach the record, or the only trace of it is
+        a console nobody kept.
     """
 
     mean: np.ndarray
     std: np.ndarray | None
+    notes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -269,9 +277,13 @@ def fit_predict(
     # a sweep fits thousands of models in one process, so the accelerator cache
     # is released after every fit whether or not it succeeded
     try:
-        model = _spec(name).construct(resolved)
-        model.fit(x_train, y_train)
-        return _predict(name, model, x_test)
+        with _captured_warnings() as notes:
+            model = _spec(name).construct(resolved)
+            model.fit(x_train, y_train)
+            prediction = _predict(name, model, x_test)
+        for note in notes:
+            logger.warning("%s: %s", name, note)
+        return replace(prediction, notes=tuple(notes))
     except MemoryError as err:
         raise RegressorError(f"{name}: out of memory under {resolved}") from err
     except RuntimeError as err:
@@ -280,6 +292,40 @@ def fit_predict(
         raise RegressorError(f"{name}: out of memory under {resolved}") from err
     finally:
         _empty_accelerator_cache()
+
+
+class _Collector(logging.Handler):
+    """Gather warning-level records raised by the libraries during one fit."""
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.WARNING)
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Keep the formatted message, tagged with the logger that raised it."""
+        self.messages.append(f"{record.name}: {record.getMessage()}")
+
+
+@contextmanager
+def _captured_warnings() -> Iterator[list[str]]:
+    """Collect what a library says about a fit, for the run's record.
+
+    Only the libraries' own warnings are collected, not this module's, and only
+    at warning level or above. A model that adapts itself to the machine says
+    so through exactly this channel, and a record that omits it describes a fit
+    that did not happen.
+    """
+    collector = _Collector()
+    root = logging.getLogger()
+    root.addHandler(collector)
+    previous = root.level
+    if previous > logging.WARNING:
+        root.setLevel(logging.WARNING)
+    try:
+        yield collector.messages
+    finally:
+        root.removeHandler(collector)
+        root.setLevel(previous)
 
 
 def _spec(name: str) -> _Spec:
