@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -59,9 +60,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="an axis an earlier gate settled, needed by the stages that wait on it",
     )
     parser.add_argument(
-        "--regate",
-        action="store_true",
-        help="re-decide gates that already have a recorded decision",
+        "--decide",
+        metavar="STAGE",
+        help="record a decision for this stage's gate, with --choose and --reason",
+    )
+    parser.add_argument(
+        "--choose",
+        action="append",
+        default=[],
+        metavar="AXIS=VALUE",
+        help="the level chosen, one per axis the gate decides; repeat as needed",
+    )
+    parser.add_argument(
+        "--reason",
+        default="",
+        help="why, in prose. Recorded verbatim: it is the decision's only defence",
     )
     parser.add_argument(
         "--top",
@@ -72,17 +85,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _parse_choice(assignments: list[str]) -> dict[str, Any]:
+    """Read repeated ``axis=value`` arguments into a gate's chosen levels."""
+    if not assignments:
+        raise SystemExit("--decide needs at least one --choose axis=value")
+    return parse_fixed(assignments)
+
+
 def parse_fixed(assignments: list[str]) -> dict[str, Any]:
     """Read repeated ``axis=value`` arguments into resolved axis levels."""
     resolved: dict[str, Any] = {}
     for assignment in assignments:
         axis, separator, value = assignment.partition("=")
         if not separator:
-            raise SystemExit(f"--fix expects axis=value, got {assignment!r}")
+            raise SystemExit(f"expected axis=value, got {assignment!r}")
         if axis not in manifest_module.TABULAR_AXES:
-            raise SystemExit(
-                f"--fix names unknown axis {axis!r}; known: {list(manifest_module.TABULAR_AXES)}"
-            )
+            raise SystemExit(f"unknown axis {axis!r}; known: {list(manifest_module.TABULAR_AXES)}")
         resolved[axis] = int(value) if value.lstrip("-").isdigit() else value
     return resolved
 
@@ -112,27 +130,61 @@ def report_coverage(
     print(aggregate.coverage_report(aggregate.gnn_coverage(spec, results_root), "gnn"))
 
 
-def resolve_gates(spec: manifest_module.Manifest, results_root: Path, *, regate: bool) -> None:
-    """Decide every gate whose stage has finished, and write the decisions."""
+def report_gates(spec: manifest_module.Manifest, results_root: Path) -> None:
+    """Say which gates are decided and which are waiting on a decision.
+
+    Nothing is decided here. A gate is a judgement about configurations the
+    evidence cannot separate, so it is made by a person and recorded with its
+    reason; this only says where one is missing and how to write it.
+    """
     for stage in spec.stages:
         if stage.gate is None:
             continue
 
-        path = gates.gate_path(stage.gate.id)
-        if path.exists() and not regate:
+        if gates.gate_path(stage.gate.id).exists():
             decision = gates.read(stage.gate.id)
-            print(f"{stage.gate.id}: already decided, chose {decision['chosen']}")
+            who = decision.get("decided_by", "unknown")
+            print(f"{stage.gate.id}: decided by {who}, chose {decision['chosen']}")
+            print(f"    {decision.get('reason', '(no reason recorded)')}")
             continue
 
         try:
-            decision = gates.resolve(spec, stage.id, results_dir=results_root)
+            measured = gates.evidence(spec, stage.id, results_dir=results_root)
         except (gates.GateError, manifest_module.ManifestError) as err:
-            print(f"{stage.gate.id}: not decidable yet ({err})")
+            print(f"{stage.gate.id}: not ready ({err})")
             continue
 
-        gates.write(decision)
-        note = " (tie broken on cost)" if decision["tie_broken_on_cost"] else ""
-        print(f"{stage.gate.id}: chose {decision['chosen']}{note}")
+        tied = len(measured["indistinguishable_from_leader"]) + 1
+        print(
+            f"{stage.gate.id}: undecided. {len(measured['ranking'])} configurations ranked, "
+            f"{tied} indistinguishable from the leader {measured['leader_slug']}"
+        )
+        print(
+            f"    decide it with: python run/05_aggregate.py --decide {stage.id} "
+            f"{'='.join([measured['chooses'][0], '<level>'])} --reason '...'"
+        )
+
+
+def record_decision(
+    spec: manifest_module.Manifest, results_root: Path, stage_id: str, chosen: dict, reason: str
+) -> None:
+    """Write one gate decision, with the evidence it was made against."""
+    decision = gates.decide(
+        spec,
+        stage_id,
+        chosen,
+        reason,
+        decided_by=_whoami(),
+        results_dir=results_root,
+    )
+    gates.write(decision)
+    print(f"{decision['gate']}: chose {decision['chosen']}")
+    print(f"    {decision['reason']}")
+
+
+def _whoami() -> str:
+    """Return who is recording a decision, for the record to attribute it to."""
+    return os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
 
 
 def main() -> None:
@@ -151,7 +203,10 @@ def main() -> None:
         print(f"leading ensembles by mae ({len(ensembles)} configurations):")
         print(leaders[["config_id", "n_seeds", "mae", "rmse", "r2"]].to_string(index=False))
 
-    resolve_gates(spec, args.results, regate=args.regate)
+    if args.decide:
+        record_decision(spec, args.results, args.decide, _parse_choice(args.choose), args.reason)
+    else:
+        report_gates(spec, args.results)
 
     stage_ids = args.stage or [stage.id for stage in spec.stages]
     report_coverage(spec, stage_ids, parse_fixed(args.fix), args.results)

@@ -60,101 +60,119 @@ def ranked_offsets(configs, best) -> dict[str, float | np.ndarray]:
     }
 
 
-def test_a_gate_chooses_the_configuration_with_the_lowest_ensemble_error(spec, tmp_path):
-    configs = spec.expand("descriptor_width")
-    winner = configs[5]
-    write_runs(tmp_path, configs, ranked_offsets(configs, winner.slug))
-
-    decision = gates.resolve(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
-
-    assert decision["chosen_slug"] == winner.slug
-    assert decision["chosen"] == {
-        "descriptors": winner.descriptors,
-        "descriptor_pca": winner.descriptor_pca,
-    }
-    assert decision["gate"] == "canonical_descriptors"
-
-
-def test_the_ranking_records_every_configuration_the_rule_saw(spec, tmp_path):
+def test_evidence_ranks_every_configuration_on_the_seed_mean(spec, tmp_path):
     configs = spec.expand("descriptor_width")
     write_runs(tmp_path, configs, ranked_offsets(configs, configs[0].slug))
 
-    decision = gates.resolve(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
+    measured = gates.evidence(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
 
-    assert [row["slug"] for row in decision["ranking"]][0] == configs[0].slug
-    assert len(decision["ranking"]) == len(configs)
-    assert all(row["n_seeds"] == len(SEEDS) for row in decision["ranking"])
+    assert measured["gate"] == "canonical_descriptors"
+    assert len(measured["ranking"]) == len(configs)
+    assert measured["ranking"][0]["slug"] == configs[0].slug
+    assert all(row["n_seeds"] == len(SEEDS) for row in measured["ranking"])
+    # it measures and does not decide
+    assert "chosen" not in measured
 
 
-def test_only_a_saving_within_the_seed_spread_can_win_a_tie(spec, tmp_path):
-    # the bootstrap at 260 compounds waves through differences many times the
-    # run-to-run noise, so cheapness alone would trade accuracy for columns
+def test_evidence_reports_cost_as_fact_rather_than_ordering_on_it(spec, tmp_path):
+    configs = spec.expand("descriptor_width")
+    write_runs(tmp_path, configs, ranked_offsets(configs, configs[0].slug))
+
+    measured = gates.evidence(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
+
+    for row in measured["ranking"]:
+        assert row["n_blocks"] >= 1
+        assert row["n_encoders_to_train"] >= 0
+        assert row["n_columns"] >= 0
+    # the leader is whatever scored best, never whatever was cheapest
+    assert measured["leader_slug"] == min(measured["ranking"], key=lambda r: r["mae"])["slug"]
+
+
+def test_the_seed_mean_is_ranked_on_and_the_ensemble_is_carried_alongside(spec, tmp_path):
+    # a single model is the subject; seeds are replicates for power and a
+    # variance estimate, not a way to build a better predictor
     configs = spec.expand("descriptor_width")
     write_runs(tmp_path, configs, ranked_offsets(configs, configs[0].slug), jitter=0.25)
 
-    decision = gates.resolve(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
+    measured = gates.evidence(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
 
-    by_slug = {row["slug"]: row for row in decision["ranking"]}
-    leader = by_slug[decision["leader_slug"]]
-    budget = decision["seed_spread_budget"]
-
-    assert budget == pytest.approx(leader["seed_spread"])
-    assert set(decision["within_seed_spread"]) <= set(decision["tied_with_leader"])
-    for slug in decision["within_seed_spread"]:
-        assert by_slug[slug]["mae"] - leader["mae"] <= budget
-    for slug in set(decision["tied_with_leader"]) - set(decision["within_seed_spread"]):
-        assert by_slug[slug]["mae"] - leader["mae"] > budget
-    assert decision["chosen_slug"] in {decision["leader_slug"], *decision["within_seed_spread"]}
+    for row in measured["ranking"]:
+        assert "ensemble" in row
+        assert row["ensemble"]["mae"] != row["mae"], "the two are different quantities"
+    order = [r["mae"] for r in measured["ranking"]]
+    assert order == sorted(order)
 
 
-def test_without_seed_variation_no_saving_is_free(spec, tmp_path):
-    # every seed identical means the metric does not move at all when the seed
-    # changes, so there is no budget and the leader stands however cheap the
-    # alternatives are
+def test_a_decision_records_its_reason_and_who_made_it(spec, tmp_path, monkeypatch):
+    monkeypatch.setattr(gates, "GATES_DIR", tmp_path / "gates")
     configs = spec.expand("descriptor_width")
-    write_runs(tmp_path, configs, ranked_offsets(configs, configs[-1].slug))
+    write_runs(tmp_path, configs, ranked_offsets(configs, configs[0].slug))
+    pick = configs[3]
 
-    decision = gates.resolve(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
+    decision = gates.decide(
+        spec,
+        "descriptor_width",
+        {"descriptors": pick.descriptors, "descriptor_pca": pick.descriptor_pca},
+        "cheaper and nothing separates it from the leader",
+        decided_by="tester",
+        results_dir=tmp_path,
+        n_resamples=200,
+    )
 
-    assert decision["seed_spread_budget"] == 0.0
-    assert decision["within_seed_spread"] == []
-    assert decision["chosen_slug"] == decision["leader_slug"]
-    assert decision["tie_broken_on_cost"] is False
+    assert decision["chosen_slug"] == pick.slug
+    assert decision["decided_by"] == "tester"
+    assert "nothing separates it" in decision["reason"]
+    # the evidence travels with the decision
+    assert len(decision["ranking"]) == len(configs)
+    assert decision["significance"]["fdr"] == gates.FDR
 
 
-def test_a_tie_is_broken_towards_the_cheaper_configuration(spec, tmp_path):
+def test_a_decision_without_a_reason_is_refused(spec, tmp_path):
     configs = spec.expand("descriptor_width")
-    mordred = {c.descriptor_pca: c for c in configs if c.descriptors == "mordred"}
-    narrow, wide = mordred[32], mordred[256]
+    write_runs(tmp_path, configs, ranked_offsets(configs, configs[0].slug))
 
-    # two predictors of the same quality, the narrower one a hair behind: no
-    # bootstrap over these compounds can separate them and the gap is far inside
-    # the seed spread, so the leader and the affordable configuration are
-    # different runs and cost has to decide between them
-    rng = np.random.default_rng(0)
-    base = rng.normal(0.0, 0.3, len(COMPOUNDS))
-    offsets: dict[str, float | np.ndarray] = {config.slug: 0.9 for config in configs}
-    offsets[wide.slug] = base
-    offsets[narrow.slug] = base + 0.001
-    write_runs(tmp_path, configs, offsets, jitter=0.25)
-
-    decision = gates.resolve(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
-
-    assert decision["leader_slug"] == wide.slug
-    assert decision["chosen_slug"] == narrow.slug
-    assert decision["tie_broken_on_cost"] is True
-    assert narrow.slug in decision["tied_with_leader"]
-    assert narrow.slug in decision["within_seed_spread"]
+    with pytest.raises(gates.GateError, match="needs a reason"):
+        gates.decide(
+            spec,
+            "descriptor_width",
+            {"descriptors": "rdkit", "descriptor_pca": 128},
+            "   ",
+            decided_by="tester",
+            results_dir=tmp_path,
+            n_resamples=200,
+        )
 
 
-def test_a_clear_winner_is_not_recorded_as_a_tie_break(spec, tmp_path):
+def test_a_decision_must_name_a_configuration_the_stage_ran(spec, tmp_path):
     configs = spec.expand("descriptor_width")
-    write_runs(tmp_path, configs, ranked_offsets(configs, configs[3].slug))
+    write_runs(tmp_path, configs, ranked_offsets(configs, configs[0].slug))
 
-    decision = gates.resolve(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
+    with pytest.raises(gates.GateError, match="no configuration"):
+        gates.decide(
+            spec,
+            "descriptor_width",
+            {"descriptors": "rdkit", "descriptor_pca": 999},
+            "a width nothing ran at",
+            decided_by="tester",
+            results_dir=tmp_path,
+            n_resamples=200,
+        )
 
-    assert decision["tie_broken_on_cost"] is False
-    assert decision["tied_with_leader"] == []
+
+def test_a_decision_must_cover_exactly_the_axes_the_gate_chooses(spec, tmp_path):
+    configs = spec.expand("descriptor_width")
+    write_runs(tmp_path, configs, ranked_offsets(configs, configs[0].slug))
+
+    with pytest.raises(gates.GateError, match="choose exactly"):
+        gates.decide(
+            spec,
+            "descriptor_width",
+            {"descriptors": "rdkit"},
+            "missing the width",
+            decided_by="tester",
+            results_dir=tmp_path,
+            n_resamples=200,
+        )
 
 
 def test_a_partial_stage_cannot_be_decided(spec, tmp_path):
@@ -162,12 +180,12 @@ def test_a_partial_stage_cannot_be_decided(spec, tmp_path):
     write_runs(tmp_path, configs[:2], ranked_offsets(configs, configs[0].slug))
 
     with pytest.raises(gates.GateError, match="partial stage"):
-        gates.resolve(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
+        gates.evidence(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
 
 
 def test_a_stage_that_gates_nothing_cannot_be_resolved(spec, tmp_path):
     with pytest.raises(gates.GateError, match="no gate"):
-        gates.resolve(spec, "uncertainty", results_dir=tmp_path)
+        gates.evidence(spec, "uncertainty", results_dir=tmp_path)
 
 
 def test_a_decision_round_trips_through_the_file_it_is_written_to(spec, tmp_path, monkeypatch):
@@ -175,11 +193,23 @@ def test_a_decision_round_trips_through_the_file_it_is_written_to(spec, tmp_path
     configs = spec.expand("descriptor_width")
     write_runs(tmp_path, configs, ranked_offsets(configs, configs[1].slug))
 
-    decision = gates.resolve(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
+    pick = configs[1]
+    decision = gates.decide(
+        spec,
+        "descriptor_width",
+        {"descriptors": pick.descriptors, "descriptor_pca": pick.descriptor_pca},
+        "the one this test picked",
+        decided_by="tester",
+        results_dir=tmp_path,
+        n_resamples=200,
+    )
     path = gates.write(decision)
 
     assert path.exists()
-    assert gates.read("canonical_descriptors")["chosen"] == decision["chosen"]
+    written = gates.read("canonical_descriptors")
+    assert written["chosen"] == decision["chosen"]
+    assert written["reason"] == decision["reason"]
+    assert written["decided_by"] == "tester"
 
 
 def test_a_stage_reads_what_the_gates_before_it_chose(spec, tmp_path, monkeypatch):
@@ -288,7 +318,7 @@ def test_the_gate_ranks_on_the_ensemble_rather_than_on_a_mean_of_seed_scores(spe
     offsets = ranked_offsets(configs, configs[2].slug)
     write_runs(tmp_path, configs, offsets)
 
-    decision = gates.resolve(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
+    decision = gates.evidence(spec, "descriptor_width", results_dir=tmp_path, n_resamples=200)
     leader = decision["ranking"][0]
 
     assert leader["slug"] == configs[2].slug
@@ -399,7 +429,7 @@ def test_a_gate_records_the_evidence_behind_every_verdict(spec, tmp_path, monkey
     configs = spec.expand("descriptor_width")
     write_runs(tmp_path, configs, ranked_offsets(configs, configs[1].slug))
 
-    decision = gates.resolve(spec, "descriptor_width", results_dir=tmp_path, n_resamples=400)
+    decision = gates.evidence(spec, "descriptor_width", results_dir=tmp_path, n_resamples=400)
     sig = decision["significance"]
 
     assert sig["fdr"] == gates.FDR
@@ -407,7 +437,7 @@ def test_a_gate_records_the_evidence_behind_every_verdict(spec, tmp_path, monkey
     assert sig["n_comparisons"] == len(configs) * (len(configs) - 1) // 2
     assert len(sig["against_leader"]) == len(configs) - 1
     separated = {r["slug"] for r in sig["against_leader"] if r["separated"]}
-    assert separated.isdisjoint(decision["tied_with_leader"])
+    assert separated.isdisjoint(decision["indistinguishable_from_leader"])
     for row in sig["against_leader"]:
         assert 0.0 < row["p_value"] <= 1.0
         assert 0.0 < row["bh_threshold"] <= gates.FDR

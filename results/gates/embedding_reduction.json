@@ -6,6 +6,7 @@
     "embedding_pca": 256
   },
   "chosen_slug": "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none",
+  "decided_by": "sean",
   "environment": {
     "checkouts": {
       "openadmet-models": "4a8df806d12a7385edb6365074ce218af19002a5"
@@ -26,14 +27,18 @@
       "xgboost": "3.1.3"
     },
     "repo": {
-      "commit": "9518c87488199a6d377b4bb5a93b17e3ca728615",
-      "dirty": false
+      "commit": "ab20de44c1d69e0eb55cfc838051df9f2ac30ad2",
+      "dirty": true
     }
   },
   "gate": "embedding_reduction",
+  "indistinguishable_from_leader": [
+    "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none"
+  ],
   "leader_slug": "emb-chemeleon384__ro-none__desc-none__reg-tabpfn-v3__cal-none",
   "metric": "mae",
   "n_resamples": 10000,
+  "question": "How far the frozen CheMeleon embedding reduces. Measured the same way as the descriptor gate, and decided the same way: by a person, with the reason recorded.\n",
   "ranking": [
     {
       "config": {
@@ -45,15 +50,27 @@
         "readout": "none",
         "regressor": "tabpfn-v3"
       },
-      "kendall_tau": 0.5760647797830661,
-      "mae": 0.4627771751697247,
+      "ensemble": {
+        "kendall_tau": 0.5760647797830661,
+        "mae": 0.4627771751697247,
+        "n": 260.0,
+        "r2": 0.45775092506479254,
+        "rae": 0.6411480803715385,
+        "rmse": 0.6937381586972942,
+        "spearman_rho": 0.7549443290656662
+      },
+      "kendall_tau": 0.5730334855435968,
+      "mae": 0.4640912690382737,
+      "n_blocks": 1,
+      "n_columns": 384,
+      "n_encoders_to_train": 0,
       "n_seeds": 5,
-      "r2": 0.45775092506479254,
-      "rae": 0.6411480803715385,
-      "rmse": 0.6937381586972942,
+      "r2": 0.4554509895523343,
+      "rae": 0.6429686731026714,
+      "rmse": 0.6952055122890413,
       "seed_spread": 0.001566658476132242,
       "slug": "emb-chemeleon384__ro-none__desc-none__reg-tabpfn-v3__cal-none",
-      "spearman_rho": 0.7549443290656662
+      "spearman_rho": 0.751161537136495
     },
     {
       "config": {
@@ -65,15 +82,27 @@
         "readout": "none",
         "regressor": "tabpfn-v3"
       },
-      "kendall_tau": 0.5778478940415774,
-      "mae": 0.4629767600206228,
+      "ensemble": {
+        "kendall_tau": 0.5778478940415774,
+        "mae": 0.4629767600206228,
+        "n": 260.0,
+        "r2": 0.46177329184749805,
+        "rae": 0.6414245923753503,
+        "rmse": 0.6911603179821043,
+        "spearman_rho": 0.7578614430858424
+      },
+      "kendall_tau": 0.5727244124054549,
+      "mae": 0.4659461292633644,
+      "n_blocks": 1,
+      "n_columns": 256,
+      "n_encoders_to_train": 0,
       "n_seeds": 5,
-      "r2": 0.46177329184749805,
-      "rae": 0.6414245923753503,
-      "rmse": 0.6911603179821043,
+      "r2": 0.45798699651059926,
+      "rae": 0.6455384629204993,
+      "rmse": 0.6935655493130255,
       "seed_spread": 0.005474857050863931,
       "slug": "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none",
-      "spearman_rho": 0.7578614430858424
+      "spearman_rho": 0.7531401904847619
     },
     {
       "config": {
@@ -85,15 +114,27 @@
         "readout": "none",
         "regressor": "tabpfn-v3"
       },
-      "kendall_tau": 0.573211796969448,
-      "mae": 0.469002345598661,
+      "ensemble": {
+        "kendall_tau": 0.573211796969448,
+        "mae": 0.469002345598661,
+        "n": 260.0,
+        "r2": 0.44936668965046056,
+        "rae": 0.6497726545395154,
+        "rmse": 0.6990808627932796,
+        "spearman_rho": 0.7537607557118979
+      },
+      "kendall_tau": 0.5720468289872206,
+      "mae": 0.4703344063098614,
+      "n_blocks": 1,
+      "n_columns": 512,
+      "n_encoders_to_train": 0,
       "n_seeds": 5,
-      "r2": 0.44936668965046056,
-      "rae": 0.6497726545395154,
-      "rmse": 0.6990808627932796,
+      "r2": 0.4469393723072514,
+      "rae": 0.6516181391782323,
+      "rmse": 0.7006149572467605,
       "seed_spread": 0.00439127381353125,
       "slug": "emb-chemeleon512__ro-none__desc-none__reg-tabpfn-v3__cal-none",
-      "spearman_rho": 0.7537607557118979
+      "spearman_rho": 0.7513561251986952
     },
     {
       "config": {
@@ -105,15 +146,27 @@
         "readout": "none",
         "regressor": "tabpfn-v3"
       },
-      "kendall_tau": 0.5461084602400755,
-      "mae": 0.49114367349331195,
+      "ensemble": {
+        "kendall_tau": 0.5461084602400755,
+        "mae": 0.49114367349331195,
+        "n": 260.0,
+        "r2": 0.42488253369384243,
+        "rae": 0.6804480435565426,
+        "rmse": 0.714454296122777,
+        "spearman_rho": 0.7288869392416729
+      },
+      "kendall_tau": 0.5429820665734856,
+      "mae": 0.4929623354618366,
+      "n_blocks": 1,
+      "n_columns": 128,
+      "n_encoders_to_train": 0,
       "n_seeds": 5,
-      "r2": 0.42488253369384243,
-      "rae": 0.6804480435565426,
-      "rmse": 0.714454296122777,
+      "r2": 0.4221163242924014,
+      "rae": 0.6829676830126947,
+      "rmse": 0.7161613721228776,
       "seed_spread": 0.0035219200805768503,
       "slug": "emb-chemeleon128__ro-none__desc-none__reg-tabpfn-v3__cal-none",
-      "spearman_rho": 0.7288869392416729
+      "spearman_rho": 0.7252589984441052
     },
     {
       "config": {
@@ -125,15 +178,27 @@
         "readout": "none",
         "regressor": "tabpfn-v3"
       },
-      "kendall_tau": 0.5396892489094347,
-      "mae": 0.4965088192866399,
+      "ensemble": {
+        "kendall_tau": 0.5396892489094347,
+        "mae": 0.4965088192866399,
+        "n": 260.0,
+        "r2": 0.41777117756039994,
+        "rae": 0.6878811087785777,
+        "rmse": 0.7188578568717608,
+        "spearman_rho": 0.7266484937612405
+      },
+      "kendall_tau": 0.5385361683555973,
+      "mae": 0.4974776600764348,
+      "n_blocks": 1,
+      "n_columns": 64,
+      "n_encoders_to_train": 0,
       "n_seeds": 5,
-      "r2": 0.41777117756039994,
-      "rae": 0.6878811087785777,
-      "rmse": 0.7188578568717608,
+      "r2": 0.4160471941511535,
+      "rae": 0.6892233755235502,
+      "rmse": 0.7199117053057226,
       "seed_spread": 0.0027960855509210287,
       "slug": "emb-chemeleon64__ro-none__desc-none__reg-tabpfn-v3__cal-none",
-      "spearman_rho": 0.7266484937612405
+      "spearman_rho": 0.7254501726806527
     },
     {
       "config": {
@@ -145,47 +210,58 @@
         "readout": "none",
         "regressor": "tabpfn-v3"
       },
-      "kendall_tau": 0.479717172681503,
-      "mae": 0.5284842532598055,
+      "ensemble": {
+        "kendall_tau": 0.479717172681503,
+        "mae": 0.5284842532598055,
+        "n": 260.0,
+        "r2": 0.37304638312369953,
+        "rae": 0.7321810207252357,
+        "rmse": 0.745957147344933,
+        "spearman_rho": 0.6567732861554232
+      },
+      "kendall_tau": 0.48030701732428405,
+      "mae": 0.5288087037086486,
+      "n_blocks": 1,
+      "n_columns": 32,
+      "n_encoders_to_train": 0,
       "n_seeds": 5,
-      "r2": 0.37304638312369953,
-      "rae": 0.7321810207252357,
-      "rmse": 0.745957147344933,
+      "r2": 0.3721605761357846,
+      "rae": 0.7326305260025329,
+      "rmse": 0.7464734906361892,
       "seed_spread": 0.00426248028419804,
       "slug": "emb-chemeleon32__ro-none__desc-none__reg-tabpfn-v3__cal-none",
-      "spearman_rho": 0.6567732861554232
+      "spearman_rho": 0.6572865771104149
     }
   ],
-  "rule": "Same rule as the descriptor gate: ensemble MAE, an all-pairwise paired bootstrap over the same 260 compounds under Benjamini-Hochberg, and a saving accepted only when it is smaller than the leader's spread across seeds.\n",
-  "seed_spread_budget": 0.001566658476132242,
+  "reason": "Indistinguishable from 384 (p = 0.689) at two thirds of the columns and materially less memory. 512 is separated and worse, and is also the width at which TabPFN v3 begins adapting its own inference.",
   "significance": {
     "against_leader": [
       {
         "bh_threshold": 0.05,
-        "p_value": 0.9545045495450455,
+        "p_value": 0.6891310868913109,
         "separated": false,
         "slug": "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.02666666666666667,
-        "p_value": 0.012798720127987202,
+        "bh_threshold": 0.03,
+        "p_value": 0.011398860113988602,
         "separated": true,
         "slug": "emb-chemeleon512__ro-none__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
         "bh_threshold": 0.020000000000000004,
-        "p_value": 0.0029997000299970002,
+        "p_value": 0.001999800019998,
         "separated": true,
         "slug": "emb-chemeleon128__ro-none__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
         "bh_threshold": 0.023333333333333334,
-        "p_value": 0.004399560043995601,
+        "p_value": 0.0047995200479952005,
         "separated": true,
         "slug": "emb-chemeleon64__ro-none__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.0033333333333333335,
+        "bh_threshold": 0.006666666666666667,
         "p_value": 0.00019998000199980003,
         "separated": true,
         "slug": "emb-chemeleon32__ro-none__desc-none__reg-tabpfn-v3__cal-none"
@@ -197,13 +273,6 @@
     "procedure": "all-pairwise paired bootstrap, Benjamini-Hochberg"
   },
   "stage": "embedding_width",
-  "tie_broken_on_cost": true,
-  "tied_with_leader": [
-    "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none"
-  ],
   "version": 1,
-  "wall_clock_s": 0.127,
-  "within_seed_spread": [
-    "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none"
-  ]
+  "wall_clock_s": 0.428
 }

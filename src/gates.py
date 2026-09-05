@@ -232,7 +232,7 @@ def cost(config: TabularConfig, axes: dict[str, Any]) -> tuple[int, int, int]:
     return (config.n_blocks, trained_encoders(config, axes), total)
 
 
-def resolve(
+def evidence(
     manifest: Manifest,
     stage_id: str,
     *,
@@ -240,25 +240,33 @@ def resolve(
     gates_dir: Path | None = None,
     n_resamples: int = 10000,
 ) -> dict[str, Any]:
-    """Apply a stage's gate rule to its completed runs and return the decision.
+    """Measure a stage's completed runs, without deciding anything.
+
+    Returns what a decision should be made against: every configuration scored
+    on the seed mean with its spread and its ensemble, every pair tested, and
+    the cost facts. It chooses nothing, because at the top of these tables the
+    configurations are statistically tied and any tie-break is a preference
+    rather than a finding. A preference stated in prose can be argued with; the
+    same preference expressed as a cost ordering cannot, and invites tuning the
+    ordering until it returns the answer already believed.
 
     Parameters
     ----------
     manifest : Manifest
         The parsed coverage spec.
     stage_id : str
-        The stage whose gate is being decided.
+        The stage whose gate is being measured.
     results_dir : path-like, optional
         Root holding the run directories.
     gates_dir : path-like, optional
         Where the gates this stage depends on were written.
     n_resamples : int, optional
-        Compound resamples per paired bootstrap.
+        Compound resamples for the family bootstrap.
 
     Returns
     -------
     dict
-        The decision, ready to be written.
+        The ranking, the significance evidence, and the stage's question.
 
     Raises
     ------
@@ -267,49 +275,100 @@ def resolve(
     """
     stage = manifest.stage(stage_id)
     if stage.gate is None:
-        raise GateError(f"stage {stage_id!r} has no gate to resolve")
+        raise GateError(f"stage {stage_id!r} has no gate to decide")
 
     with provenance.timed() as elapsed:
         configs = manifest.expand(stage_id, settled(manifest, stage_id, gates_dir))
         scored = _score(configs, manifest, results_dir)
         ranked = sorted(scored, key=lambda row: row[RANK_METRIC])
-        leader = ranked[0]
+        separated, significance = _separated(ranked, n_resamples=n_resamples)
 
-        # a lead smaller than compound sampling noise is not a result, so
-        # everything the leader does not separate from is a candidate on cost
-        separated, evidence = _separated(ranked, n_resamples=n_resamples)
-    tied = [row for row in ranked[1:] if row not in separated]
-
-    # the bootstrap is a weak bar at 260 compounds: it fails to separate
-    # configurations differing by far more than run-to-run noise. A saving
-    # only counts as free if it moves the metric less than changing the
-    # training seed does
-    budget = leader["seed_spread"]
-    affordable = [row for row in tied if row[RANK_METRIC] - leader[RANK_METRIC] <= budget]
-    candidates = [leader, *affordable]
-    chosen_row = min(candidates, key=lambda row: cost(row["config"], manifest.axes))
-    chosen = {axis: getattr(chosen_row["config"], axis) for axis in stage.gate.chooses}
-
+    tied = [row["config"].slug for row in ranked[1:] if row not in separated]
     return {
         "gate": stage.gate.id,
         "stage": stage_id,
         "version": VERSION,
-        "rule": stage.gate.rule,
-        "metric": RANK_METRIC,
+        "question": stage.gate.rule,
         "chooses": list(stage.gate.chooses),
-        "chosen": chosen,
-        "chosen_slug": chosen_row["config"].slug,
-        "leader_slug": leader["config"].slug,
-        "tie_broken_on_cost": chosen_row is not leader,
-        "tied_with_leader": [row["config"].slug for row in tied],
-        "within_seed_spread": [row["config"].slug for row in affordable],
-        "seed_spread_budget": budget,
-        "ranking": [_public(row) for row in ranked],
+        "metric": RANK_METRIC,
+        "leader_slug": ranked[0]["config"].slug,
+        "indistinguishable_from_leader": tied,
+        "ranking": [_public(row, manifest) for row in ranked],
         "n_resamples": n_resamples,
-        # the p-value and threshold behind every verdict against the leader, so
-        # the tied set can be checked without refitting or resampling anything
-        "significance": evidence,
+        "significance": significance,
         "wall_clock_s": elapsed(),
+    }
+
+
+def decide(
+    manifest: Manifest,
+    stage_id: str,
+    chosen: dict[str, Any],
+    reason: str,
+    *,
+    decided_by: str,
+    results_dir: Path = aggregate.RESULTS_DIR,
+    gates_dir: Path | None = None,
+    n_resamples: int = 10000,
+) -> dict[str, Any]:
+    """Record a decision for a stage's gate, with the evidence behind it.
+
+    Parameters
+    ----------
+    manifest : Manifest
+        The parsed coverage spec.
+    stage_id : str
+        The stage whose gate is being decided.
+    chosen : dict
+        Axis to level, covering exactly the axes the gate chooses.
+    reason : str
+        Why, in prose. Recorded verbatim and shown wherever the decision is.
+    decided_by : str
+        Who decided.
+    results_dir, gates_dir, n_resamples : optional
+        Passed to :func:`evidence`.
+
+    Returns
+    -------
+    dict
+        The decision and its evidence, ready to be written.
+
+    Raises
+    ------
+    GateError
+        If the choice does not cover the gate's axes, names a configuration the
+        stage did not run, or carries no reason.
+    """
+    if not reason.strip():
+        raise GateError("a decision needs a reason; it is the only defence it has")
+
+    measured = evidence(
+        manifest,
+        stage_id,
+        results_dir=results_dir,
+        gates_dir=gates_dir,
+        n_resamples=n_resamples,
+    )
+    expected = set(measured["chooses"])
+    if set(chosen) != expected:
+        raise GateError(
+            f"{measured['gate']}: choose exactly {sorted(expected)}, got {sorted(chosen)}"
+        )
+
+    matching = [
+        row
+        for row in measured["ranking"]
+        if all(row["config"][axis] == value for axis, value in chosen.items())
+    ]
+    if not matching:
+        raise GateError(f"{measured['gate']}: no configuration this stage ran matches {chosen}")
+
+    return {
+        **measured,
+        "chosen": chosen,
+        "chosen_slug": matching[0]["slug"],
+        "reason": reason.strip(),
+        "decided_by": decided_by,
         "environment": provenance.environment(),
     }
 
@@ -339,22 +398,28 @@ def _score(
                 f"{len(run_dirs)} runs missing for {config.slug}, first {missing[0]}"
             )
 
-        # the ensemble is the quantity the leaderboard entry reports, so gates
-        # rank on it rather than on a mean of seed-wise scores
+        # the subject is a single model, so a configuration is scored by the
+        # mean of its seeds and not by the ensemble of them. Seeds are
+        # replicates here, for statistical power and a variance estimate,
+        # rather than a way to build a better predictor. The ensemble is
+        # carried alongside because the leaderboard anchor is one
         stacked, observed = aggregate.stack_predictions(run_dirs)
-        pooled = evaluate.ensemble_mean(stacked)
+        per_seed = [evaluate.metrics(observed, row) for row in stacked]
+        seed_mean = {name: float(np.mean([s[name] for s in per_seed])) for name in per_seed[0]}
+        ensemble = evaluate.metrics(observed, evaluate.ensemble_mean(stacked))
 
-        # how far the metric moves when only the training seed changes, which
-        # is the yardstick a cost saving has to come in under
-        per_seed = [evaluate.metrics(observed, row)[RANK_METRIC] for row in stacked]
         rows.append(
             {
                 "config": config,
                 "observed": observed,
-                "prediction": pooled,
-                "seed_spread": float(np.std(per_seed, ddof=1)) if len(per_seed) > 1 else 0.0,
+                "stacked": stacked,
+                # how far the metric moves when only the training seed changes
+                "seed_spread": float(np.std([s[RANK_METRIC] for s in per_seed], ddof=1))
+                if len(per_seed) > 1
+                else 0.0,
                 "n_seeds": len(run_dirs),
-                **evaluate.metrics(observed, pooled),
+                "ensemble": ensemble,
+                **seed_mean,
             }
         )
     return rows
@@ -395,11 +460,20 @@ def _separated(
         its p-value and the threshold it was judged against, so the verdict can
         be checked without rerunning it.
     """
-    resampled = evaluate.bootstrap_family(
-        ranked[0]["observed"],
-        [row["prediction"] for row in ranked],
-        metric=RANK_METRIC,
-        n_resamples=n_resamples,
+    # each configuration's resampled score is the mean over its seeds, matching
+    # what it is ranked on: resampling the ensemble would test a quantity the
+    # gate does not decide on
+    observed = ranked[0]["observed"]
+    resampled = np.stack(
+        [
+            np.mean(
+                evaluate.bootstrap_family(
+                    observed, list(row["stacked"]), metric=RANK_METRIC, n_resamples=n_resamples
+                ),
+                axis=0,
+            )
+            for row in ranked
+        ]
     )
     pairs = list(itertools.combinations(range(len(ranked)), 2))
     p_values = [evaluate.difference_p_value(resampled, i, j) for i, j in pairs]
@@ -434,13 +508,24 @@ def _separated(
     return separated, evidence
 
 
-def _public(row: dict[str, Any]) -> dict[str, Any]:
-    """Strip the arrays off a scored row, leaving what belongs in the record."""
+def _public(row: dict[str, Any], manifest: Manifest) -> dict[str, Any]:
+    """Strip the arrays off a scored row, leaving what belongs in the record.
+
+    Cost appears here as three facts about a configuration and not as an
+    ordering: how many blocks it joins, how many encoders it has to train, and
+    how many columns it carries. Whether any of that is worth a difference in
+    score is a judgement, and judgements live in a decision's reason.
+    """
+    blocks, encoders, columns = cost(row["config"], manifest.axes)
     return {
         "slug": row["config"].slug,
         "config": row["config"].as_dict(),
         "n_seeds": int(row["n_seeds"]),
         "seed_spread": float(row["seed_spread"]),
+        "n_blocks": blocks,
+        "n_encoders_to_train": encoders,
+        "n_columns": columns,
+        "ensemble": {k: float(v) for k, v in row["ensemble"].items()},
         **{name: float(row[name]) for name in evaluate.METRIC_NAMES if name in row},
     }
 
