@@ -268,6 +268,7 @@ def test_configuration_round_trips_to_hashable_data():
         "target": "log2fc",
         "use_observed_readout": True,
         "use_predicted_readout": False,
+        "use_embedding": True,
     }
     assert payload["training"]["max_epochs"] == 30
 
@@ -556,11 +557,12 @@ def _key(config: RunConfig, seed: int, splits: SplitPaths) -> str:
 def test_the_auxiliary_encoder_is_shared_across_the_cells_that_agree_on_it(tiny_splits):
     keys = {cell_id: _key(config, 0, tiny_splits) for cell_id, config in _cell_configs()}
 
-    # 7 cells carry an auxiliary arm and they now ask for a single encoder per
-    # seed. The auxiliary fit reads the cell's gradient clip, so holding the
-    # clip at one value leaves nothing for those cells to disagree on: the main
-    # model's width and freeze schedule are not the encoder's to care about
-    assert len(keys) == 7
+    # 9 cells carry an auxiliary arm and they ask for a single encoder per seed.
+    # The auxiliary fit reads the cell's gradient clip, so holding the clip at
+    # one value leaves nothing for them to disagree on: the main model's width,
+    # freeze schedule, and which parts of the arm it concatenates are not the
+    # encoder's to care about
+    assert len(keys) == 9
     assert len(set(keys.values())) == 1
 
 
@@ -786,3 +788,60 @@ def test_the_schedule_carries_on_when_unfreezing_rebuilds_the_optimizer():
     # the body joins the same curve rather than one of its own, at its own peak
     groups = trainer.optimizers[0].param_groups
     assert groups[1]["lr"] / groups[0]["lr"] == pytest.approx(regressor.body_lr / regressor.head_lr)
+
+
+def test_an_auxiliary_arm_that_supplies_nothing_is_refused():
+    # it would train an encoder and then concatenate only zeros, which costs a
+    # pretraining and cannot differ from aux_encoder: null
+    with pytest.raises(ConfigError, match="neither an embedding nor a readout"):
+        AuxEncoderConfig(use_embedding=False)
+
+
+def test_dropping_the_embedding_shortens_the_vector_rather_than_zeroing_it():
+    from concat_arch.concat_features import feature_dim
+
+    # the point of the cell that turns it off is to carry no dead columns, so a
+    # zeroed embedding would defeat it
+    assert feature_dim(2, 2048) == 2055
+    assert feature_dim(2, 2048, use_embedding=False) == 7
+
+
+def test_the_readout_ablation_cells_differ_only_in_what_the_arm_supplies():
+    raw = yaml.safe_load(MANIFEST.read_text())
+    cells = {c["id"]: c["axes"] for c in raw["gnn"]["cells"]}
+    grid = next(g for g in raw["gnn"]["grids"] if g["id"] == "concat")
+
+    both = cells["readout_predicted_2task"]
+    predictions_only = cells["readout_predicted_only"]
+    neither = cells["chemeleon_pec50"]
+
+    # the four corners of embedding x predicted readout, holding the main model
+    # fixed, so a difference between them is the arm and not the network
+    for field in ("encoder_init", "finetune_target", "ffn_hidden_dim", "freeze_epochs"):
+        assert (
+            both[field]
+            == predictions_only[field]
+            == neither[field]
+            == grid["fixed"].get(field, both[field])
+        )
+    assert predictions_only["aux_encoder"]["use_embedding"] is False
+    assert both["aux_encoder"].get("use_embedding", True) is True
+    assert neither["aux_encoder"] is None
+
+
+def test_the_freeze_two_by_two_has_all_four_corners():
+    raw = yaml.safe_load(MANIFEST.read_text())
+    cells = {c["id"]: c["axes"] for c in raw["gnn"]["cells"]}
+    budget = RunConfig().training.max_epochs
+
+    corners = {
+        ("chemeleon", False): "chemeleon_pec50",
+        ("chemeleon", True): "chemeleon_frozen",
+        ("log2fc_checkpoint", False): "e4_finetune",
+        ("log2fc_checkpoint", True): "e4_frozen",
+    }
+    for (init, frozen), cell_id in corners.items():
+        axes = cells[cell_id]
+        assert axes["encoder_init"] == init
+        assert (axes["freeze_epochs"] >= budget) is frozen
+        assert axes["aux_encoder"] is None

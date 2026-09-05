@@ -33,7 +33,7 @@ from .readouts import readout_blocks
 logger = logging.getLogger(__name__)
 
 
-def feature_dim(n_tasks: int, embedding_dim: int) -> int:
+def feature_dim(n_tasks: int, embedding_dim: int, *, use_embedding: bool = True) -> int:
     """Return the width of the concatenated feature vector.
 
     Parameters
@@ -42,19 +42,26 @@ def feature_dim(n_tasks: int, embedding_dim: int) -> int:
         Number of log2FC concentration columns the auxiliary encoder predicts.
     embedding_dim : int
         Width of the auxiliary encoder's pooled structural embedding.
+    use_embedding : bool, optional
+        Whether that embedding is concatenated at all. False drops it from the
+        vector rather than zeroing it, so a cell asking for the predicted
+        readout alone carries no 2,048 dead columns. Defaults to True.
 
     Returns
     -------
     int
-        ``3 * n_tasks + embedding_dim + 1``: observed values, observed mask,
-        predicted values, embedding, and the readout-used flag.
+        ``3 * n_tasks + embedding_dim + 1`` with the embedding, and
+        ``3 * n_tasks + 1`` without: observed values, observed mask, predicted
+        values, the embedding, and the readout-used flag.
 
     Examples
     --------
     >>> feature_dim(2, 2048)
     2055
+    >>> feature_dim(2, 2048, use_embedding=False)
+    7
     """
-    return 3 * n_tasks + embedding_dim + 1
+    return 3 * n_tasks + (embedding_dim if use_embedding else 0) + 1
 
 
 def build_features(
@@ -64,6 +71,7 @@ def build_features(
     *,
     use_observed_readout: bool,
     use_predicted_readout: bool,
+    use_embedding: bool = True,
     batch_size: int = 256,
 ) -> np.ndarray:
     """Build the concatenated feature matrix for a list of compounds.
@@ -83,6 +91,9 @@ def build_features(
         Whether measured log2FC values populate their block.
     use_predicted_readout : bool
         Whether the encoder's own predictions populate theirs.
+    use_embedding : bool, optional
+        Whether the encoder's pooled embedding is concatenated. False leaves it
+        out of the vector entirely rather than zeroing it. Defaults to True.
     batch_size : int, optional
         Molecules per forward pass. Defaults to 256.
 
@@ -112,6 +123,10 @@ def build_features(
         else np.zeros((n_rows, n_tasks), dtype=np.float32)
     )
 
-    embeddings = encoder.embed(smiles, batch_size=batch_size)
+    embeddings = (
+        encoder.embed(smiles, batch_size=batch_size)
+        if use_embedding
+        else np.zeros((n_rows, 0), dtype=np.float32)
+    )
 
     return np.concatenate([observed, mask, predicted, embeddings, used], axis=1).astype(np.float32)

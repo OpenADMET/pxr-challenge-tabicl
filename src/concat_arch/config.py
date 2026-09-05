@@ -70,17 +70,33 @@ class AuxEncoderConfig:
         Whether the encoder's predicted log2FC values are concatenated. These
         exist for every compound, so unlike the observed block they are
         populated identically at fit and at inference.
+    use_embedding : bool
+        Whether the encoder's pooled structural embedding is concatenated. It
+        is 2,048 of the vector's columns against the readout blocks' handful,
+        so turning it off is what asks whether the predicted readout carries
+        anything on its own rather than only on top of the embedding.
     """
 
     target: str = "log2fc"
     use_observed_readout: bool = False
     use_predicted_readout: bool = False
+    use_embedding: bool = True
 
     def __post_init__(self) -> None:
-        """Reject an auxiliary arm whose target is not supported."""
+        """Reject an auxiliary arm whose target is unsupported or that carries nothing."""
         if self.target not in AUX_TARGETS:
             raise ConfigError(
                 f"aux_encoder.target {self.target!r} is not one of {sorted(AUX_TARGETS)}"
+            )
+
+        # an arm supplying neither an embedding nor a readout still trains an
+        # encoder and then concatenates nothing but zeros, which is a
+        # configuration that costs a pretraining and cannot differ from
+        # aux_encoder: null
+        if not (self.use_embedding or self.use_observed_readout or self.use_predicted_readout):
+            raise ConfigError(
+                "aux_encoder supplies neither an embedding nor a readout, so it would "
+                "train an encoder and concatenate nothing; set aux_encoder: null instead"
             )
 
 

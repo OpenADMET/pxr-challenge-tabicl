@@ -405,6 +405,59 @@ gnn:
         aux_encoder: null
       prior: e4_finetune
 
+    # what the auxiliary arm's two halves are each worth. The embedding is 2,048
+    # of the 2,055 concatenated columns and the predicted readout is 2, so a
+    # gain measured with both present says nothing about which carried it.
+    # readout_predicted_2task supplies both, concat_freeze2_hd512_clip0p5 the
+    # embedding alone, chemeleon_pec50 neither, and this cell the predictions
+    # alone. The embedding is dropped from the vector rather than zeroed
+    - id: readout_predicted_only
+      title: Predicted log2FC readout without the auxiliary embedding
+      axes:
+        encoder_init: chemeleon
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 2
+        gradient_clip_val: 0.5
+        aux_encoder:
+          target: log2fc
+          use_observed_readout: false
+          use_predicted_readout: true
+          use_embedding: false
+
+    # the missing corner of a two-by-two over what the body was pretrained on
+    # and whether it is allowed to adapt. e4_frozen and e4_finetune give the
+    # log2FC-pretrained row and chemeleon_pec50 the fine-tuned CheMeleon; with
+    # this cell, e4_frozen's last place can be attributed to the pretraining
+    # target or to the freeze, which it currently cannot
+    - id: chemeleon_frozen
+      title: CheMeleon never unfrozen, no auxiliary encoder
+      axes:
+        encoder_init: chemeleon
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        # at or above the epoch budget, which is what "never unfrozen" means
+        freeze_epochs: 30
+        gradient_clip_val: 0.5
+        aux_encoder: null
+
+    # whether the main body needs to adapt at all when a separate network
+    # supplies the task-specific signal. The freeze axis of the grid runs 0, 1
+    # and 2 epochs and every level releases the body, so no cell yet holds a
+    # CheMeleon body fixed while an auxiliary arm feeds the predictor
+    - id: concat_frozen_body
+      title: CheMeleon never unfrozen, with the log2FC auxiliary encoder
+      axes:
+        encoder_init: chemeleon
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 30
+        gradient_clip_val: 0.5
+        aux_encoder:
+          target: log2fc
+          use_observed_readout: false
+          use_predicted_readout: true
+
     - id: chemeleon_pec50
       title: CheMeleon fine-tuned on pEC50, no auxiliary encoder
       axes:

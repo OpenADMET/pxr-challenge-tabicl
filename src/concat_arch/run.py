@@ -272,6 +272,7 @@ def run_cell(
                 encoder,
                 use_observed_readout=config.aux_encoder.use_observed_readout,
                 use_predicted_readout=config.aux_encoder.use_predicted_readout,
+                use_embedding=config.aux_encoder.use_embedding,
                 batch_size=config.training.inference_batch_size,
             )
 
