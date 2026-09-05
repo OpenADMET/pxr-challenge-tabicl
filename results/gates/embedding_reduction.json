@@ -26,7 +26,7 @@
       "xgboost": "3.1.3"
     },
     "repo": {
-      "commit": "50502ff535beed85a08df49bf0bc1bed0c641c4f",
+      "commit": "9518c87488199a6d377b4bb5a93b17e3ca728615",
       "dirty": false
     }
   },
@@ -202,7 +202,7 @@
     "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none"
   ],
   "version": 1,
-  "wall_clock_s": 0.129,
+  "wall_clock_s": 0.127,
   "within_seed_spread": [
     "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none"
   ]
