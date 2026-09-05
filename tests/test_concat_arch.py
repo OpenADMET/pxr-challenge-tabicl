@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import dataclasses
 import itertools
 from collections.abc import Iterator
 from pathlib import Path
@@ -11,6 +12,8 @@ import pytest
 import torch
 import yaml
 
+import manifest as manifest_module
+import provenance
 from concat_arch import (
     AuxEncoderConfig,
     BackboneError,
@@ -30,6 +33,7 @@ from concat_arch import (
 )
 from concat_arch import readouts as readouts_module
 from concat_arch import run as run_module
+from concat_arch.backbone import CHEMELEON
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC = REPO_ROOT / "src"
@@ -40,6 +44,16 @@ MANIFEST = REPO_ROOT / "experiments" / "manifest.yaml"
 # a cheap stand-in for CheMeleon: a randomly initialised body narrow enough
 # that a whole run is seconds, wired through the same code path
 TINY_BODY = {"body_checkpoint": "random", "message_hidden_dim": 16, "depth": 2}
+
+
+@pytest.fixture(scope="module", autouse=True)
+def aux_cache(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+    """Keep the auxiliary encoder cache out of the repository while testing."""
+    directory = tmp_path_factory.mktemp("aux_cache")
+    patch = pytest.MonkeyPatch()
+    patch.setattr(run_module, "AUX_CACHE_DIR", directory)
+    yield directory
+    patch.undo()
 
 
 @pytest.fixture(scope="module")
@@ -520,3 +534,123 @@ def test_the_refit_epoch_count_comes_from_the_first_pass():
     # a fit that selected epoch 0 still has to train for one epoch, not zero
     for selected, expected in ((0, 1), (7, 8), (29, 30)):
         assert max(1, selected + 1) == expected
+
+
+def _cell_configs() -> list[tuple[str, RunConfig]]:
+    """Every figure-1 cell with an auxiliary arm, resolved."""
+    spec = manifest_module.load()
+    resolved = [(cell.id, RunConfig.from_axes(cell.axes)) for cell in spec.gnn_cells]
+    return [(cell_id, config) for cell_id, config in resolved if config.aux_encoder is not None]
+
+
+def _key(config: RunConfig, seed: int, splits: SplitPaths) -> str:
+    assert config.aux_encoder is not None  # noqa: S101 - every caller passes one
+    tasks = readouts_module.task_columns(config.aux_encoder.tasks)
+    return provenance.spec_key(run_module.aux_spec(config, seed, splits, CHEMELEON, tasks))
+
+
+def test_the_auxiliary_encoder_is_shared_across_the_cells_that_agree_on_it(tiny_splits):
+    keys = {cell_id: _key(config, 0, tiny_splits) for cell_id, config in _cell_configs()}
+
+    # 22 cells carry an auxiliary arm, and they ask for four encoders: one per
+    # gradient clip, since the auxiliary fit uses the cell's clip, plus the
+    # four-task variant
+    assert len(keys) == 22
+    assert len(set(keys.values())) == 4
+
+
+def test_the_main_model_does_not_change_the_encoder_it_concatenates(tiny_splits):
+    base = RunConfig(aux_encoder=AuxEncoderConfig(tasks=2))
+    for changed in (
+        base.with_training(max_epochs=99, mpnn_lr=0.5, ffn_lr=0.5),
+        dataclasses.replace(base, ffn_hidden_dim=1024),
+        dataclasses.replace(base, ffn_num_layers=5),
+        dataclasses.replace(base, freeze_epochs=7),
+    ):
+        assert _key(changed, 0, tiny_splits) == _key(base, 0, tiny_splits)
+
+
+def test_what_the_encoder_does_depend_on_renames_it(tiny_splits):
+    base = RunConfig(aux_encoder=AuxEncoderConfig(tasks=2))
+    original = _key(base, 0, tiny_splits)
+
+    assert _key(base, 1, tiny_splits) != original
+    assert (
+        _key(dataclasses.replace(base, aux_encoder=AuxEncoderConfig(tasks=4)), 0, tiny_splits)
+        != original
+    )
+    assert _key(dataclasses.replace(base, gradient_clip_val=5.0), 0, tiny_splits) != original
+    assert _key(dataclasses.replace(base, depth=5), 0, tiny_splits) != original
+    assert _key(base.with_training(aux_lr=0.5), 0, tiny_splits) != original
+    assert _key(base.with_training(aux_freeze_epochs=9), 0, tiny_splits) != original
+    assert _key(base.with_training(refit_on_all=False), 0, tiny_splits) != original
+
+
+def test_a_different_screen_renames_the_encoder(tiny_splits, tmp_path):
+    config = RunConfig(aux_encoder=AuxEncoderConfig(tasks=2))
+    shortened = tmp_path / "log2fc.csv"
+    pd.read_csv(tiny_splits.log2fc).head(100).to_csv(shortened, index=False)
+    other = dataclasses.replace(tiny_splits, log2fc=shortened)
+
+    assert _key(config, 0, other) != _key(config, 0, tiny_splits)
+
+
+def test_a_cached_encoder_reloads_to_the_same_embeddings(tiny_encoder, tmp_path):
+    spec = provenance.block_spec("aux_encoder", 1, params={"seed": 0}, inputs=[])
+    artifact = provenance.Artifact(root=tmp_path, spec=spec, suffix=".pt")
+    smiles = ["CCO", "CCN", "c1ccccc1"]
+    before = tiny_encoder.embed(smiles, batch_size=2)
+
+    run_module._save_encoder(artifact, tiny_encoder, {"tasks": ["a", "b"], "n_train": 7})
+    rebuilt, record = run_module._load_encoder(
+        artifact,
+        lambda: GraphRegressor(
+            build_mpnn(
+                "random",
+                ffn_hidden_dim=8,
+                ffn_num_layers=1,
+                message_hidden_dim=16,
+                depth=2,
+                n_tasks=2,
+            ),
+            freeze_epochs=0,
+            body_lr=1e-3,
+            head_lr=1e-3,
+        ),
+    )
+
+    np.testing.assert_allclose(rebuilt.embed(smiles, batch_size=2), before, rtol=0, atol=0)
+    assert record["n_train"] == 7
+    assert record["loaded_from_cache"] is True
+    assert record["cache_key"] == artifact.key
+
+
+def test_a_second_cell_loads_the_encoder_the_first_one_trained(tiny_splits, tmp_path):
+    # the two cells differ only in the predictor head, which the encoder knows
+    # nothing about, so the second must not repeat the pretraining
+    first = RunConfig(
+        aux_encoder=AuxEncoderConfig(tasks=2, use_observed_readout=True), **TINY_BODY
+    ).with_training(
+        max_epochs=1, aux_max_epochs=1, accelerator="cpu", batch_size=16, inference_batch_size=8
+    )
+    second = dataclasses.replace(first, ffn_hidden_dim=1024)
+
+    one = run_cell(first, seed=0, splits=tiny_splits, aux_cache_dir=tmp_path)
+    two = run_cell(second, seed=0, splits=tiny_splits, aux_cache_dir=tmp_path)
+
+    assert one.record["auxiliary"]["loaded_from_cache"] is False
+    assert two.record["auxiliary"]["loaded_from_cache"] is True
+    assert one.record["auxiliary"]["cache_key"] == two.record["auxiliary"]["cache_key"]
+
+
+def test_forcing_the_encoder_retrains_it_even_when_cached(tiny_splits, tmp_path):
+    config = RunConfig(
+        aux_encoder=AuxEncoderConfig(tasks=2, use_observed_readout=True), **TINY_BODY
+    ).with_training(
+        max_epochs=1, aux_max_epochs=1, accelerator="cpu", batch_size=16, inference_batch_size=8
+    )
+
+    run_cell(config, seed=0, splits=tiny_splits, aux_cache_dir=tmp_path)
+    forced = run_cell(config, seed=0, splits=tiny_splits, aux_cache_dir=tmp_path, force_aux=True)
+
+    assert forced.record["auxiliary"]["loaded_from_cache"] is False

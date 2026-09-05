@@ -25,6 +25,7 @@ from __future__ import annotations
 import logging
 import tempfile
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -50,6 +51,32 @@ logger = logging.getLogger(__name__)
 # from an older definition cannot be mistaken for a current one
 PRODUCER = "concat_arch"
 PRODUCER_VERSION = 2
+
+# where pretrained auxiliary encoders are cached, and the version of what one
+# means. The auxiliary encoder is a function of the screen, the seed and its own
+# hyperparameters, and of nothing about the main model it will be concatenated
+# to, so most of figure 1's cells ask for the same one
+AUX_CACHE_DIR = Path("data/encoders/aux")
+AUX_VERSION = 1
+
+# the training settings the auxiliary fit actually reads. Anything outside this
+# list belongs to the main model and must not change the encoder's identity, or
+# cells that could share one would each train their own
+AUX_TRAINING_FIELDS = (
+    "aux_max_epochs",
+    "aux_lr",
+    "aux_ffn_hidden_dim",
+    "aux_ffn_num_layers",
+    "aux_freeze_epochs",
+    "aux_val_fraction",
+    "batch_size",
+    "num_workers",
+    "patience",
+    "min_delta",
+    "refit_on_all",
+    "restore_best",
+    "accelerator",
+)
 
 # columns of the split CSVs this module reads
 SMILES_COL = "SMILES"
@@ -166,7 +193,14 @@ def log2fc_body_checkpoint(seed: int) -> Path:
     return Path(factory(seed=seed))
 
 
-def run_cell(config: RunConfig, seed: int, splits: SplitPaths | None = None) -> RunResult:
+def run_cell(
+    config: RunConfig,
+    seed: int,
+    splits: SplitPaths | None = None,
+    *,
+    aux_cache_dir: Path | None = None,
+    force_aux: bool = False,
+) -> RunResult:
     """Fit one cell at one seed and return its phase-2 predictions.
 
     Parameters
@@ -178,6 +212,11 @@ def run_cell(config: RunConfig, seed: int, splits: SplitPaths | None = None) -> 
         auxiliary encoder's validation carve-out.
     splits : SplitPaths, optional
         Where the partitions live. Defaults to the repository's own.
+    aux_cache_dir : path-like, optional
+        Where pretrained auxiliary encoders are cached. Defaults to
+        :data:`AUX_CACHE_DIR`.
+    force_aux : bool, optional
+        Pretrain the auxiliary encoder even when a matching one is cached.
 
     Returns
     -------
@@ -215,7 +254,15 @@ def run_cell(config: RunConfig, seed: int, splits: SplitPaths | None = None) -> 
     aux_record: dict[str, Any] | None = None
     features: dict[str, np.ndarray] = {}
     if config.aux_encoder is not None:
-        encoder, aux_record = _pretrain_encoder(config, seed, splits, aux_body, test_compounds)
+        encoder, aux_record = _pretrain_encoder(
+            config,
+            seed,
+            splits,
+            aux_body,
+            test_compounds,
+            cache_dir=aux_cache_dir,
+            force=force_aux,
+        )
         readouts = load_readouts(
             splits.log2fc, tasks=config.aux_encoder.tasks, exclude=test_compounds
         )
@@ -350,14 +397,53 @@ def _dataset(frame: pd.DataFrame, extra: np.ndarray | None) -> GraphDataset:
     return GraphDataset(frame[CANONICAL_COL].tolist(), targets, np.ones_like(targets), extra=extra)
 
 
+def aux_spec(
+    config: RunConfig, seed: int, splits: SplitPaths, body: str | Path, tasks: Sequence[str]
+) -> dict[str, Any]:
+    """Return the specification identifying one pretrained auxiliary encoder.
+
+    It names the screen and the test split it excludes, the seed, the task
+    columns, the body it starts from, and the training settings the auxiliary
+    fit reads. It deliberately names nothing about the main model, because the
+    encoder does not depend on it: that is what lets the freeze and width cells
+    of figure 1 share one.
+
+    The gradient clip is the exception, and it is here because the auxiliary
+    fit really does use the cell's clip value rather than one of its own.
+    """
+    return provenance.block_spec(
+        "aux_encoder",
+        AUX_VERSION,
+        params={
+            "seed": seed,
+            "tasks": list(tasks),
+            "body": str(body),
+            "message_hidden_dim": config.message_hidden_dim,
+            "depth": config.depth,
+            "gradient_clip_val": config.gradient_clip_val,
+            **{field: getattr(config.training, field) for field in AUX_TRAINING_FIELDS},
+        },
+        inputs=[],
+        screen=provenance.digest_file(splits.log2fc),
+        excluded_from=provenance.digest_file(splits.test),
+    )
+
+
 def _pretrain_encoder(
     config: RunConfig,
     seed: int,
     splits: SplitPaths,
     body: str | Path,
     exclude: set[str],
+    *,
+    cache_dir: Path | None = None,
+    force: bool = False,
 ) -> tuple[GraphRegressor, dict[str, Any]]:
-    """Pretrain the auxiliary encoder on log2FC, holding out a seeded fraction."""
+    """Pretrain the auxiliary encoder on log2FC, holding out a seeded fraction.
+
+    The result is cached by :func:`aux_spec`, so a cell whose auxiliary arm
+    matches one already trained loads it instead of repeating the fit.
+    """
     aux = config.aux_encoder
     assert aux is not None  # noqa: S101 - the caller checks; this narrows the type
     tasks = task_columns(aux.tasks)
@@ -393,6 +479,17 @@ def _pretrain_encoder(
     def partition(rows: np.ndarray) -> GraphDataset:
         return GraphDataset([smiles[i] for i in rows], values[rows], mask[rows])
 
+    # a cached encoder is loaded into a freshly built one rather than refitted;
+    # the record travels in the artifact's own provenance file
+    artifact = provenance.Artifact(
+        root=cache_dir if cache_dir is not None else AUX_CACHE_DIR,
+        spec=aux_spec(config, seed, splits, body, tasks),
+        suffix=".pt",
+    )
+    if artifact.is_cached and not force:
+        logger.info("auxiliary encoder: cached (%s)", artifact.key)
+        return _load_encoder(artifact, build_encoder)
+
     # first pass: hold out a slice of the screen to choose an epoch count
     encoder = build_encoder()
     data = GraphDataModule(
@@ -422,7 +519,7 @@ def _pretrain_encoder(
         refit_record["n_train"] = len(order)
         refit_record["epochs_requested"] = epochs
 
-    return encoder, {
+    record = {
         "tasks": list(tasks),
         "n_train": len(train_rows),
         "n_val": len(val_rows),
@@ -430,6 +527,37 @@ def _pretrain_encoder(
         "refit": refit_record,
         **fit_record,
     }
+    _save_encoder(artifact, encoder, record)
+    return encoder, {**record, "cache_key": artifact.key, "loaded_from_cache": False}
+
+
+def _save_encoder(
+    artifact: provenance.Artifact, encoder: GraphRegressor, record: dict[str, Any]
+) -> None:
+    """Cache a pretrained encoder's weights, with its fit recorded beside them."""
+    with provenance.atomic(artifact.path) as partial:
+        torch.save(
+            {name: tensor.detach().cpu() for name, tensor in encoder.state_dict().items()},
+            partial,
+        )
+    artifact.write_record(auxiliary=record, body_is_frozen=encoder.body_is_frozen)
+
+
+def _load_encoder(
+    artifact: provenance.Artifact, build: Callable[[], GraphRegressor]
+) -> tuple[GraphRegressor, dict[str, Any]]:
+    """Rebuild a cached encoder and restore the state its fit left it in."""
+    record = artifact.read_record()
+    encoder = build()
+    encoder.load_state_dict(torch.load(artifact.path, weights_only=True, map_location="cpu"))
+
+    # freezing only gates which parameters take gradients, so it cannot change
+    # the embeddings this encoder goes on to produce; it is restored anyway so a
+    # loaded encoder is indistinguishable from a freshly trained one
+    if not record.get("body_is_frozen", True):
+        encoder._unfreeze_body()  # noqa: SLF001
+
+    return encoder, {**record["auxiliary"], "cache_key": artifact.key, "loaded_from_cache": True}
 
 
 def _fit(
