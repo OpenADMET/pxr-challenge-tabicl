@@ -47,3 +47,14 @@ def test_a_block_missing_molecules_is_caught():
     frame = pd.DataFrame({"x": [1.0]}, index=pd.Index(["CCO"], name=CANONICAL_COL))
     with pytest.raises(features.FeatureError, match="does not match"):
         features._check_alignment("stub", frame, ["CCO", "CCC"])
+
+
+def test_a_block_records_how_long_it_took(tmp_path):
+    molecules = features.unique_molecules()[:8]
+    artifact = features.build("rdkit", molecules, cache_dir=tmp_path)
+
+    record = artifact.read_record()
+
+    assert record["wall_clock_s"] >= 0.0
+    # timing describes the production, not the artifact's identity
+    assert "wall_clock_s" not in record["spec"]

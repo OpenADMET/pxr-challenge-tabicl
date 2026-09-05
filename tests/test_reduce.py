@@ -271,3 +271,13 @@ def test_no_planned_reduction_would_widen_its_block(spec):
         ]
         for columns in declared:
             assert columns is None or width < columns
+
+
+def test_a_reduction_records_how_long_it_took(tmp_path):
+    block, _ = _block(tmp_path)
+    artifact = reduction.build(block, width=3, fit_smiles=FIT, cache_dir=tmp_path / "reduced")
+
+    record = artifact.read_record()
+
+    assert record["wall_clock_s"] >= 0.0
+    assert "wall_clock_s" not in record["spec"]

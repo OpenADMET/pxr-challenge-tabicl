@@ -240,3 +240,15 @@ def test_aggregation_reads_a_graph_network_run(spec, tiny):
     assert len(table) == 2
     assert set(table["kind"]) == {"gnn"}
     assert set(table["config_id"]) == {spec.gnn_cells[0].id}
+
+
+def test_a_run_records_how_long_it_took(spec, tiny):
+    partitions, tmp_path = tiny
+    run_dir = _run(_config(), spec, partitions, tmp_path)
+
+    record = json.loads((run_dir / "run.json").read_text())
+
+    assert record["wall_clock_s"] >= 0.0
+    # timing is a property of the run, not of what produced it, so recording it
+    # must not rename the artifact and rerun everything already fitted
+    assert "wall_clock_s" not in record["spec"]

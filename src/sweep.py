@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -269,6 +270,10 @@ def run_one(
         logger.info("%s seed=%d: already complete", config.slug, seed)
         return run_dir
 
+    # timed from here, so the figure is the fit and the prediction rather than
+    # the block building a first run pays for and a later one reads from cache
+    started = time.perf_counter()
+
     # the model that is scored sees the whole fit partition
     x_fit = assemble(artifacts, partitions.fit[CANONICAL_COL].tolist())
     y_fit = partitions.fit[TARGET_COL].to_numpy(dtype=np.float64)
@@ -304,6 +309,7 @@ def run_one(
             "n_features": int(x_fit.shape[1]),
             "n_fit": int(x_fit.shape[0]),
             "calibrated": calibrator is not None,
+            "wall_clock_s": round(time.perf_counter() - started, 3),
         },
     )
     logger.info("%s seed=%d: mae=%.4f -> %s", config.slug, seed, scores["mae"], run_dir)

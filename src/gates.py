@@ -168,14 +168,15 @@ def resolve(
     if stage.gate is None:
         raise GateError(f"stage {stage_id!r} has no gate to resolve")
 
-    configs = manifest.expand(stage_id, settled(manifest, stage_id, gates_dir))
-    scored = _score(configs, manifest, results_dir)
-    ranked = sorted(scored, key=lambda row: row[RANK_METRIC])
-    leader = ranked[0]
+    with provenance.timed() as elapsed:
+        configs = manifest.expand(stage_id, settled(manifest, stage_id, gates_dir))
+        scored = _score(configs, manifest, results_dir)
+        ranked = sorted(scored, key=lambda row: row[RANK_METRIC])
+        leader = ranked[0]
 
-    # a lead smaller than compound sampling noise is not a result, so everything
-    # the leader does not separate from is a candidate on cost instead
-    tied = _tied_with(leader, ranked[1:], n_resamples=n_resamples)
+        # a lead smaller than compound sampling noise is not a result, so
+        # everything the leader does not separate from is a candidate on cost
+        tied = _tied_with(leader, ranked[1:], n_resamples=n_resamples)
     candidates = [leader, *tied]
     chosen_row = min(candidates, key=lambda row: cost(row["config"]))
     chosen = {axis: getattr(chosen_row["config"], axis) for axis in stage.gate.chooses}
@@ -194,6 +195,7 @@ def resolve(
         "tied_with_leader": [row["config"].slug for row in tied],
         "ranking": [_public(row) for row in ranked],
         "n_resamples": n_resamples,
+        "wall_clock_s": elapsed(),
         "environment": provenance.environment(),
     }
 

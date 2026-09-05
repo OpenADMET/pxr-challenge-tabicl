@@ -11,6 +11,9 @@ along with the environment that produced it. Nothing has to be reconstructed
 from a launch script or inferred from a directory name, and there is one
 account of how an artifact came to exist rather than several to reconcile.
 
+Every record carries the wall clock of the work that produced it, written
+through :func:`timed`, so what a stage cost is an attribute of its artifacts.
+
 Every artifact is written through :func:`atomic`, which builds it under a
 temporary name in the same directory and moves it into place in one step. A
 cache entry therefore appears whole or not at all, so two processes sweeping
@@ -34,7 +37,8 @@ import json
 import logging
 import os
 import subprocess
-from collections.abc import Iterator, Mapping, Sequence
+import time
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -47,6 +51,19 @@ logger = logging.getLogger(__name__)
 # characters of the hex digest used to name an artifact; 12 leaves a collision
 # vanishingly unlikely across the few thousand artifacts a full sweep produces
 KEY_LENGTH = 12
+
+
+@contextmanager
+def timed() -> Iterator[Callable[[], float]]:
+    """Yield a callable returning the seconds elapsed since the block began.
+
+    Every artifact records how long it took to produce, so the cost of a sweep
+    is read off the artifacts themselves rather than reconstructed from a shell
+    transcript nobody kept. The callable stays valid after the block exits, so
+    the figure can be handed to the record written just afterwards.
+    """
+    started = time.perf_counter()
+    yield lambda: round(time.perf_counter() - started, 3)
 
 
 @contextmanager

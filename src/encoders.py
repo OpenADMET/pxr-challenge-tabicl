@@ -744,7 +744,8 @@ def _ensure_encoder(
         model.estimator.load_state_dict(state["state_dict"])
         return model
 
-    model = _train_encoder(target, config, training)
+    with provenance.timed() as elapsed:
+        model = _train_encoder(target, config, training)
     with provenance.atomic(artifact.path) as partial:
         torch.save(
             {
@@ -757,6 +758,7 @@ def _ensure_encoder(
             partial,
         )
     artifact.write_record(
+        wall_clock_s=elapsed(),
         target=target,
         tasks=training.task_names,
         n_train=len(training.train_smiles),

@@ -123,45 +123,47 @@ def build(
         logger.info("%s w=%s: cached (%s)", name, width, artifact.key)
         return artifact
 
-    raw = _join(blocks)
-    fit_index = _fit_index(raw, fit_smiles, name)
+    with provenance.timed() as elapsed:
+        raw = _join(blocks)
+        fit_index = _fit_index(raw, fit_smiles, name)
 
-    # infinities are as unusable to PCA as NaN, and RDKit emits them; both
-    # become missing values for the imputer to fill from fit rows
-    values = raw.to_numpy(dtype=np.float64, copy=True)
-    values[~np.isfinite(values)] = np.nan
+        # infinities are as unusable to PCA as NaN, and RDKit emits them; both
+        # become missing values for the imputer to fill from fit rows
+        values = raw.to_numpy(dtype=np.float64, copy=True)
+        values[~np.isfinite(values)] = np.nan
 
-    imputer = SimpleImputer(strategy=impute, keep_empty_features=True)
-    imputer.fit(values[fit_index])
-    filled = np.asarray(imputer.transform(values), dtype=np.float64)
+        imputer = SimpleImputer(strategy=impute, keep_empty_features=True)
+        imputer.fit(values[fit_index])
+        filled = np.asarray(imputer.transform(values), dtype=np.float64)
 
-    if width is None:
-        reduced = filled
-        columns = list(raw.columns)
-        explained = None
-    else:
-        # a width at or above the block's own size is not a reduction, and the
-        # decomposition's own message names neither the block nor the caller
-        if width >= filled.shape[1]:
-            raise ReductionError(
-                f"{name}: asked for {width} components from {filled.shape[1]} columns, "
-                "which is not a reduction; drop the width from the axis for this block"
-            )
-        pca = PCA(n_components=width, random_state=seed)
-        pca.fit(filled[fit_index])
-        reduced = np.asarray(pca.transform(filled), dtype=np.float64)
-        columns = [f"{name}_pc{i:03d}" for i in range(width)]
-        explained = float(pca.explained_variance_ratio_.sum())
+        if width is None:
+            reduced = filled
+            columns = list(raw.columns)
+            explained = None
+        else:
+            # a width at or above the block's own size is not a reduction, and the
+            # decomposition's own message names neither the block nor the caller
+            if width >= filled.shape[1]:
+                raise ReductionError(
+                    f"{name}: asked for {width} components from {filled.shape[1]} columns, "
+                    "which is not a reduction; drop the width from the axis for this block"
+                )
+            pca = PCA(n_components=width, random_state=seed)
+            pca.fit(filled[fit_index])
+            reduced = np.asarray(pca.transform(filled), dtype=np.float64)
+            columns = [f"{name}_pc{i:03d}" for i in range(width)]
+            explained = float(pca.explained_variance_ratio_.sum())
 
     frame = pd.DataFrame(reduced, index=raw.index.copy(), columns=columns)
-    artifact.root.mkdir(parents=True, exist_ok=True)
-    frame.to_parquet(artifact.path)
+    with provenance.atomic(artifact.path) as partial:
+        frame.to_parquet(partial)
     artifact.write_record(
         n_rows=int(frame.shape[0]),
         n_columns=int(frame.shape[1]),
         n_fit_rows=int(fit_index.sum()),
         explained_variance_ratio=explained,
         n_missing_imputed=int(np.isnan(values).sum()),
+        wall_clock_s=elapsed(),
     )
     logger.info(
         "%s w=%s: %d x %d, fitted on %d rows%s",

@@ -128,3 +128,14 @@ def test_a_record_is_written_through_the_same_path(tmp_path):
 
     assert artifact.read_record()["key"] == artifact.key
     assert not any(p.name.endswith(".partial") for p in tmp_path.iterdir())
+
+
+def test_a_timer_reports_elapsed_seconds_after_its_block_ends():
+    with provenance.timed() as elapsed:
+        pass
+    first = elapsed()
+
+    assert first >= 0.0
+    # the callable stays valid afterwards, so the figure can be handed to the
+    # record written just after the work it measures
+    assert elapsed() >= first

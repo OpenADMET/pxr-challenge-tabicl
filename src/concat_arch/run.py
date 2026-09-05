@@ -490,36 +490,38 @@ def _pretrain_encoder(
         logger.info("auxiliary encoder: cached (%s)", artifact.key)
         return _load_encoder(artifact, build_encoder)
 
-    # first pass: hold out a slice of the screen to choose an epoch count
-    encoder = build_encoder()
-    data = GraphDataModule(
-        train=partition(train_rows),
-        val=partition(val_rows),
-        batch_size=config.training.batch_size,
-        num_workers=config.training.num_workers,
-        seed=seed,
-    )
-    fit_record = _fit(encoder, data, config, max_epochs=config.training.aux_max_epochs)
-
-    # second pass: the held-out slice has done its job, so retrain on the whole
-    # screen for the epochs it settled
-    refit_record: dict[str, Any] | None = None
-    if config.training.refit_on_all:
-        epochs = max(1, int(fit_record["selected_epoch"]) + 1)
-        lightning.seed_everything(seed, workers=True)
+    with provenance.timed() as elapsed:
+        # first pass: hold out a slice of the screen to choose an epoch count
         encoder = build_encoder()
-        refit_data = GraphDataModule(
-            train=partition(order),
-            val=None,
+        data = GraphDataModule(
+            train=partition(train_rows),
+            val=partition(val_rows),
             batch_size=config.training.batch_size,
             num_workers=config.training.num_workers,
             seed=seed,
         )
-        refit_record = _fit(encoder, refit_data, config, max_epochs=epochs, validate=False)
-        refit_record["n_train"] = len(order)
-        refit_record["epochs_requested"] = epochs
+        fit_record = _fit(encoder, data, config, max_epochs=config.training.aux_max_epochs)
+
+        # second pass: the held-out slice has done its job, so retrain on the whole
+        # screen for the epochs it settled
+        refit_record: dict[str, Any] | None = None
+        if config.training.refit_on_all:
+            epochs = max(1, int(fit_record["selected_epoch"]) + 1)
+            lightning.seed_everything(seed, workers=True)
+            encoder = build_encoder()
+            refit_data = GraphDataModule(
+                train=partition(order),
+                val=None,
+                batch_size=config.training.batch_size,
+                num_workers=config.training.num_workers,
+                seed=seed,
+            )
+            refit_record = _fit(encoder, refit_data, config, max_epochs=epochs, validate=False)
+            refit_record["n_train"] = len(order)
+            refit_record["epochs_requested"] = epochs
 
     record = {
+        "wall_clock_s": elapsed(),
         "tasks": list(tasks),
         "n_train": len(train_rows),
         "n_val": len(val_rows),
@@ -540,7 +542,11 @@ def _save_encoder(
             {name: tensor.detach().cpu() for name, tensor in encoder.state_dict().items()},
             partial,
         )
-    artifact.write_record(auxiliary=record, body_is_frozen=encoder.body_is_frozen)
+    artifact.write_record(
+        auxiliary=record,
+        body_is_frozen=encoder.body_is_frozen,
+        wall_clock_s=record.get("wall_clock_s"),
+    )
 
 
 def _load_encoder(

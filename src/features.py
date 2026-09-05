@@ -132,12 +132,17 @@ def build(
         return artifact
 
     logger.info("%s: computing over %d molecules", name, len(molecules))
-    frame = block.compute(molecules, **resolved)
-    _check_alignment(name, frame, molecules)
+    with provenance.timed() as elapsed:
+        frame = block.compute(molecules, **resolved)
+        _check_alignment(name, frame, molecules)
 
-    artifact.root.mkdir(parents=True, exist_ok=True)
-    frame.to_parquet(artifact.path)
-    artifact.write_record(n_rows=int(frame.shape[0]), n_columns=int(frame.shape[1]))
+    with provenance.atomic(artifact.path) as partial:
+        frame.to_parquet(partial)
+    artifact.write_record(
+        n_rows=int(frame.shape[0]),
+        n_columns=int(frame.shape[1]),
+        wall_clock_s=elapsed(),
+    )
     logger.info("%s: wrote %d x %d -> %s", name, *frame.shape, artifact.path)
     return artifact
 
