@@ -109,10 +109,19 @@ tabular:
       rdkit: {blocks: [rdkit], reduce: true, n_features: 217}
       rdkit_mordred: {blocks: [rdkit, mordred], reduce: true, n_features: 1830}
     descriptor_pca: [native, 32, 64, 128, 256]
+    # tabpfn-v2.5 was swept and is not here. On this machine it returns NaN for
+    # every compound at the featureset the regressor stage runs, 258 columns at
+    # 4,392 rows, without raising or warning. Measured rather than assumed: the
+    # failure is deterministic, the same rows giving the same result twice and
+    # at two seeds, and it is not monotone in size, failing at 3,500 and 4,392
+    # while succeeding at 500, 2,000, 2,500, 3,000 and 4,000. Its inputs are
+    # finite and well scaled, and v2.6 and v3 handle the identical rows, so it
+    # is that checkpoint on this hardware rather than the data. TabPFN refuses
+    # CPU above 1,000 samples, so there is no fallback for it as there is for
+    # TabICL. Two working TabPFN versions carry the comparison.
     regressor:
       - lgbm
       - xgboost
-      - tabpfn-v2.5
       - tabpfn-v2.6
       - tabpfn-v3
       - tabicl
@@ -121,6 +130,22 @@ tabular:
     # completed configuration, so it is not swept and every run carries none
     calibration:
       - none
+
+    # levels this vocabulary can name and deliberately does not run, each with
+  # what was measured. An axis level belongs here rather than being deleted:
+  # the prior explored it, and a level that simply vanished would read as an
+  # oversight instead of a decision
+  excluded:
+    regressor:
+      tabpfn-v2.5: >
+        Returns NaN for every compound at 258 columns and 4,392 rows on this
+        machine, without raising or warning. Deterministic, the same rows
+        giving the same result twice and at two seeds, and not monotone in
+        size: it fails at 3,500 and 4,392 while succeeding at 500, 2,000,
+        2,500, 3,000 and 4,000. Inputs are finite and well scaled, and v2.6
+        and v3 handle the identical rows, so it is that checkpoint on this
+        hardware rather than the data. TabPFN refuses CPU above 1,000
+        samples, so it has no fallback as TabICL does.
 
   # Where the tabular models stop fitting, measured on this machine at 4,392
   # training rows rather than taken from documentation.
@@ -360,10 +385,26 @@ tabular:
       gate:
         id: best_regressor
         chooses: [regressor]
-        # undecided: the stage has not finished. Declare the choice here with a
-        # reason once it has, and the pipeline will verify and record it
-        decision: null
-        reason: ""
+        decision: {regressor: tabicl}
+        reason: >
+          TabICL and TabPFN v3 are the only two the evidence does not separate
+          (p = 0.35), and everything else is separated from both: the next
+          regressor is 0.044 behind, five times the gap within the pair. TabICL
+          leads nominally, 0.4269 against 0.4358 on the seed mean.
+
+          The pair is split on licence. TabICL is BSD 3-Clause. TabPFN carries
+          the Prior Labs Licence, Apache 2.0 with an added provision requiring
+          "Built with PriorLabs-TabPFN" displayed on any related website, blog
+          post or product documentation, and a TabPFN name prefix on models
+          derived from it. This work ends in a public write-up, so that is a
+          live obligation rather than a hypothetical one.
+
+          The cost is stated rather than hidden: TabICL does not fit this GPU
+          and runs on CPU at about 160 seconds a fit, against roughly 20 on the
+          accelerator for TabPFN v3, which also has the steadier seeds, 0.0052
+          against 0.0070. A reader preferring the faster and steadier of two
+          indistinguishable models should take TabPFN v3 and accept its
+          attribution terms.
         question: Which regressor, on the featureset the stage before settled.
 
     - id: uncertainty

@@ -1,0 +1,279 @@
+{
+  "chooses": [
+    "regressor"
+  ],
+  "chosen": {
+    "regressor": "tabicl"
+  },
+  "chosen_slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabicl__cal-none",
+  "environment": {
+    "checkouts": {
+      "openadmet-models": "4a8df806d12a7385edb6365074ce218af19002a5"
+    },
+    "packages": {
+      "chemprop": "2.2.1",
+      "lightgbm": "4.6.0",
+      "mordredcommunity": "2.0.6",
+      "numpy": "2.5.1",
+      "openadmet-models": "0.2.0+3.gba3d506",
+      "pandas": "2.3.3",
+      "rdkit": "2025.9.3",
+      "scikit-learn": "1.6.1",
+      "tabfm": "1.0.1",
+      "tabicl": "2.1.1",
+      "tabpfn": "8.2.0",
+      "torch": "2.5.1+rocm6.2",
+      "xgboost": "3.1.3"
+    },
+    "repo": {
+      "commit": "00c6cf213bd3e4c8a12296e368e9412ac8bb18b0",
+      "dirty": true
+    }
+  },
+  "gate": "best_regressor",
+  "indistinguishable_from_leader": [
+    "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none"
+  ],
+  "is_leader": true,
+  "leader_slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabicl__cal-none",
+  "metric": "mae",
+  "n_resamples": 10000,
+  "question": "Which regressor, on the featureset the stage before settled.",
+  "ranking": [
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemeleon",
+        "embedding_pca": 256,
+        "readout": "chemprop_log2fc",
+        "regressor": "tabicl"
+      },
+      "ensemble": {
+        "kendall_tau": 0.6121431249469458,
+        "mae": 0.4228961172103882,
+        "n": 260.0,
+        "r2": 0.5639947412189168,
+        "rae": 0.5858954336859346,
+        "rmse": 0.6220739814197401,
+        "spearman_rho": 0.8022036244879109
+      },
+      "kendall_tau": 0.6054386153349431,
+      "mae": 0.42689259810814495,
+      "n_blocks": 2,
+      "n_columns": 256,
+      "n_encoders_to_train": 1,
+      "n_seeds": 5,
+      "r2": 0.556623974786962,
+      "rae": 0.591432301520651,
+      "rmse": 0.6272635241521133,
+      "seed_spread": 0.007046350852897601,
+      "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabicl__cal-none",
+      "spearman_rho": 0.7958833359511366
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemeleon",
+        "embedding_pca": 256,
+        "readout": "chemprop_log2fc",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.605902225042156,
+        "mae": 0.43165363216400143,
+        "n": 260.0,
+        "r2": 0.5499299560220493,
+        "rae": 0.5980284086955056,
+        "rmse": 0.6320278669645549,
+        "spearman_rho": 0.7962420607507154
+      },
+      "kendall_tau": 0.600552882266622,
+      "mae": 0.43575329472468455,
+      "n_blocks": 2,
+      "n_columns": 256,
+      "n_encoders_to_train": 1,
+      "n_seeds": 5,
+      "r2": 0.5444385950042969,
+      "rae": 0.6037082281031697,
+      "rmse": 0.6358105719287239,
+      "seed_spread": 0.005237647482415054,
+      "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.7911671358120221
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemeleon",
+        "embedding_pca": 256,
+        "readout": "chemprop_log2fc",
+        "regressor": "tabfm"
+      },
+      "ensemble": {
+        "kendall_tau": 0.5789177625966844,
+        "mae": 0.47471240406769977,
+        "n": 260.0,
+        "r2": 0.5116587954626794,
+        "rae": 0.6576835741411374,
+        "rmse": 0.6583515440186005,
+        "spearman_rho": 0.7734445330424228
+      },
+      "kendall_tau": 0.5730233667862967,
+      "mae": 0.4799723034858704,
+      "n_blocks": 2,
+      "n_columns": 256,
+      "n_encoders_to_train": 1,
+      "n_seeds": 5,
+      "r2": 0.5040598214331067,
+      "rae": 0.6649708272639188,
+      "rmse": 0.6634063346961001,
+      "seed_spread": 0.008266827018293552,
+      "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabfm__cal-none",
+      "spearman_rho": 0.766970832759219
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemeleon",
+        "embedding_pca": 256,
+        "readout": "chemprop_log2fc",
+        "regressor": "lgbm"
+      },
+      "ensemble": {
+        "kendall_tau": 0.5878927710311914,
+        "mae": 0.4642789750502683,
+        "n": 260.0,
+        "r2": 0.5237047560519953,
+        "rae": 0.6432287277374324,
+        "rmse": 0.6501810325171208,
+        "spearman_rho": 0.7849160113829702
+      },
+      "kendall_tau": 0.5621446011382877,
+      "mae": 0.4808805611310415,
+      "n_blocks": 2,
+      "n_columns": 256,
+      "n_encoders_to_train": 1,
+      "n_seeds": 5,
+      "r2": 0.4976687130772829,
+      "rae": 0.6662291599495587,
+      "rmse": 0.6674371942196109,
+      "seed_spread": 0.02269921676544173,
+      "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-lgbm__cal-none",
+      "spearman_rho": 0.7580274232890735
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemeleon",
+        "embedding_pca": 256,
+        "readout": "chemprop_log2fc",
+        "regressor": "xgboost"
+      },
+      "ensemble": {
+        "kendall_tau": 0.5868823396180349,
+        "mae": 0.4563988495606643,
+        "n": 260.0,
+        "r2": 0.5290646800565981,
+        "rae": 0.6323113195292737,
+        "rmse": 0.6465123198899095,
+        "spearman_rho": 0.7782361787284604
+      },
+      "kendall_tau": 0.5298702330592322,
+      "mae": 0.49407884163489707,
+      "n_blocks": 2,
+      "n_columns": 256,
+      "n_encoders_to_train": 1,
+      "n_seeds": 5,
+      "r2": 0.4707870941044409,
+      "rae": 0.684514530670681,
+      "rmse": 0.6852802794681824,
+      "seed_spread": 0.008771754022102354,
+      "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-xgboost__cal-none",
+      "spearman_rho": 0.7217487663550404
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemeleon",
+        "embedding_pca": 256,
+        "readout": "chemprop_log2fc",
+        "regressor": "tabpfn-v2.6"
+      },
+      "ensemble": {
+        "kendall_tau": 0.5694672570265742,
+        "mae": 0.4929584775704604,
+        "n": 260.0,
+        "r2": 0.4973466252132318,
+        "rae": 0.6829623381517492,
+        "rmse": 0.6679292688092054,
+        "spearman_rho": 0.7636031564510082
+      },
+      "kendall_tau": 0.5625963234171104,
+      "mae": 0.5006720067317669,
+      "n_blocks": 2,
+      "n_columns": 256,
+      "n_encoders_to_train": 1,
+      "n_seeds": 5,
+      "r2": 0.4857300130222832,
+      "rae": 0.6936489378373273,
+      "rmse": 0.6752627356939741,
+      "seed_spread": 0.02274583373403745,
+      "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v2.6__cal-none",
+      "spearman_rho": 0.7575930481130322
+    }
+  ],
+  "reason": "TabICL and TabPFN v3 are the only two the evidence does not separate (p = 0.35), and everything else is separated from both: the next regressor is 0.044 behind, five times the gap within the pair. TabICL leads nominally, 0.4269 against 0.4358 on the seed mean.\nThe pair is split on licence. TabICL is BSD 3-Clause. TabPFN carries the Prior Labs Licence, Apache 2.0 with an added provision requiring \"Built with PriorLabs-TabPFN\" displayed on any related website, blog post or product documentation, and a TabPFN name prefix on models derived from it. This work ends in a public write-up, so that is a live obligation rather than a hypothetical one.\nThe cost is stated rather than hidden: TabICL does not fit this GPU and runs on CPU at about 160 seconds a fit, against roughly 20 on the accelerator for TabPFN v3, which also has the steadier seeds, 0.0052 against 0.0070. A reader preferring the faster and steadier of two indistinguishable models should take TabPFN v3 and accept its attribution terms.",
+  "separated_from_leader": false,
+  "significance": {
+    "against_leader": [
+      {
+        "bh_threshold": 0.043333333333333335,
+        "p_value": 0.35276472352764726,
+        "separated": false,
+        "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.03,
+        "p_value": 0.0011998800119988001,
+        "separated": true,
+        "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabfm__cal-none"
+      },
+      {
+        "bh_threshold": 0.006666666666666667,
+        "p_value": 0.00019998000199980003,
+        "separated": true,
+        "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-lgbm__cal-none"
+      },
+      {
+        "bh_threshold": 0.0033333333333333335,
+        "p_value": 0.00019998000199980003,
+        "separated": true,
+        "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-xgboost__cal-none"
+      },
+      {
+        "bh_threshold": 0.02666666666666667,
+        "p_value": 0.00039996000399960006,
+        "separated": true,
+        "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v2.6__cal-none"
+      }
+    ],
+    "fdr": 0.05,
+    "n_comparisons": 15,
+    "n_separated_pairs": 9,
+    "procedure": "all-pairwise paired bootstrap, Benjamini-Hochberg"
+  },
+  "stage": "regressor",
+  "version": 1,
+  "wall_clock_s": 3.275
+}

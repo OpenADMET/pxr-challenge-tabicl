@@ -252,7 +252,23 @@ def test_every_prior_configuration_a_cell_names_exists(spec):
 def test_every_regressor_level_is_implemented(spec):
     import regressors
 
-    assert set(spec.axes["regressor"]) == set(regressors.REGRESSORS)
+    swept = set(spec.axes["regressor"])
+    excluded = set(spec.excluded.get("regressor", {}))
+
+    # a swept level must be implemented, and so must an excluded one: it was
+    # run to find out that it fails, and the record of that has to stay runnable
+    assert swept <= set(regressors.REGRESSORS)
+    assert excluded <= set(regressors.REGRESSORS)
+    assert swept | excluded == set(regressors.REGRESSORS)
+    assert not swept & excluded, "a level cannot be both swept and excluded"
+
+
+def test_every_exclusion_carries_its_reason(spec):
+    # an excluded level with no reason is indistinguishable from one quietly
+    # dropped, which is what the exclusion list exists to prevent
+    for axis, levels in spec.excluded.items():
+        for level, reason in levels.items():
+            assert reason.strip(), f"{axis}.{level} is excluded with no reason"
 
 
 def test_coverage_reports_missing_and_unplanned_runs(spec):

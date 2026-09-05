@@ -216,7 +216,11 @@ class Manifest:
     stages: tuple[Stage, ...]
     gnn_cells: tuple[GnnCell, ...]
     figures: tuple[dict, ...]
-    prior: pd.DataFrame = field(repr=False)
+    # axis levels this vocabulary names and deliberately does not run, each
+    # mapped to what was measured. Distinct from a level that is simply absent,
+    # which is an oversight
+    excluded: dict[str, dict[str, str]] = field(default_factory=dict)
+    prior: pd.DataFrame = field(default_factory=pd.DataFrame, repr=False)
 
     def stage(self, stage_id: str) -> Stage:
         """Return one stage by identifier."""
@@ -402,6 +406,7 @@ def load(path: Path = MANIFEST_PATH, prior_summary: Path | None = None) -> Manif
         stages=stages,
         gnn_cells=gnn_cells,
         figures=tuple(raw["figures"]),
+        excluded=raw["tabular"].get("excluded", {}),
         prior=prior,
     )
     _validate(manifest)
@@ -414,6 +419,10 @@ def uncovered_prior_levels(manifest: Manifest) -> dict[str, set[str]]:
     The prior sweep decides nothing, but a family it explored that this grid
     cannot even name would be an oversight rather than a decision. This reports
     any such gap per axis, so an empty result means nothing was forgotten.
+
+    A level the manifest lists under ``excluded`` counts as expressible. It was
+    named, swept and removed for a recorded reason, which is a decision; only a
+    level nothing mentions is the oversight this guards against.
 
     Parameters
     ----------
@@ -441,7 +450,9 @@ def uncovered_prior_levels(manifest: Manifest) -> dict[str, set[str]]:
     # three TabFM ensemble sizes were all recorded under one name
     prior_regressors = {str(r) for r in prior["regressor"].dropna().unique() if r != "N/A"}
     regressor_translation = {"tabpfn": "tabpfn-v2.5"}
-    declared = {str(r) for r in manifest.axes["regressor"]}
+    declared = {str(r) for r in manifest.axes["regressor"]} | set(
+        manifest.excluded.get("regressor", {})
+    )
     missing_regressors = {
         name
         for name in (regressor_translation.get(r, r) for r in prior_regressors)
