@@ -10,6 +10,13 @@ __pycache__/
 data/*
 !data/splits/
 
-# anvil run dirs, checkpoints, zarr, and logs (large, reproducible from recipes)
-results/
+# run directories, the aggregated table, and logs: large, and rebuilt from the
+# recipes. The gate decisions are neither. They are small records of what each
+# stage settled, they are what every later stage reads to know what to run, and
+# a manifest cannot be reviewed without them: seeing that the descriptor gate
+# took RDKit at 128 over a native leader, on a cost tie-break inside the
+# leader's seed spread, should not require refitting sixty models. Each one
+# carries the repo commit and package versions it was decided under
+results/*
+!results/gates/
 logs/

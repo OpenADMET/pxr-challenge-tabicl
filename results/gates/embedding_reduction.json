@@ -1,0 +1,171 @@
+{
+  "chooses": [
+    "embedding_pca"
+  ],
+  "chosen": {
+    "embedding_pca": 256
+  },
+  "chosen_slug": "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none",
+  "environment": {
+    "checkouts": {
+      "openadmet-models": "4a8df806d12a7385edb6365074ce218af19002a5"
+    },
+    "packages": {
+      "chemprop": "2.2.1",
+      "lightgbm": "4.6.0",
+      "mordredcommunity": "2.0.6",
+      "numpy": "2.5.1",
+      "openadmet-models": "0.2.0+3.gba3d506",
+      "pandas": "2.3.3",
+      "rdkit": "2025.9.3",
+      "scikit-learn": "1.6.1",
+      "tabfm": "1.0.1",
+      "tabicl": "2.1.1",
+      "tabpfn": "8.2.0",
+      "torch": "2.5.1+rocm6.2",
+      "xgboost": "3.1.3"
+    },
+    "repo": {
+      "commit": "12418eec96dea369e0d05e4aa73361f23827cfc2",
+      "dirty": false
+    }
+  },
+  "gate": "embedding_reduction",
+  "leader_slug": "emb-chemeleon384__ro-none__desc-none__reg-tabpfn-v3__cal-none",
+  "metric": "mae",
+  "n_resamples": 10000,
+  "ranking": [
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemeleon",
+        "embedding_pca": 384,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.5760647797830661,
+      "mae": 0.4627771751697247,
+      "n_seeds": 5,
+      "r2": 0.45775092506479254,
+      "rae": 0.6411480803715385,
+      "rmse": 0.6937381586972942,
+      "seed_spread": 0.001566658476132242,
+      "slug": "emb-chemeleon384__ro-none__desc-none__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.7549443290656662
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemeleon",
+        "embedding_pca": 256,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.5778478940415774,
+      "mae": 0.4629767600206228,
+      "n_seeds": 5,
+      "r2": 0.46177329184749805,
+      "rae": 0.6414245923753503,
+      "rmse": 0.6911603179821043,
+      "seed_spread": 0.005474857050863931,
+      "slug": "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.7578614430858424
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemeleon",
+        "embedding_pca": 512,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.573211796969448,
+      "mae": 0.469002345598661,
+      "n_seeds": 5,
+      "r2": 0.44936668965046056,
+      "rae": 0.6497726545395154,
+      "rmse": 0.6990808627932796,
+      "seed_spread": 0.00439127381353125,
+      "slug": "emb-chemeleon512__ro-none__desc-none__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.7537607557118979
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemeleon",
+        "embedding_pca": 128,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.5461084602400755,
+      "mae": 0.49114367349331195,
+      "n_seeds": 5,
+      "r2": 0.42488253369384243,
+      "rae": 0.6804480435565426,
+      "rmse": 0.714454296122777,
+      "seed_spread": 0.0035219200805768503,
+      "slug": "emb-chemeleon128__ro-none__desc-none__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.7288869392416729
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemeleon",
+        "embedding_pca": 64,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.5396892489094347,
+      "mae": 0.4965088192866399,
+      "n_seeds": 5,
+      "r2": 0.41777117756039994,
+      "rae": 0.6878811087785777,
+      "rmse": 0.7188578568717608,
+      "seed_spread": 0.0027960855509210287,
+      "slug": "emb-chemeleon64__ro-none__desc-none__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.7266484937612405
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemeleon",
+        "embedding_pca": 32,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.479717172681503,
+      "mae": 0.5284842532598055,
+      "n_seeds": 5,
+      "r2": 0.37304638312369953,
+      "rae": 0.7321810207252357,
+      "rmse": 0.745957147344933,
+      "seed_spread": 0.00426248028419804,
+      "slug": "emb-chemeleon32__ro-none__desc-none__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.6567732861554232
+    }
+  ],
+  "rule": "Same rule as the descriptor gate: ensemble MAE, a paired bootstrap over the same 260 compounds, and a saving accepted only when it is smaller than the leader's spread across seeds.\n",
+  "seed_spread_budget": 0.001566658476132242,
+  "stage": "embedding_width",
+  "tie_broken_on_cost": true,
+  "tied_with_leader": [
+    "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none"
+  ],
+  "version": 1,
+  "wall_clock_s": 0.195,
+  "within_seed_spread": [
+    "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none"
+  ]
+}
