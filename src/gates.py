@@ -30,6 +30,7 @@ tied set, the affordable subset, the budget and whether cost decided it.
 
 from __future__ import annotations
 
+import itertools
 import json
 import logging
 from pathlib import Path
@@ -59,6 +60,10 @@ VERSION = 1
 
 # the metric every gate rule ranks on
 RANK_METRIC = "mae"
+
+# false discovery rate for the all-pairwise comparison, the error a candidate
+# set wants controlled rather than the family-wise rate
+FDR = 0.05
 
 # stands in for a block whose column count the manifest does not declare, so an
 # undeclared block kept whole is treated as the most expensive rather than the
@@ -230,7 +235,8 @@ def resolve(
 
         # a lead smaller than compound sampling noise is not a result, so
         # everything the leader does not separate from is a candidate on cost
-        tied = _tied_with(leader, ranked[1:], n_resamples=n_resamples)
+        separated, evidence = _separated(ranked, n_resamples=n_resamples)
+    tied = [row for row in ranked[1:] if row not in separated]
 
     # the bootstrap is a weak bar at 260 compounds: it fails to separate
     # configurations differing by far more than run-to-run noise. A saving
@@ -258,6 +264,9 @@ def resolve(
         "seed_spread_budget": budget,
         "ranking": [_public(row) for row in ranked],
         "n_resamples": n_resamples,
+        # the p-value and threshold behind every verdict against the leader, so
+        # the tied set can be checked without refitting or resampling anything
+        "significance": evidence,
         "wall_clock_s": elapsed(),
         "environment": provenance.environment(),
     }
@@ -309,22 +318,78 @@ def _score(
     return rows
 
 
-def _tied_with(
-    leader: dict[str, Any], others: list[dict[str, Any]], *, n_resamples: int
-) -> list[dict[str, Any]]:
-    """Return the configurations a paired bootstrap does not separate from the leader."""
-    tied = []
-    for row in others:
-        result = evaluate.paired_bootstrap(
-            leader["observed"],
-            leader["prediction"],
-            row["prediction"],
-            metric=RANK_METRIC,
-            n_resamples=n_resamples,
+def _separated(
+    ranked: list[dict[str, Any]], *, n_resamples: int, fdr: float = FDR
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Return the configurations separated from the leader, and the evidence.
+
+    Every pair is tested, not only each against the leader. Two reasons. The
+    family a reader will use is every pair, because a figure of nineteen bars
+    invites comparing any two of them, and a later stage asks questions that
+    are not about the leader at all. And under a step-up procedure the larger
+    family is the more powerful one here rather than the less: the extra
+    comparisons mostly separate, which lifts the rank of a borderline one and
+    with it the threshold it must clear.
+
+    The whole family is resampled on one set of draws, so every difference is
+    paired and the cost is one bootstrap per configuration rather than per
+    pair.
+
+    Parameters
+    ----------
+    ranked : list of dict
+        Scored configurations, leader first.
+    n_resamples : int
+        Compound resamples.
+    fdr : float, optional
+        False discovery rate. Defaults to :data:`FDR`.
+
+    Returns
+    -------
+    separated : list of dict
+        The configurations the procedure distinguishes from the leader.
+    evidence : dict
+        The family size, the level, and each comparison against the leader with
+        its p-value and the threshold it was judged against, so the verdict can
+        be checked without rerunning it.
+    """
+    resampled = evaluate.bootstrap_family(
+        ranked[0]["observed"],
+        [row["prediction"] for row in ranked],
+        metric=RANK_METRIC,
+        n_resamples=n_resamples,
+    )
+    pairs = list(itertools.combinations(range(len(ranked)), 2))
+    p_values = [evaluate.difference_p_value(resampled, i, j) for i, j in pairs]
+    rejected = evaluate.benjamini_hochberg(p_values, fdr=fdr)
+
+    order = np.argsort(p_values)
+    rank_of = {int(index): position + 1 for position, index in enumerate(order)}
+    separated, against_leader = [], []
+    for position, ((i, j), p_value, is_separated) in enumerate(
+        zip(pairs, p_values, rejected, strict=True)
+    ):
+        if i != 0:
+            continue
+        if is_separated:
+            separated.append(ranked[j])
+        against_leader.append(
+            {
+                "slug": ranked[j]["config"].slug,
+                "p_value": p_value,
+                "bh_threshold": rank_of[position] / len(pairs) * fdr,
+                "separated": bool(is_separated),
+            }
         )
-        if not evaluate.excludes_zero(result):
-            tied.append(row)
-    return tied
+
+    evidence = {
+        "procedure": "all-pairwise paired bootstrap, Benjamini-Hochberg",
+        "fdr": fdr,
+        "n_comparisons": len(pairs),
+        "n_separated_pairs": int(rejected.sum()),
+        "against_leader": against_leader,
+    }
+    return separated, evidence
 
 
 def _public(row: dict[str, Any]) -> dict[str, Any]:

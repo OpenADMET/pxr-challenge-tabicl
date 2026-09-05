@@ -249,6 +249,138 @@ def paired_bootstrap(
     )
 
 
+def bootstrap_family(
+    y_true: ArrayLike,
+    predictions: Sequence[ArrayLike],
+    *,
+    metric: str = "mae",
+    n_resamples: int = 10000,
+    seed: int = 0,
+) -> NDArray[np.float64]:
+    """Resample a whole family of predictors together, on one set of draws.
+
+    Every predictor is scored on the same resampled compounds in the same
+    multiplicity, so any pairwise difference taken from the result is paired.
+    Drawing once is also what makes an all-pairwise comparison affordable: the
+    cost is one bootstrap per predictor rather than one per pair.
+
+    Parameters
+    ----------
+    y_true : array-like
+        Ground-truth values, one per compound.
+    predictions : sequence of array-like
+        One prediction vector per configuration, each aligned with `y_true`.
+    metric : str, optional
+        Which of :data:`METRIC_NAMES` to resample. Default is ``mae``.
+    n_resamples : int, optional
+        Compound resamples. Default is 10000.
+    seed : int, optional
+        Seed for the draw, so a family's comparisons are reproducible.
+
+    Returns
+    -------
+    ndarray
+        Shape ``(len(predictions), n_resamples)``, the metric of each
+        configuration on each resample.
+
+    Raises
+    ------
+    ValueError
+        If the family is empty, the metric is unknown, or a prediction vector
+        does not align with `y_true`.
+    """
+    if metric not in _METRICS:
+        raise ValueError(f"unknown metric {metric!r}; expected one of {list(_METRICS)}")
+    if not len(predictions):
+        raise ValueError("cannot bootstrap an empty family")
+
+    true = np.asarray(y_true, dtype=np.float64)
+    rows = [_as_aligned(true, p)[1] for p in predictions]
+    rng = np.random.default_rng(seed)
+    index = rng.integers(0, true.size, size=(n_resamples, true.size))
+    score = _METRICS[metric]
+    return np.vstack([np.asarray(score(true[index], row[index])) for row in rows])
+
+
+def difference_p_value(resampled: NDArray[np.float64], i: int, j: int) -> float:
+    """Return the two-sided bootstrap p-value that predictors i and j differ.
+
+    Parameters
+    ----------
+    resampled : ndarray
+        A :func:`bootstrap_family` result.
+    i, j : int
+        Rows to compare.
+
+    Returns
+    -------
+    float
+        ``2 * min(P(d <= 0), P(d >= 0))`` over the resampled differences, each
+        tail counted with a plus-one correction. The correction is what keeps a
+        p-value off exactly zero, which matters because a step-up procedure has
+        to be able to order them; the floor is ``2 / (n_resamples + 1)``.
+    """
+    d = resampled[i] - resampled[j]
+    n = d.shape[0]
+    low = (np.count_nonzero(d <= 0) + 1) / (n + 1)
+    high = (np.count_nonzero(d >= 0) + 1) / (n + 1)
+    return float(min(1.0, 2 * min(low, high)))
+
+
+def benjamini_hochberg(p_values: Sequence[float], fdr: float = 0.05) -> NDArray[np.bool_]:
+    """Return which hypotheses a Benjamini-Hochberg step-up rejects.
+
+    Controls the false discovery rate, the expected share of false rejections
+    among the rejections, rather than the probability of any false rejection at
+    all. That is the error a candidate set wants controlled: a wrongly rejected
+    configuration only leaves the pool, so tolerating a bounded proportion of
+    them buys power that family-wise control spends.
+
+    Parameters
+    ----------
+    p_values : sequence of float
+        One per comparison in the family.
+    fdr : float, optional
+        The level. Default 0.05.
+
+    Returns
+    -------
+    ndarray of bool
+        True where the comparison is a discovery, meaning the two predictors
+        are separated.
+
+    Raises
+    ------
+    ValueError
+        If the family is empty or the level is outside (0, 1).
+
+    Notes
+    -----
+    Valid under independence or positive regression dependence. Comparisons
+    against a shared reference on a shared compound set are positively
+    correlated rather than independent, which is the case the procedure is
+    generally taken to cover; Benjamini-Yekutieli would hold under arbitrary
+    dependence at a log-factor cost.
+    """
+    values = np.asarray(p_values, dtype=np.float64)
+    if values.size == 0:
+        raise ValueError("cannot correct an empty family")
+    if not 0.0 < fdr < 1.0:
+        raise ValueError(f"fdr must lie strictly between 0 and 1, got {fdr}")
+
+    order = np.argsort(values)
+    thresholds = np.arange(1, values.size + 1) / values.size * fdr
+
+    # step up: the largest rank whose p-value clears its own threshold, and
+    # everything ranked below it, is rejected even where an individual p-value
+    # in between does not clear its own
+    passing = np.nonzero(values[order] <= thresholds)[0]
+    rejected = np.zeros(values.size, dtype=bool)
+    if passing.size:
+        rejected[order[: passing[-1] + 1]] = True
+    return rejected
+
+
 def excludes_zero(result: BootstrapResult) -> bool:
     """Return whether a bootstrap interval separates the two predictors.
 

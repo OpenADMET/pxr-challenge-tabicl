@@ -346,3 +346,67 @@ def test_the_ingredient_stage_still_sweeps_both_descriptor_arms(spec, tmp_path, 
 
     assert settled["descriptors"] == "rdkit"
     assert {c.descriptors for c in spec.expand("ingredients", settled)} == {"none", "rdkit"}
+
+
+def test_benjamini_hochberg_steps_up_rather_than_down():
+    # the largest rank clearing its own threshold carries everything below it,
+    # including a p-value that does not clear its own. Holm would stop at the
+    # first failure, which is the difference between the two procedures
+    p = [0.001, 0.013, 0.021, 0.9]
+    rejected = evaluate.benjamini_hochberg(p, fdr=0.05)
+
+    assert list(rejected) == [True, True, True, False]
+
+
+def test_benjamini_hochberg_rejects_nothing_when_no_rank_clears():
+    assert not evaluate.benjamini_hochberg([0.2, 0.4, 0.9], fdr=0.05).any()
+
+
+def test_a_bootstrap_p_value_cannot_be_exactly_zero():
+    # a step-up procedure has to order the p-values, so the plus-one correction
+    # floors them at 2 / (n + 1) rather than letting a tail count reach zero
+    rng = np.random.default_rng(0)
+    truth = rng.normal(size=200)
+    resampled = evaluate.bootstrap_family(
+        truth, [truth, truth + 5.0], metric="mae", n_resamples=500
+    )
+    p = evaluate.difference_p_value(resampled, 0, 1)
+
+    assert p == pytest.approx(2 / 501)
+    assert p > 0
+
+
+def test_the_family_bootstrap_pairs_every_predictor_on_one_draw():
+    # drawing once is what makes any pair comparable, and what makes an
+    # all-pairwise family cost one bootstrap per predictor rather than per pair
+    rng = np.random.default_rng(1)
+    truth = rng.normal(size=120)
+    a, b = truth + rng.normal(scale=0.1, size=120), truth + rng.normal(scale=0.1, size=120)
+
+    family = evaluate.bootstrap_family(truth, [a, b], n_resamples=300, seed=7)
+    pairwise = evaluate.paired_bootstrap(truth, a, b, n_resamples=300, seed=7)
+
+    assert family.shape == (2, 300)
+    # the same seed and draw, so the family's difference reproduces the pair's
+    assert float(np.mean(family[0] - family[1])) == pytest.approx(
+        float((pairwise.ci_low + pairwise.ci_high) / 2), abs=0.02
+    )
+
+
+def test_a_gate_records_the_evidence_behind_every_verdict(spec, tmp_path, monkeypatch):
+    monkeypatch.setattr(gates, "GATES_DIR", tmp_path / "gates")
+    configs = spec.expand("descriptor_width")
+    write_runs(tmp_path, configs, ranked_offsets(configs, configs[1].slug))
+
+    decision = gates.resolve(spec, "descriptor_width", results_dir=tmp_path, n_resamples=400)
+    sig = decision["significance"]
+
+    assert sig["fdr"] == gates.FDR
+    # every pair, not only the comparisons against the leader
+    assert sig["n_comparisons"] == len(configs) * (len(configs) - 1) // 2
+    assert len(sig["against_leader"]) == len(configs) - 1
+    separated = {r["slug"] for r in sig["against_leader"] if r["separated"]}
+    assert separated.isdisjoint(decision["tied_with_leader"])
+    for row in sig["against_leader"]:
+        assert 0.0 < row["p_value"] <= 1.0
+        assert 0.0 < row["bh_threshold"] <= gates.FDR

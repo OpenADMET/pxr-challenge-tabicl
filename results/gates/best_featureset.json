@@ -30,8 +30,8 @@
       "xgboost": "3.1.3"
     },
     "repo": {
-      "commit": "31db06d02e8d533358bcd8964546c33dc10e9914",
-      "dirty": false
+      "commit": "02adf1b48ff2ccb598e3faf2a98381d35dbadb9b",
+      "dirty": true
     }
   },
   "gate": "best_featureset",
@@ -102,6 +102,86 @@
     {
       "config": {
         "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemeleon",
+        "embedding_pca": 256,
+        "readout": "chemeleon_log2fc",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.62694297329259,
+      "mae": 0.43481379769398615,
+      "n_seeds": 5,
+      "r2": 0.5697194053849018,
+      "rae": 0.6024066152534736,
+      "rmse": 0.6179766324971484,
+      "seed_spread": 0.0073829938934238,
+      "slug": "emb-chemeleon256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.8188504625178522
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 128,
+        "descriptors": "rdkit",
+        "embedding": "chemeleon_log2fc",
+        "embedding_pca": 256,
+        "readout": "chemeleon_log2fc",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.6246843618984755,
+      "mae": 0.43871779386813825,
+      "n_seeds": 5,
+      "r2": 0.5635689013120837,
+      "rae": 0.6078153514382637,
+      "rmse": 0.622377692522514,
+      "seed_spread": 0.004303145223499293,
+      "slug": "emb-chemeleon_log2fc256__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.8206201897361778
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 128,
+        "descriptors": "rdkit",
+        "embedding": "chemeleon_pec50",
+        "embedding_pca": 256,
+        "readout": "chemeleon_log2fc",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.6275967818540441,
+      "mae": 0.44096816939574013,
+      "n_seeds": 5,
+      "r2": 0.5098168575001572,
+      "rae": 0.6109331023280042,
+      "rmse": 0.6595919691276306,
+      "seed_spread": 0.015254068885745459,
+      "slug": "emb-chemeleon_pec50256__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.8167560804799611
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemeleon_pec50",
+        "embedding_pca": 256,
+        "readout": "chemeleon_log2fc",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.6352047360236925,
+      "mae": 0.44162407794365516,
+      "n_seeds": 5,
+      "r2": 0.5197808063194315,
+      "rae": 0.6118418215323185,
+      "rmse": 0.6528537912646419,
+      "seed_spread": 0.019127753082486657,
+      "slug": "emb-chemeleon_pec50256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.822822107282127
+    },
+    {
+      "config": {
+        "calibration": "none",
         "descriptor_pca": 128,
         "descriptors": "rdkit",
         "embedding": "chemeleon",
@@ -144,6 +224,46 @@
         "calibration": "none",
         "descriptor_pca": 128,
         "descriptors": "rdkit",
+        "embedding": "chemeleon",
+        "embedding_pca": 256,
+        "readout": "chemeleon_log2fc",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.615174419186415,
+      "mae": 0.44400214026524476,
+      "n_seeds": 5,
+      "r2": 0.5602432818477361,
+      "rae": 0.6151364742816289,
+      "rmse": 0.6247444617061414,
+      "seed_spread": 0.003216299305596744,
+      "slug": "emb-chemeleon256__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.8126635862875828
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemeleon_log2fc",
+        "embedding_pca": 256,
+        "readout": "chemeleon_log2fc",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.6171358448707776,
+      "mae": 0.4449959945678711,
+      "n_seeds": 5,
+      "r2": 0.5585891576559399,
+      "rae": 0.6165133956435439,
+      "rmse": 0.6259183323174881,
+      "seed_spread": 0.009437424611677096,
+      "slug": "emb-chemeleon_log2fc256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.8118039849882496
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 128,
+        "descriptors": "rdkit",
         "embedding": "chemeleon_log2fc",
         "embedding_pca": 256,
         "readout": "none",
@@ -158,6 +278,46 @@
       "seed_spread": 0.008494816778373479,
       "slug": "emb-chemeleon_log2fc256__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none",
       "spearman_rho": 0.8113188803630101
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 128,
+        "descriptors": "rdkit",
+        "embedding": "chemprop_log2fc",
+        "embedding_pca": 0,
+        "readout": "chemeleon_log2fc",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.6111921306757397,
+      "mae": 0.4486643779461201,
+      "n_seeds": 5,
+      "r2": 0.5546768417796732,
+      "rae": 0.6215957054185854,
+      "rmse": 0.6286860351852783,
+      "seed_spread": 0.008770706573168478,
+      "slug": "emb-chemprop_log2fc__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.8109798874757036
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemprop_log2fc",
+        "embedding_pca": 0,
+        "readout": "chemeleon_log2fc",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.6053672907646027,
+      "mae": 0.45017716825925386,
+      "n_seeds": 5,
+      "r2": 0.5576135657735022,
+      "rae": 0.623691579323591,
+      "rmse": 0.6266096427172864,
+      "seed_spread": 0.010896856370202697,
+      "slug": "emb-chemprop_log2fc__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.8050848933387345
     },
     {
       "config": {
@@ -258,6 +418,26 @@
       "seed_spread": 0.005474857050863931,
       "slug": "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none",
       "spearman_rho": 0.7578614430858424
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 128,
+        "descriptors": "rdkit",
+        "embedding": "none",
+        "embedding_pca": 0,
+        "readout": "chemeleon_log2fc",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.6113704421015909,
+      "mae": 0.46355569234261146,
+      "n_seeds": 5,
+      "r2": 0.5405335925415762,
+      "rae": 0.6422266659581106,
+      "rmse": 0.6385913856136175,
+      "seed_spread": 0.002941387535157695,
+      "slug": "emb-none__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.8091726081751988
     },
     {
       "config": {
@@ -386,6 +566,26 @@
         "descriptors": "none",
         "embedding": "none",
         "embedding_pca": 0,
+        "readout": "chemeleon_log2fc",
+        "regressor": "tabpfn-v3"
+      },
+      "kendall_tau": 0.590329693851157,
+      "mae": 0.5223084828303411,
+      "n_seeds": 5,
+      "r2": 0.4679799464926888,
+      "rae": 0.7236248870865916,
+      "rmse": 0.6871636449425557,
+      "seed_spread": 0.018986352441286835,
+      "slug": "emb-none__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.7910479250202322
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "none",
+        "embedding_pca": 0,
         "readout": "chemprop_log2fc",
         "regressor": "tabpfn-v3"
       },
@@ -420,22 +620,210 @@
       "spearman_rho": 0.6947043029818444
     }
   ],
-  "rule": "Same rule as the width gates: ensemble MAE, a paired bootstrap over the 260 compounds, and a saving accepted only when it is smaller than the leader's spread across seeds. This gate may choose no descriptor block at all, superseding what the descriptor probe settled, if an embedding on its own is what wins.\n",
+  "rule": "Same rule as the width gates: ensemble MAE, an all-pairwise paired bootstrap over the 260 compounds under Benjamini-Hochberg, and a saving accepted only when it is smaller than the leader's spread across seeds. This gate may choose no descriptor block at all, superseding what the descriptor probe settled, if an embedding on its own is what wins.\n",
   "seed_spread_budget": 0.00938908620179162,
+  "significance": {
+    "against_leader": [
+      {
+        "bh_threshold": 0.043965517241379315,
+        "p_value": 0.7703229677032297,
+        "separated": false,
+        "slug": "emb-chemeleon_log2fc256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.03780788177339902,
+        "p_value": 0.5627437256274372,
+        "separated": false,
+        "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.03374384236453202,
+        "p_value": 0.43115688431156884,
+        "separated": false,
+        "slug": "emb-chemeleon256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.02389162561576355,
+        "p_value": 0.11578842115788421,
+        "separated": false,
+        "slug": "emb-chemeleon_log2fc256__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.03362068965517242,
+        "p_value": 0.42895710428957107,
+        "separated": false,
+        "slug": "emb-chemeleon_pec50256__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.033866995073891626,
+        "p_value": 0.43175682431756823,
+        "separated": false,
+        "slug": "emb-chemeleon_pec50256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.016995073891625617,
+        "p_value": 0.027997200279972004,
+        "separated": false,
+        "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.0208128078817734,
+        "p_value": 0.0685931406859314,
+        "separated": false,
+        "slug": "emb-chemeleon_log2fc256__ro-none__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.019581280788177342,
+        "p_value": 0.0527947205279472,
+        "separated": false,
+        "slug": "emb-chemeleon256__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.01995073891625616,
+        "p_value": 0.05699430056994301,
+        "separated": false,
+        "slug": "emb-chemeleon_log2fc256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.012438423645320197,
+        "p_value": 0.0047995200479952005,
+        "separated": true,
+        "slug": "emb-chemeleon_log2fc256__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.01576354679802956,
+        "p_value": 0.022797720227977204,
+        "separated": false,
+        "slug": "emb-chemprop_log2fc__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.01847290640394089,
+        "p_value": 0.036996300369963,
+        "separated": false,
+        "slug": "emb-chemprop_log2fc__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.027955665024630545,
+        "p_value": 0.2131786821317868,
+        "separated": false,
+        "slug": "emb-chemeleon_pec50256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.01120689655172414,
+        "p_value": 0.0023997600239976003,
+        "separated": true,
+        "slug": "emb-chemprop_log2fc__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.024384236453201973,
+        "p_value": 0.1197880211978802,
+        "separated": false,
+        "slug": "emb-chemeleon_pec50256__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.021551724137931036,
+        "p_value": 0.0807919208079192,
+        "separated": false,
+        "slug": "emb-chemeleon_pec50256__ro-none__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.01600985221674877,
+        "p_value": 0.023797620237976203,
+        "separated": false,
+        "slug": "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.010221674876847291,
+        "p_value": 0.0011998800119988001,
+        "separated": true,
+        "slug": "emb-none__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.010714285714285714,
+        "p_value": 0.0015998400159984002,
+        "separated": true,
+        "slug": "emb-chemprop_log2fc__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.00024630541871921186,
+        "p_value": 0.00019998000199980003,
+        "separated": true,
+        "slug": "emb-chemprop_log2fc__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.017980295566502463,
+        "p_value": 0.0327967203279672,
+        "separated": false,
+        "slug": "emb-chemeleon_pec50256__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.00036945812807881776,
+        "p_value": 0.00019998000199980003,
+        "separated": true,
+        "slug": "emb-none__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.008374384236453201,
+        "p_value": 0.00039996000399960006,
+        "separated": true,
+        "slug": "emb-chemprop_log2fc__ro-none__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.0004926108374384237,
+        "p_value": 0.00019998000199980003,
+        "separated": true,
+        "slug": "emb-chemeleon256__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.0008620689655172414,
+        "p_value": 0.00019998000199980003,
+        "separated": true,
+        "slug": "emb-none__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.0007389162561576355,
+        "p_value": 0.00019998000199980003,
+        "separated": true,
+        "slug": "emb-none__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.0006157635467980297,
+        "p_value": 0.00019998000199980003,
+        "separated": true,
+        "slug": "emb-none__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      }
+    ],
+    "fdr": 0.05,
+    "n_comparisons": 406,
+    "n_separated_pairs": 119,
+    "procedure": "all-pairwise paired bootstrap, Benjamini-Hochberg"
+  },
   "stage": "ingredients",
   "tie_broken_on_cost": true,
   "tied_with_leader": [
     "emb-chemeleon_log2fc256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none",
     "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none",
+    "emb-chemeleon256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none",
+    "emb-chemeleon_log2fc256__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none",
+    "emb-chemeleon_pec50256__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none",
+    "emb-chemeleon_pec50256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none",
+    "emb-chemeleon256__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none",
     "emb-chemeleon_log2fc256__ro-none__desc-none__reg-tabpfn-v3__cal-none",
+    "emb-chemeleon256__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none",
+    "emb-chemeleon_log2fc256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none",
+    "emb-chemprop_log2fc__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none",
+    "emb-chemprop_log2fc__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none",
     "emb-chemeleon_pec50256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none",
     "emb-chemeleon_pec50256__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none",
-    "emb-chemeleon_pec50256__ro-none__desc-none__reg-tabpfn-v3__cal-none"
+    "emb-chemeleon_pec50256__ro-none__desc-none__reg-tabpfn-v3__cal-none",
+    "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none",
+    "emb-chemeleon_pec50256__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none"
   ],
   "version": 1,
-  "wall_clock_s": 0.661,
+  "wall_clock_s": 0.544,
   "within_seed_spread": [
     "emb-chemeleon_log2fc256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none",
-    "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none"
+    "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none",
+    "emb-chemeleon256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none"
   ]
 }

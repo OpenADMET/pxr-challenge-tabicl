@@ -237,16 +237,36 @@ tabular:
         chooses: [descriptors, descriptor_pca]
         rule: >
           Lowest MAE of the five-seed ensemble on phase 2, then two bars before
-          a cheaper configuration may displace it. A paired bootstrap over the
-          260 compounds decides which configurations the leader does not
-          separate from. That bar alone is too weak to act on, since at this
-          sample size it fails to separate differences ten times the run-to-run
-          noise, so a second bar applies: the gap to the leader must be no
-          larger than the leader's own standard deviation across seeds, which
-          is to say the saving must cost less than changing the training seed
-          does. The cheapest configuration clearing both wins, cheap meaning
-          fewer blocks and then fewer columns. The tied set, the affordable
-          subset, the budget and the tie-break are all recorded.
+          a cheaper configuration may displace it.
+
+          The first bar is statistical. Every pair of configurations is
+          compared by a paired bootstrap over the 260 compounds, resampled on
+          one shared set of draws so each difference is paired, and the family
+          of pairs is corrected by Benjamini-Hochberg at a false discovery rate
+          of 0.05. The leader's row of that family is the tied set. The family
+          is every pair rather than only the comparisons against the leader,
+          because a figure of nineteen bars invites comparing any two of them
+          and because under a step-up procedure the larger family is the more
+          powerful one here. Each verdict is recorded with its p-value and the
+          threshold it was judged against.
+
+          That bar alone is too weak to act on, since at this sample size it
+          fails to separate differences ten times the run-to-run noise, so a
+          second bar applies: the gap to the leader must be no larger than the
+          leader's own standard deviation across seeds, which is to say the
+          saving must cost less than changing the training seed does. The
+          cheapest configuration clearing both wins, cheap meaning fewer blocks
+          and then fewer columns. The tied set, the affordable subset, the
+          budget and the tie-break are all recorded.
+
+          Two limits this rule does not remove. Benjamini-Hochberg holds under
+          independence or positive regression dependence, and comparisons on a
+          shared compound set are correlated rather than independent; that is
+          the case it is generally taken to cover, and it is not proven here.
+          And the reference is the empirical leader, chosen by looking at the
+          same data the comparisons use, so the tied sets are if anything
+          narrower than they should be. No correction in this family addresses
+          that.
 
     - id: embedding_width
       figures: [fig5b]
@@ -267,8 +287,8 @@ tabular:
         id: embedding_reduction
         chooses: [embedding_pca]
         rule: >
-          Same rule as the descriptor gate: ensemble MAE, a paired bootstrap
-          over the same 260 compounds, and a saving accepted only when it is
+          Same rule as the descriptor gate: ensemble MAE, an all-pairwise paired
+          bootstrap over the same 260 compounds under Benjamini-Hochberg, and a saving accepted only when it is
           smaller than the leader's spread across seeds.
 
     - id: ingredients
@@ -296,8 +316,8 @@ tabular:
         id: best_featureset
         chooses: [embedding, readout, descriptors]
         rule: >
-          Same rule as the width gates: ensemble MAE, a paired bootstrap over
-          the 260 compounds, and a saving accepted only when it is smaller than
+          Same rule as the width gates: ensemble MAE, an all-pairwise paired bootstrap over
+          the 260 compounds under Benjamini-Hochberg, and a saving accepted only when it is smaller than
           the leader's spread across seeds. This gate may choose no descriptor
           block at all, superseding what the descriptor probe settled, if an
           embedding on its own is what wins.
