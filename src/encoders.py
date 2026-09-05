@@ -86,7 +86,7 @@ logger = logging.getLogger(__name__)
 CHECKPOINT_DIR = Path("data/encoders")
 
 # bumped when the meaning of a trained encoder changes, never for a cosmetic edit
-VERSION = 2
+VERSION = 3
 
 # columns of the single-concentration file this module reads
 LOG2FC_VALUE_COL = "log2_fc_estimate"
@@ -151,6 +151,14 @@ class EncoderConfig:
     val_fraction : float or None
         Fraction of the log2FC pool held out for early stopping. Must be None
         for the pEC50 encoder, whose validation partition is a split resource.
+    warmup_epochs : int
+        Epochs the noam schedule spends ramping the learning rate to
+        ``max_lr`` before it decays. Both passes run noam: a plateau schedule
+        needs a validation loss and the second pass has none, and running one
+        schedule in each pass would choose an epoch count under the first and
+        spend it under the second. The decay is calibrated to ``max_epochs``
+        in both passes, so the learning rate at a given epoch is the same
+        whichever pass is running.
     """
 
     seed: int
@@ -169,7 +177,7 @@ class EncoderConfig:
     freeze_epochs: int = 2
     patience: int = 10
     min_delta: float = 1e-3
-    reduce_lr_patience: int = 5
+    warmup_epochs: int = 2
     gradient_clip_val: float = 1.0
     accelerator: str = "auto"
     num_workers: int = 0
@@ -483,6 +491,24 @@ def _split_training_set(
     )
 
 
+class _StopAfter(L.Callback):
+    """End training after a fixed number of epochs, leaving the schedule alone.
+
+    Lightning's ``max_epochs`` is what the noam schedule calibrates its decay
+    against, so it has to stay at the budget the first pass ran under. This
+    stops the second pass at the epoch that pass chose without shortening the
+    schedule underneath it.
+    """
+
+    def __init__(self, epochs: int) -> None:
+        self.epochs = epochs
+
+    def on_train_epoch_end(self, trainer: L.Trainer, pl_module: Any) -> None:
+        """Ask the trainer to stop once the chosen count is reached."""
+        if trainer.current_epoch + 1 >= self.epochs:
+            trainer.should_stop = True
+
+
 class _FreezeMessagePassing(L.Callback):
     """Hold the message-passing encoder fixed for the first few epochs.
 
@@ -549,12 +575,12 @@ def _build_model(config: EncoderConfig, n_tasks: int, scaler: Any) -> ChemPropMo
         ffn_hidden_dim=config.ffn_hidden_dim,
         ffn_num_layers=config.ffn_num_layers,
         dropout=config.dropout,
-        # the run's length is decided by early stopping, not known up front, so
-        # the schedule has to react to the metric rather than follow a budget
-        scheduler="plateau",
-        monitor_metric="val_loss",
-        monitor_metric_mode="min",
-        reduce_lr_patience=config.reduce_lr_patience,
+        # noam in both passes. A plateau schedule reacts to a validation loss,
+        # and the second pass has none to react to, so it cannot run one; and a
+        # first pass on plateau followed by a second on noam would pick an epoch
+        # count under one schedule and spend it under another
+        scheduler="noam",
+        warmup_epochs=config.warmup_epochs,
         max_lr=config.max_lr,
         weight_decay=config.weight_decay,
     )
@@ -693,8 +719,14 @@ def _refit_on_all(
     )
 
     model = _build_model(config, len(training.task_names), scaler)
+
+    # noam calibrates its decay to the trainer's epoch budget, so the budget
+    # here is the first pass's, not the count it settled on. Otherwise this pass
+    # would compress a fifty-epoch schedule into a handful and train under
+    # learning rates the first pass never saw, which would make the count it
+    # chose meaningless. The run is stopped at that count instead
     trainer = L.Trainer(
-        max_epochs=epochs,
+        max_epochs=config.max_epochs,
         accelerator=config.accelerator,
         devices=1,
         logger=False,
@@ -703,7 +735,7 @@ def _refit_on_all(
         enable_model_summary=False,
         gradient_clip_val=config.gradient_clip_val,
         log_every_n_steps=1,
-        callbacks=[_FreezeMessagePassing(config.freeze_epochs)],
+        callbacks=[_FreezeMessagePassing(config.freeze_epochs), _StopAfter(epochs)],
     )
     logger.info(
         "%s: refitting on %d compounds for %d epoch(s), no validation",

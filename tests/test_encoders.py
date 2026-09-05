@@ -11,6 +11,8 @@ test that actually trains is marked ``slow`` and skipped unless
 from __future__ import annotations
 
 import os
+from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -40,6 +42,8 @@ from encoders import (
     phase2_molecules,
     register,
 )
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # molecules the fast tests train nothing on; four distinct, parsable structures
 SMILES = ["CCO", "CCC", "c1ccccc1", "CCN"]
@@ -531,3 +535,43 @@ def test_the_encoder_version_moved_with_the_semantics():
     # bumping this is what stops artifacts trained under the old single-pass
     # behaviour from being served for the new one
     assert encoders.VERSION >= 2
+
+
+def test_both_passes_use_the_same_scheduler():
+    # a plateau schedule needs a validation loss and the refit pass has none;
+    # running plateau then noam would choose an epoch count under one schedule
+    # and spend it under another
+    source = (REPO_ROOT / "src" / "encoders.py").read_text()
+
+    assert 'scheduler="noam"' in source
+    assert 'scheduler="plateau"' not in source
+    assert "monitor_metric" not in source
+
+
+def test_the_refit_keeps_the_first_pass_epoch_budget_for_the_schedule():
+    # noam calibrates its decay against the trainer's max_epochs, so shortening
+    # that to the chosen count would compress the whole schedule and train the
+    # second pass under learning rates the first never saw
+    source = (REPO_ROOT / "src" / "encoders.py").read_text()
+    refit = source[source.index("def _refit_on_all") : source.index("def _ensure_encoder")]
+
+    assert "max_epochs=config.max_epochs" in refit
+    assert "_StopAfter(epochs)" in refit
+
+
+def test_the_stop_callback_ends_training_at_the_chosen_epoch():
+    stop = encoders._StopAfter(3)
+
+    class _Trainer:
+        def __init__(self, epoch):
+            self.current_epoch = epoch
+            self.should_stop = False
+
+    early, last = _Trainer(1), _Trainer(2)
+    # a stand-in for the trainer, which the callback only reads two fields of
+    stop.on_train_epoch_end(cast("Any", early), None)
+    stop.on_train_epoch_end(cast("Any", last), None)
+
+    assert early.should_stop is False
+    # epochs are zero-indexed, so finishing epoch 2 is the third epoch
+    assert last.should_stop is True
