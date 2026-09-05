@@ -44,10 +44,10 @@ def test_the_width_probes_lead_and_wait_on_nothing(spec):
 
 def test_the_descriptor_probe_crosses_every_block_with_every_width_it_can(spec):
     configs = spec.expand("descriptor_width")
-    # 3 blocks x 4 widths, less RDKit at 256: it has 217 columns, so that is
-    # not a reduction and the decomposition refuses it
-    assert len(configs) == 11
-    assert sorted({c.descriptor_pca for c in configs}) == [32, 64, 128, 256]
+    # 3 blocks x (native + 4 widths), less RDKit at 256: it has 217 columns, so
+    # that is not a reduction and the decomposition refuses it
+    assert len(configs) == 14
+    assert sorted({c.descriptor_pca for c in configs}) == [manifest.NATIVE, 32, 64, 128, 256]
     assert {c.descriptors for c in configs} == {"mordred", "rdkit", "rdkit_mordred"}
     assert {c.regressor for c in configs} == {"tabpfn-v3"}
     assert {c.embedding for c in configs} == {"none"}
@@ -63,14 +63,38 @@ def test_a_width_that_would_not_reduce_its_block_is_not_a_configuration(spec):
         for c in spec.expand("descriptor_width")
     }
 
-    assert widths["rdkit"] == [32, 64, 128]
-    assert widths["mordred"] == [32, 64, 128, 256]
-    assert widths["rdkit_mordred"] == [32, 64, 128, 256]
+    assert widths["rdkit"] == [manifest.NATIVE, 32, 64, 128]
+    assert widths["mordred"] == [manifest.NATIVE, 32, 64, 128, 256]
+    assert widths["rdkit_mordred"] == [manifest.NATIVE, 32, 64, 128, 256]
+
+
+def test_every_probe_carries_an_unreduced_reference(spec):
+    # without it the probe compares reductions only to each other and cannot
+    # say what reducing costs, which is the question the figure asks
+    for stage, axis in (
+        ("descriptor_width", "descriptor_pca"),
+        ("embedding_width", "embedding_pca"),
+    ):
+        widths = {getattr(c, axis) for c in spec.expand(stage)}
+        assert manifest.NATIVE in widths
+
+
+def test_a_kept_block_and_an_absent_one_are_different_configurations():
+    kept = manifest.TabularConfig(
+        "none", manifest.NOT_REDUCED, "none", "rdkit", manifest.NATIVE, "lgbm", "none"
+    )
+    absent = manifest.TabularConfig(
+        "none", manifest.NOT_REDUCED, "none", "none", manifest.NOT_REDUCED, "lgbm", "none"
+    )
+
+    assert kept.slug != absent.slug
+    assert kept.slug.endswith("__reg-lgbm__cal-none")
+    assert "rdkit-native" in kept.slug
 
 
 def test_the_embedding_probe_sweeps_width_on_the_frozen_embedding(spec):
     configs = spec.expand("embedding_width")
-    assert sorted(c.embedding_pca for c in configs) == [32, 64, 128, 256]
+    assert sorted(c.embedding_pca for c in configs) == [manifest.NATIVE, 32, 64, 128, 256]
     # a fine-tuned embedding would need an encoder, and the probe runs before
     # any encoder is trained
     assert {c.embedding for c in configs} == {"chemeleon"}

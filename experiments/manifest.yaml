@@ -65,8 +65,11 @@ seeds: [0, 1, 2, 3, 4]
 # ---------------------------------------------------------------------------
 tabular:
   axes:
-    # a block declaring reduce: true takes its width from the matching width
-    # axis, so a width has exactly one home. A block without it is passed
+    # a width axis carries the level "native", meaning the block is kept whole.
+    # It is the reference the reduced widths are measured against: without it a
+    # probe compares reductions only to each other and cannot say what reducing
+    # costs. A block declaring reduce: true takes its width from the matching
+    # width axis, so a width has exactly one home. A block without it is passed
     # through at its native size. n_features is the block's own column count,
     # and a width at or above it is not a reduction: RDKit has 217 columns, so
     # projecting it to 256 is not a configuration that exists. A test checks
@@ -77,7 +80,7 @@ tabular:
       chemprop_log2fc: {block: chemprop_log2fc_embedding}
       chemeleon_log2fc: {block: chemeleon_log2fc_embedding, reduce: true, n_features: 2048}
       chemeleon_pec50: {block: chemeleon_pec50_embedding, reduce: true, n_features: 2048}
-    embedding_pca: [32, 64, 128, 256]
+    embedding_pca: [native, 32, 64, 128, 256]
     readout:
       none: null
       # two predicted log2FC columns; they mean something column by column, so
@@ -88,7 +91,7 @@ tabular:
       mordred: {blocks: [mordred], reduce: true, n_features: 1613}
       rdkit: {blocks: [rdkit], reduce: true, n_features: 217}
       rdkit_mordred: {blocks: [rdkit, mordred], reduce: true, n_features: 1830}
-    descriptor_pca: [32, 64, 128, 256]
+    descriptor_pca: [native, 32, 64, 128, 256]
     regressor:
       - lgbm
       - xgboost

@@ -98,7 +98,12 @@ def planned_reductions(
 
     for group in ("embedding", "readout", "descriptors"):
         width_axis = manifest_module.WIDTH_OF.get(group)
-        available = widths if widths is not None else list(axes.get(width_axis or "", []))
+        declared = axes.get(width_axis or "", [])
+        available = (
+            widths
+            if widths is not None
+            else [manifest_module.width_level(level) for level in declared]
+        )
         for level in axes[group].values():
             if level is None:
                 continue
@@ -110,9 +115,11 @@ def planned_reductions(
             # a width at or above the block's own size is not a reduction, and
             # the decomposition refuses it; the manifest declares the size
             columns = level.get("n_features")
-            wanted.extend(
-                (names, width) for width in available if columns is None or width < columns
-            )
+            for width in available:
+                if width in (manifest_module.NATIVE, manifest_module.NOT_REDUCED):
+                    wanted.append((names, None))
+                elif columns is None or width < columns:
+                    wanted.append((names, width))
 
     if blocks is None:
         return wanted

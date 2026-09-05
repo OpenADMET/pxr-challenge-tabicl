@@ -166,14 +166,15 @@ def test_a_reducible_block_is_planned_at_every_width_its_axis_declares(spec):
     planned = planned_reductions(spec)
     widths = {width for names, width in planned if names == ["mordred"]}
 
-    assert widths == set(spec.axes["descriptor_pca"])
+    # "native" is planned as an unrotated pass, which the reduction spells None
+    assert widths == {None, 32, 64, 128, 256}
 
 
 def test_an_embedding_takes_its_widths_from_the_embedding_axis(spec):
     planned = planned_reductions(spec)
     widths = {width for names, width in planned if names == ["chemeleon"]}
 
-    assert widths == set(spec.axes["embedding_pca"])
+    assert widths == {None, 32, 64, 128, 256}
 
 
 def test_a_block_that_is_passed_through_is_planned_once_and_unrotated(spec):
@@ -201,6 +202,8 @@ def test_the_plan_matches_what_the_sweep_asks_for(spec):
             names = tuple(axis.get("blocks", [axis["block"]] if "block" in axis else []))
             width_axis = manifest.WIDTH_OF.get(group)
             width = getattr(config, width_axis) if width_axis and axis.get("reduce") else None
+            if width in (manifest.NATIVE, manifest.NOT_REDUCED):
+                width = None
             assert (names, width) in planned
 
 

@@ -55,8 +55,15 @@ TABULAR_AXES = (
 WIDTH_OF = {"embedding": "embedding_pca", "descriptors": "descriptor_pca"}
 WIDTH_AXES = {width: block for block, width in WIDTH_OF.items()}
 
-# the width of a block that is passed through unreduced, or is not there at all
+# the width recorded for a block this configuration does not carry at all
 NOT_REDUCED = 0
+
+# the width recorded for a block that is present and deliberately not reduced.
+# It is distinct from NOT_REDUCED because the two are different configurations:
+# one has no such block, the other has all of it. Written in the manifest as
+# the level "native" and stored as this sentinel, so the axis stays integral
+NATIVE = -1
+NATIVE_LEVEL = "native"
 
 # a restricted level that stands for whatever the gates before a stage chose,
 # so a stage can sweep "no descriptors against the descriptor block that won"
@@ -297,7 +304,8 @@ class Manifest:
     def _levels(self, axis: str) -> Iterator[Any]:
         """Yield every level of an axis, whether it is a mapping or a list."""
         values = self.axes[axis]
-        yield from (values.keys() if isinstance(values, dict) else values)
+        levels = values.keys() if isinstance(values, dict) else values
+        yield from (width_level(level) if axis in WIDTH_AXES else level for level in levels)
 
 
 def load(path: Path = MANIFEST_PATH, prior_summary: Path | None = None) -> Manifest:
@@ -399,6 +407,11 @@ def _as_tuple(value: Any) -> tuple[str, ...]:
     return (value,) if isinstance(value, str) else tuple(value)
 
 
+def width_level(level: Any) -> int:
+    """Read a width axis level, which may be the word ``native``."""
+    return NATIVE if level == NATIVE_LEVEL else int(level)
+
+
 def native_width(axes: dict, block_axis: str, level: str) -> int | None:
     """Return a block level's own column count, where the manifest declares one."""
     levels = axes.get(block_axis)
@@ -417,6 +430,10 @@ def _widths_reduce(config: TabularConfig, axes: dict) -> bool:
     for width_axis, block_axis in WIDTH_AXES.items():
         width = getattr(config, width_axis)
         if width == NOT_REDUCED:
+            continue
+        if width == NATIVE:
+            # keeping every column is always possible, and is the reference the
+            # reduced widths are measured against
             continue
         columns = native_width(axes, block_axis, getattr(config, block_axis))
         if columns is not None and width >= columns:
@@ -443,7 +460,9 @@ def _normalize(config: TabularConfig, axes: dict) -> TabularConfig:
 
 def _widened(level: str, width: int) -> str:
     """Render a block level with its reduction width, where it has one."""
-    return level if width == NOT_REDUCED else f"{level}{width}"
+    if width == NOT_REDUCED:
+        return level
+    return f"{level}-{NATIVE_LEVEL}" if width == NATIVE else f"{level}{width}"
 
 
 def _deduplicate(configs: Iterable[TabularConfig]) -> list[TabularConfig]:

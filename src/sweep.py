@@ -35,6 +35,7 @@ from sklearn.isotonic import IsotonicRegression
 
 import evaluate
 import features
+import manifest as manifest_module
 import provenance
 import reduce as reduction
 import regressors
@@ -132,6 +133,9 @@ def reduced_blocks(
         # that belongs to it; anything else is passed through at native size
         width_axis = WIDTH_OF.get(group)
         width = getattr(config, width_axis) if width_axis and spec.get("reduce") else None
+        if width in (manifest_module.NATIVE, manifest_module.NOT_REDUCED):
+            # kept whole: imputed, but not rotated
+            width = None
 
         raw = [
             features.build(
