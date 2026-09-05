@@ -16,6 +16,14 @@ written out here rather than inherited silently, so a future version of that
 library bumping its own default renames the artifact instead of quietly changing
 it.
 
+One memory behaviour cannot be pinned: TabPFN v3 splits inference over row
+chunks and halves that chunk on an out-of-memory failure, and the chunk size is
+a field of its architecture config rather than a constructor argument. So it is
+recorded instead of controlled. A fit collects the warning-level messages the
+libraries raise and the run carries them as ``regressor_notes``, which is how a
+run that adapted itself is told apart from one that did not. The manifest
+records where the boundary was measured.
+
 Memory settings are pinned here too, for the same reason. TabPFN runs in
 ``low_memory`` fit mode with ``memory_saving_mode`` on, and TabICL at batch size
 1 with its key-value cache off and inactive weights offloaded to host memory.

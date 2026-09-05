@@ -108,6 +108,30 @@ tabular:
       - none
       - isotonic_fitval
 
+  # Where the tabular models stop fitting, measured on this machine at 4,392
+  # training rows rather than taken from documentation.
+  #
+  # TabPFN v3 is the only checkpoint that splits inference over row chunks: the
+  # base architecture leaves chunking off and v3 turns it on, at a default
+  # inference_row_chunk_size of 2048. On an out-of-memory failure it clears its
+  # accumulated parts, halves that chunk and retries the same computation, so
+  # the fit completes under a setting nobody asked for. It announces this
+  # through the logging module, and src/regressors.py collects such messages
+  # into each run's regressor_notes so the record says when it happened.
+  #
+  # Measured: the CheMeleon embedding at 384 components fits without adapting;
+  # at 512 it does not, and halves to 1024 rows. The halved value is written
+  # back onto the model instance, but TabPFN caches the checkpoint rather than
+  # the module, so a fresh regressor starts at 2048 again and the adaptation
+  # does not carry into later runs. That was checked, not assumed.
+  #
+  # inference_row_chunk_size is a field of the architecture config, not a
+  # TabPFNRegressor argument, so there is no supported way to pin it. It can be
+  # assigned on each entry of the fitted regressor's models_, and deliberately
+  # is not: it is a private attribute of a version-pinned architecture, it would
+  # need rechecking on every upgrade, and the widths it would buy lost anyway.
+  tabpfn_v3_row_chunking: measured at 4392 rows; 384 columns fit, 512 adapt
+
   # widest block that is run unreduced. Mordred at 1,613 columns and Mordred
   # with RDKit at 1,830 do not fit the tabular models on this GPU, and the
   # CheMeleon embedding at 2,048 is wider still and past TabPFN's documented
