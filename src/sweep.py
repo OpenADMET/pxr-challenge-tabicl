@@ -52,6 +52,10 @@ VERSION = 1
 # of the configuration and not of dictionary iteration order
 BLOCK_ORDER = ("embedding", "readout", "descriptors")
 
+# which width axis reduces which block group; a group absent from this mapping
+# is never reduced
+WIDTH_OF = {"embedding": "embedding_pca", "descriptors": "descriptor_pca"}
+
 # what the vendored architecture must supply: axes, seed and partitions in,
 # test-partition predictions in that partition's own row order, plus whatever
 # the training run wants recorded alongside them
@@ -127,7 +131,11 @@ def reduced_blocks(
         spec = manifest.axes[group][level]
 
         names = spec.get("blocks", [spec["block"]] if "block" in spec else [])
-        width = config.descriptor_pca if group == "descriptors" else spec.get("pca")
+
+        # a block declaring reduce: true takes its width from the width axis
+        # that belongs to it; anything else is passed through at native size
+        width_axis = WIDTH_OF.get(group)
+        width = getattr(config, width_axis) if width_axis and spec.get("reduce") else None
 
         raw = [
             features.build(

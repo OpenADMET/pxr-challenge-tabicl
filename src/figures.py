@@ -55,6 +55,8 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 import evaluate
+import gates
+import manifest as manifest_module
 import regressors
 from data import CANONICAL_COL
 from evaluate import BootstrapResult
@@ -200,10 +202,12 @@ def annotate(frame: pd.DataFrame) -> pd.DataFrame:
     labels, counts = _featureset_columns(frame)
     regressor = frame["regressor"] if "regressor" in frame else pd.Series(index=frame.index)
     descriptors = frame["descriptors"] if "descriptors" in frame else pd.Series(index=frame.index)
+    embedding = frame["embedding"] if "embedding" in frame else pd.Series(index=frame.index)
     return frame.assign(
         featureset=labels,
         n_blocks=counts,
         has_descriptors=(descriptors.notna() & descriptors.ne("none")).astype("boolean"),
+        has_embedding=(embedding.notna() & embedding.ne("none")).astype("boolean"),
         has_uncertainty=regressor.isin(UNCERTAINTY_KINDS).astype("boolean"),
         uncertainty_kind=regressor.map(UNCERTAINTY_KINDS).astype("string"),
     )
@@ -262,7 +266,41 @@ def slice_for(spec: Manifest, figure_id: str, frame: pd.DataFrame) -> pd.DataFra
         The annotated rows this figure is drawn from, possibly empty.
     """
     declaration = figure_declaration(spec, figure_id)
-    return select_rows(annotate(frame), declaration.get("select") or {})
+    select = resolve_select(declaration.get("select") or {}, figure_id)
+    return select_rows(annotate(frame), select)
+
+
+def resolve_select(select: dict[str, Any], figure_id: str) -> dict[str, Any]:
+    """Replace every ``@gate`` reference with the value the gates chose.
+
+    A figure that pinned a winner in its own declaration would be a second
+    place for that winner to live, and the two would drift the first time a
+    gate landed somewhere else. So the reference is resolved against the
+    recorded decisions instead.
+
+    Raises
+    ------
+    FigureError
+        If a reference names an axis no resolved gate has chosen.
+    """
+    chosen = gates.all_chosen()
+
+    def resolve(axis: str, level: Any) -> Any:
+        if level != manifest_module.GATE_REF:
+            return level
+        if axis not in chosen:
+            raise FigureError(
+                f"{figure_id}: selection says {manifest_module.GATE_REF!r} for {axis!r}, "
+                f"but no resolved gate has chosen it; known: {sorted(chosen)}"
+            )
+        return chosen[axis]
+
+    return {
+        axis: [resolve(axis, level) for level in value]
+        if isinstance(value, list)
+        else resolve(axis, value)
+        for axis, value in select.items()
+    }
 
 
 def anchor_lines(
@@ -642,6 +680,33 @@ def figure_5(spec: Manifest, frame: pd.DataFrame, metric: str = DEFAULT_METRIC) 
     """
     return _spread_figure(
         spec, "fig5", frame, category="featureset", hue="regressor", metric=metric
+    )
+
+
+def figure_5b(spec: Manifest, frame: pd.DataFrame, metric: str = DEFAULT_METRIC) -> Figure:
+    """Draw one panel per embedding PCA width over embedding-only rows.
+
+    Parameters
+    ----------
+    spec : Manifest
+        The parsed manifest.
+    frame : DataFrame
+        The tidy per-run table.
+    metric : str, optional
+        Which metric to plot. Default is ``mae``.
+
+    Returns
+    -------
+    Figure
+        The rendered figure.
+
+    Raises
+    ------
+    FigureError
+        If the figure's slice is empty.
+    """
+    return _spread_figure(
+        spec, "fig5b", frame, category="featureset", hue="regressor", metric=metric
     )
 
 
@@ -1323,6 +1388,7 @@ _PLAIN = {
     "fig1": figure_1,
     "fig2": figure_2,
     "fig5": figure_5,
+    "fig5b": figure_5b,
     "fig6": figure_6,
 }
 _WITH_BOOTSTRAP = {

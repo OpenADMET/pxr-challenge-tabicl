@@ -37,6 +37,7 @@ def tiny(monkeypatch, tmp_path):
 def _config(**overrides) -> manifest_module.TabularConfig:
     base = {
         "embedding": "none",
+        "embedding_pca": 0,
         "readout": "none",
         "descriptors": "rdkit",
         "descriptor_pca": 4,

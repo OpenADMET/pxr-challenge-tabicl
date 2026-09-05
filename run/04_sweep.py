@@ -1,9 +1,12 @@
 """Run one stage of the tabular sweep: every configuration it varies, at every seed.
 
 A stage sweeps the dimensions it names and holds fixed what an earlier gate
-already settled on this split. Pass those settled axes with repeated ``--fix``,
-for example ``--fix embedding=chemeleon --fix regressor=tabicl``; a stage that
-declares ``fixed_from`` refuses to expand without them.
+already settled on this split. Those settled axes are read from the gate files
+``run/05_aggregate.py`` writes, so running a chain of stages needs no values
+carried between commands by hand and a replicator cannot mistype one. ``--fix
+axis=value`` overrides a gate for exploration, and the override is recorded in
+the run's own specification, so a hand-pinned run is never mistaken for a gated
+one.
 
 The graph-network cells are not a stage, since they sweep no shared axis and
 depend on no gate. ``--stage gnn`` trains every cell the manifest enumerates,
@@ -27,6 +30,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import encoders  # noqa: E402
+import gates  # noqa: E402
 import manifest as manifest_module  # noqa: E402
 import sweep  # noqa: E402
 
@@ -58,7 +62,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="append",
         default=[],
         metavar="AXIS=VALUE",
-        help="an axis an earlier gate settled; repeat for each one",
+        help="override an axis a gate settled; repeat for each one",
     )
     parser.add_argument(
         "--seeds",
@@ -147,11 +151,15 @@ def main() -> None:
         _run_gnn(spec, args, seeds)
         return
 
-    resolved = parse_fixed(args.fix)
+    overrides = parse_fixed(args.fix)
+    settled = gates.settled(spec, args.stage)
+    resolved = {**settled, **overrides}
     configs = spec.expand(args.stage, resolved)
 
     print(f"stage {args.stage}: {len(configs)} configurations x {len(seeds)} seeds")
-    print(f"  fixed: {resolved or 'nothing (the stage settles its own axes)'}")
+    print(f"  from gates: {settled or 'nothing (the stage settles its own axes)'}")
+    if overrides:
+        print(f"  overridden by hand: {overrides}")
     print(f"  seeds: {seeds}")
     for config in configs:
         print(f"  {config.slug}")

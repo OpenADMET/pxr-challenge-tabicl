@@ -3,8 +3,16 @@
 The tidy table holds one row per run. Coverage is reported per stage, since a
 stage's ``unplanned`` set is relative to that stage alone: runs another stage
 called for show up there, so read the stages together to account for a whole
-sweep. A stage that waits on an earlier gate needs those axes passed with
-``--fix``, the same way the sweep takes them.
+sweep. A stage that waits on an earlier gate reads that gate's recorded
+decision, the same way the sweep does; ``--fix`` overrides it.
+
+Gates are also resolved here, because deciding one means reading every run of
+the stage that gates it, which is what this module already does. Each stage
+whose runs are complete has its rule applied and its decision written to
+``results/gates/<id>.json``; a stage that is unfinished, or that waits on a gate
+not yet decided, is reported and skipped. An existing decision is left alone
+unless ``--regate`` is passed, so a settled gate cannot move under a sweep that
+has already been run against it.
 """
 
 from __future__ import annotations
@@ -19,6 +27,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import aggregate  # noqa: E402
+import gates  # noqa: E402
 import manifest as manifest_module  # noqa: E402
 
 DESCRIPTION = "Read every run into results.parquet and report coverage against the manifest."
@@ -48,6 +57,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=[],
         metavar="AXIS=VALUE",
         help="an axis an earlier gate settled, needed by the stages that wait on it",
+    )
+    parser.add_argument(
+        "--regate",
+        action="store_true",
+        help="re-decide gates that already have a recorded decision",
     )
     parser.add_argument(
         "--top",
@@ -86,8 +100,9 @@ def report_coverage(
             print(f"{stage_id}: reuses earlier runs and adds none of its own")
             continue
         try:
-            coverage = aggregate.stage_coverage(spec, stage_id, resolved, results_root)
-        except manifest_module.ManifestError as err:
+            settled = resolved or gates.settled(spec, stage_id)
+            coverage = aggregate.stage_coverage(spec, stage_id, settled, results_root)
+        except (gates.GateError, manifest_module.ManifestError) as err:
             # a stage waiting on a gate cannot be expanded until that gate is
             # decided, which is a state to report rather than an error to raise
             print(f"{stage_id}: not expandable yet ({err})")
@@ -95,6 +110,29 @@ def report_coverage(
         print(aggregate.coverage_report(coverage, stage_id))
 
     print(aggregate.coverage_report(aggregate.gnn_coverage(spec, results_root), "gnn"))
+
+
+def resolve_gates(spec: manifest_module.Manifest, results_root: Path, *, regate: bool) -> None:
+    """Decide every gate whose stage has finished, and write the decisions."""
+    for stage in spec.stages:
+        if stage.gate is None:
+            continue
+
+        path = gates.gate_path(stage.gate.id)
+        if path.exists() and not regate:
+            decision = gates.read(stage.gate.id)
+            print(f"{stage.gate.id}: already decided, chose {decision['chosen']}")
+            continue
+
+        try:
+            decision = gates.resolve(spec, stage.id, results_dir=results_root)
+        except (gates.GateError, manifest_module.ManifestError) as err:
+            print(f"{stage.gate.id}: not decidable yet ({err})")
+            continue
+
+        gates.write(decision)
+        note = " (tie broken on cost)" if decision["tie_broken_on_cost"] else ""
+        print(f"{stage.gate.id}: chose {decision['chosen']}{note}")
 
 
 def main() -> None:
@@ -112,6 +150,8 @@ def main() -> None:
         leaders = ensembles.nsmallest(args.top, "mae")
         print(f"leading ensembles by mae ({len(ensembles)} configurations):")
         print(leaders[["config_id", "n_seeds", "mae", "rmse", "r2"]].to_string(index=False))
+
+    resolve_gates(spec, args.results, regate=args.regate)
 
     stage_ids = args.stage or [stage.id for stage in spec.stages]
     report_coverage(spec, stage_ids, parse_fixed(args.fix), args.results)

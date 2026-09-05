@@ -297,7 +297,7 @@ def ensemble_summary(frame: pd.DataFrame) -> pd.DataFrame:
 
     rows = []
     for key, group in frame.groupby(list(GROUP_COLUMNS), dropna=False, observed=True):
-        stacked, observed = _stack_predictions([Path(p) for p in group["run_dir"]])
+        stacked, observed = stack_predictions([Path(p) for p in group["run_dir"]])
         scores = evaluate.metrics(observed, evaluate.ensemble_mean(stacked))
         rows.append(
             {
@@ -438,7 +438,7 @@ def _seed_of(run_dir: Path, record: dict[str, Any]) -> int:
     return seed
 
 
-def _stack_predictions(run_dirs: Sequence[Path]) -> tuple[np.ndarray, np.ndarray]:
+def stack_predictions(run_dirs: Sequence[Path]) -> tuple[np.ndarray, np.ndarray]:
     """Read a configuration's seed-wise predictions, aligned on compound.
 
     Returns the predictions as one row per seed and the observed values once,

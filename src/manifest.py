@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from itertools import product
 from pathlib import Path
 from typing import Any
@@ -38,7 +38,29 @@ MANIFEST_PATH = Path("experiments/manifest.yaml")
 RESULTS_DIR = Path("results")
 
 # the axes a tabular configuration is made of, in slug order
-TABULAR_AXES = ("embedding", "readout", "descriptors", "descriptor_pca", "regressor", "calibration")
+TABULAR_AXES = (
+    "embedding",
+    "embedding_pca",
+    "readout",
+    "descriptors",
+    "descriptor_pca",
+    "regressor",
+    "calibration",
+)
+
+# a width axis and the block axis whose presence makes it mean anything. A width
+# on an absent block is not a configuration, so it is normalized to NOT_REDUCED
+# before a config is built; otherwise two runs would share a directory under
+# different specifications and each would think the other's results were stale
+WIDTH_AXES = {"embedding_pca": "embedding", "descriptor_pca": "descriptors"}
+
+# the width of a block that is passed through unreduced, or is not there at all
+NOT_REDUCED = 0
+
+# a restricted level that stands for whatever the gates before a stage chose,
+# so a stage can sweep "no descriptors against the descriptor block that won"
+# without the winner being written down twice
+GATE_REF = "@gate"
 
 
 class ManifestError(ValueError):
@@ -50,6 +72,7 @@ class TabularConfig:
     """One tabular configuration: which blocks, reduced how, fitted by what."""
 
     embedding: str
+    embedding_pca: int
     readout: str
     descriptors: str
     descriptor_pca: int
@@ -62,6 +85,11 @@ class TabularConfig:
         return self.descriptors != "none"
 
     @property
+    def has_embedding(self) -> bool:
+        """Whether this configuration carries an embedding block."""
+        return self.embedding != "none"
+
+    @property
     def n_blocks(self) -> int:
         """How many feature blocks the configuration draws on."""
         present = [self.embedding != "none", self.readout != "none", self.has_descriptors]
@@ -70,13 +98,10 @@ class TabularConfig:
     @property
     def slug(self) -> str:
         """A readable, deterministic identifier, used as the run directory name."""
-        descriptors = (
-            self.descriptors
-            if not self.has_descriptors
-            else (f"{self.descriptors}{self.descriptor_pca}")
-        )
         return (
-            f"emb-{self.embedding}__ro-{self.readout}__desc-{descriptors}"
+            f"emb-{_widened(self.embedding, self.embedding_pca)}"
+            f"__ro-{self.readout}"
+            f"__desc-{_widened(self.descriptors, self.descriptor_pca)}"
             f"__reg-{self.regressor}__cal-{self.calibration}"
         )
 
@@ -120,10 +145,16 @@ class Stage:
     figures: tuple[str, ...]
     sweeps: tuple[str, ...]
     fixed: dict[str, Any] = field(default_factory=dict)
-    fixed_from: str | None = None
+    fixed_from: tuple[str, ...] = ()
+    restrict: dict[str, tuple[Any, ...]] = field(default_factory=dict)
     gate: Gate | None = None
     reuses_runs: bool = False
     note: str | None = None
+
+    @property
+    def depends_on(self) -> tuple[str, ...]:
+        """Which gates have to be resolved before this stage can expand."""
+        return self.fixed_from
 
 
 @dataclass(frozen=True)
@@ -168,9 +199,10 @@ class Manifest:
         stage_id : str
             Which stage to expand.
         resolved : dict, optional
-            Axis values an earlier gate settled. Required for a stage that
-            names ``fixed_from``, since it cannot know what to hold fixed
-            until the gate before it has been decided.
+            Axis values an earlier gate settled, as :func:`gates.settled`
+            returns them. Required for a stage that names ``fixed_from``,
+            since it cannot know what to hold fixed until the gates before it
+            have been decided.
 
         Returns
         -------
@@ -187,32 +219,49 @@ class Manifest:
             return []
 
         settled = dict(resolved or {})
-        if stage.fixed_from is not None and not settled:
+        if stage.depends_on and not settled:
             raise ManifestError(
-                f"{stage_id}: fixed_from {stage.fixed_from!r} means this stage needs the axes "
-                "that gate chose, but none were supplied"
+                f"{stage_id}: fixed_from {list(stage.depends_on)} means this stage needs the "
+                "axes those gates chose, but none were supplied"
             )
 
-        levels: dict[str, list[Any]] = {}
-        for axis in TABULAR_AXES:
-            if axis in stage.sweeps:
-                levels[axis] = list(self._levels(axis))
-            elif axis in stage.fixed:
-                levels[axis] = [stage.fixed[axis]]
-            elif axis in settled:
-                levels[axis] = [settled[axis]]
-            else:
-                raise ManifestError(
-                    f"{stage_id}: axis {axis!r} is neither swept, fixed, nor settled"
-                )
-
+        levels = {axis: self._stage_levels(stage, axis, settled) for axis in TABULAR_AXES}
         configs = [
-            TabularConfig(**dict(zip(TABULAR_AXES, values, strict=True)))
+            _normalize(TabularConfig(**dict(zip(TABULAR_AXES, values, strict=True))), self.axes)
             for values in product(*(levels[axis] for axis in TABULAR_AXES))
         ]
-        # a width sweep over a featureset with no descriptors would repeat one
-        # configuration under three names
+        # a width sweep over a featureset that carries no such block would
+        # otherwise repeat one configuration under several names
         return [c for c in _deduplicate(configs) if c.n_blocks > 0]
+
+    def _stage_levels(self, stage: Stage, axis: str, settled: dict[str, Any]) -> list[Any]:
+        """Return the levels of one axis this stage runs."""
+        if axis in stage.restrict:
+            restricted = stage.restrict[axis]
+            return [self._dereference(stage, axis, level, settled) for level in restricted]
+        if axis in stage.sweeps:
+            return list(self._levels(axis))
+        if axis in stage.fixed:
+            return [stage.fixed[axis]]
+        if axis in settled:
+            return [settled[axis]]
+        if axis in WIDTH_AXES:
+            # a width nobody named belongs to a block this stage does not carry,
+            # and normalization drops it; a width that is needed and missing is
+            # caught after the configurations are built
+            return [NOT_REDUCED]
+        raise ManifestError(f"{stage.id}: axis {axis!r} is neither swept, fixed, nor settled")
+
+    def _dereference(self, stage: Stage, axis: str, level: Any, settled: dict[str, Any]) -> Any:
+        """Resolve a restricted level, which may point at what a gate chose."""
+        if level != GATE_REF:
+            return level
+        if axis not in settled:
+            raise ManifestError(
+                f"{stage.id}: restrict names {GATE_REF!r} for {axis!r}, but no gate "
+                f"this stage depends on chose it"
+            )
+        return settled[axis]
 
     def planned_runs(
         self,
@@ -340,6 +389,35 @@ def uncovered_prior_levels(manifest: Manifest) -> dict[str, set[str]]:
     return gaps
 
 
+def _as_tuple(value: Any) -> tuple[str, ...]:
+    """Read a field that may name one gate, several, or none."""
+    if value is None:
+        return ()
+    return (value,) if isinstance(value, str) else tuple(value)
+
+
+def _normalize(config: TabularConfig, axes: dict) -> TabularConfig:
+    """Zero the width of any block this configuration does not reduce.
+
+    A width only means something where its block is present and declared
+    reducible. Left alone, two configurations differing in nothing but an
+    inapplicable width would share a run directory while carrying different
+    specifications, and each would read the other's results as stale.
+    """
+    widths: dict[str, int] = {}
+    for width_axis, block_axis in WIDTH_AXES.items():
+        level = getattr(config, block_axis)
+        spec = axes[block_axis].get(level) if isinstance(axes[block_axis], dict) else None
+        if level == "none" or not (spec or {}).get("reduce", False):
+            widths[width_axis] = NOT_REDUCED
+    return replace(config, **widths) if widths else config
+
+
+def _widened(level: str, width: int) -> str:
+    """Render a block level with its reduction width, where it has one."""
+    return level if width == NOT_REDUCED else f"{level}{width}"
+
+
 def _deduplicate(configs: Iterable[TabularConfig]) -> list[TabularConfig]:
     """Drop configurations whose slugs coincide, keeping the first of each."""
     seen: dict[str, TabularConfig] = {}
@@ -356,7 +434,8 @@ def _parse_stage(entry: dict) -> Stage:
         figures=tuple(entry.get("figures", ())),
         sweeps=tuple(entry.get("sweeps", ())),
         fixed=dict(entry.get("fixed") or {}),
-        fixed_from=entry.get("fixed_from"),
+        fixed_from=_as_tuple(entry.get("fixed_from")),
+        restrict={axis: tuple(levels) for axis, levels in (entry.get("restrict") or {}).items()},
         gate=None
         if not gate
         else Gate(id=gate["id"], chooses=tuple(gate["chooses"]), rule=gate["rule"]),
@@ -401,15 +480,29 @@ def _validate(manifest: Manifest) -> None:
 
 def _problems(manifest: Manifest) -> Iterator[str]:
     """Yield every structural problem in the manifest."""
-    gates = {stage.gate.id for stage in manifest.stages if stage.gate}
+    gate_ids = {stage.gate.id for stage in manifest.stages if stage.gate}
     figures = {figure["id"] for figure in manifest.figures}
 
+    # a stage may only inherit from a gate declared before it, so the chain
+    # cannot close on itself or read a decision that does not exist yet
+    decided: set[str] = set()
     for stage in manifest.stages:
-        if stage.fixed_from is not None and stage.fixed_from not in gates:
-            yield f"{stage.id}: fixed_from names {stage.fixed_from!r}, which no stage gates"
-        for axis in (*stage.sweeps, *stage.fixed):
+        for gate_id in stage.depends_on:
+            if gate_id not in gate_ids:
+                yield f"{stage.id}: fixed_from names {gate_id!r}, which no stage gates"
+            elif gate_id not in decided:
+                yield f"{stage.id}: fixed_from names {gate_id!r}, which no earlier stage decides"
+        if stage.gate is not None:
+            decided.add(stage.gate.id)
+        for axis in (*stage.sweeps, *stage.fixed, *stage.restrict):
             if axis not in TABULAR_AXES:
                 yield f"{stage.id}: unknown axis {axis!r}"
+        conflicting = set(stage.restrict) & (set(stage.sweeps) | set(stage.fixed))
+        if conflicting:
+            yield f"{stage.id}: {sorted(conflicting)} is both restricted and swept or fixed"
+        for axis, levels in stage.restrict.items():
+            if GATE_REF in levels and not stage.depends_on:
+                yield f"{stage.id}: restrict {axis!r} says {GATE_REF!r} but the stage gates nothing"
         for figure in stage.figures:
             if figure not in figures:
                 yield f"{stage.id}: names figure {figure!r}, which the manifest does not declare"

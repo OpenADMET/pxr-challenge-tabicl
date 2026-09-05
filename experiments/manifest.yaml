@@ -65,23 +65,27 @@ seeds: [0, 1, 2, 3, 4]
 # ---------------------------------------------------------------------------
 tabular:
   axes:
+    # a block declaring reduce: true takes its width from the matching width
+    # axis, so a width has exactly one home. A block without it is passed
+    # through at its native size
     embedding:
       none: null
-      chemeleon: {block: chemeleon, pca: 256}
-      chemprop_log2fc: {block: chemprop_log2fc_embedding, pca: null}
-      chemeleon_log2fc: {block: chemeleon_log2fc_embedding, pca: 256}
-      chemeleon_pec50: {block: chemeleon_pec50_embedding, pca: 256}
+      chemeleon: {block: chemeleon, reduce: true}
+      chemprop_log2fc: {block: chemprop_log2fc_embedding}
+      chemeleon_log2fc: {block: chemeleon_log2fc_embedding, reduce: true}
+      chemeleon_pec50: {block: chemeleon_pec50_embedding, reduce: true}
+    embedding_pca: [32, 64, 128, 256]
     readout:
       none: null
       # two predicted log2FC columns; they mean something column by column, so
       # they are passed through rather than rotated
-      chemprop_log2fc: {block: chemprop_log2fc_readout, pca: null}
+      chemprop_log2fc: {block: chemprop_log2fc_readout}
     descriptors:
       none: null
-      mordred: {blocks: [mordred]}
-      rdkit: {blocks: [rdkit]}
-      rdkit_mordred: {blocks: [rdkit, mordred]}
-    descriptor_pca: [64, 128, 256]
+      mordred: {blocks: [mordred], reduce: true}
+      rdkit: {blocks: [rdkit], reduce: true}
+      rdkit_mordred: {blocks: [rdkit, mordred], reduce: true}
+    descriptor_pca: [32, 64, 128, 256]
     regressor:
       - lgbm
       - xgboost
@@ -98,10 +102,12 @@ tabular:
     non_empty: >
       A featureset with no embedding, no readout and no descriptors is not a
       configuration; it is dropped from the cross product.
-    width_needs_descriptors: >
-      descriptor_pca changes nothing when there are no descriptors, so it is
-      pinned to its default there rather than generating three identical
-      configurations.
+    width_needs_its_block: >
+      A width axis means nothing where its block is absent or passed through
+      unreduced, so it is normalized to 0 before a configuration is built.
+      Without that, configurations identical but for an inapplicable width
+      would share a run directory under different specifications and each
+      would read the other's results as stale.
 
   calibration_note: >
     The isotonic arm costs one additional fit per configuration and seed: train
@@ -121,53 +127,101 @@ tabular:
     larger job than this arm; it is recorded as an open question.
 
   # Each stage sweeps every level of the dimensions it names, and holds fixed
-  # only what an earlier gate already decided on this split.
+  # only what an earlier gate already decided on this split. A gate is resolved
+  # from its stage's completed runs and written to results/gates/<id>.json, and
+  # the next stage reads that file. The order below is the order they run in,
+  # which is not the order the figures tell the story in.
   stages:
-    - id: featureset_and_regressor
-      figures: [fig2, fig3, fig4]
-      sweeps: [embedding, readout, descriptors, regressor]
+    - id: descriptor_width
+      figures: [fig5]
+      sweeps: [descriptors, descriptor_pca]
       fixed:
-        descriptor_pca: 128
+        embedding: none
+        readout: none
+        regressor: tabpfn-v3
         calibration: none
+      note: >
+        A descriptors-only probe, run before anything else, to settle what the
+        canonical descriptor block is and how far it can be reduced. Three
+        blocks against four widths is twelve configurations, sixty runs, and it
+        needs no trained encoder, so it can run the moment the raw blocks exist.
+        One regressor is enough because the question is about the features
+        rather than about the model, and running seven would multiply the probe
+        without sharpening its answer. The previous generation found the same
+        sweep flat and took 128-dimensional Mordred on that basis; this measures
+        it again on the challenge split rather than inheriting the conclusion.
+      gate:
+        id: canonical_descriptors
+        chooses: [descriptors, descriptor_pca]
+        rule: >
+          Lowest MAE of the five-seed ensemble on phase 2. Every configuration
+          the leader does not separate from under a paired bootstrap over the
+          260 compounds counts as tied with it, and the cheapest of that tied
+          set wins, cheap meaning fewer blocks and then a narrower reduction.
+          The tie and the tie-break are both recorded.
+
+    - id: embedding_width
+      figures: [fig5b]
+      sweeps: [embedding_pca]
+      fixed:
+        embedding: chemeleon
+        readout: none
+        descriptors: none
+        regressor: tabpfn-v3
+        calibration: none
+      note: >
+        The same probe for the frozen CheMeleon embedding, four widths and
+        twenty runs. It runs on the frozen embedding rather than a fine-tuned
+        one so that it depends on no trained encoder and can run up front; the
+        width it settles is then applied to the fine-tuned CheMeleon embeddings
+        too, which come off the same architecture at the same native size.
+      gate:
+        id: embedding_reduction
+        chooses: [embedding_pca]
+        rule: Same rule as the descriptor gate, on the same 260 compounds.
+
+    - id: ingredients
+      figures: [fig2, fig3, fig4]
+      sweeps: [embedding, readout, regressor]
+      fixed:
+        calibration: none
+      fixed_from: [canonical_descriptors, embedding_reduction]
+      restrict:
+        # against the descriptor block the probe settled, and against no
+        # descriptors at all, which is what makes the single-ingredient and
+        # combination readings possible from one table
+        descriptors: [none, "@gate"]
       note: >
         The featureset and the regressor are swept together rather than in
         sequence, because neither can be fixed first without pre-committing to
         the other, and choosing a starting regressor from the prior sweep is the
-        one thing this rebuild will not do. Crossing them costs seven times a
-        single-regressor sweep and removes the ordering problem entirely.
-        Figures 2, 3 and 4 are three readings of this one table: the
-        single-block rows, the combinations, and the regressor facet.
+        one thing this rebuild will not do. Figures 2, 3 and 4 are three
+        readings of this one table: the single-block rows, the combinations, and
+        the regressor facet. The descriptor rows at the settled width under
+        TabPFN v3 were already run by the width probe and are skipped by cache
+        rather than repeated.
       gate:
         id: best_configuration
         chooses: [embedding, readout, descriptors, regressor]
         rule: >
-          Lowest mean MAE across five seeds on phase 2. A paired bootstrap over
-          the 260 compounds is reported for the leading configurations, and
-          where the interval does not separate them the cheaper featureset is
-          taken, with the tie recorded rather than hidden.
-
-    - id: descriptor_width
-      figures: [fig5]
-      sweeps: [descriptor_pca]
-      fixed_from: best_configuration
-      note: >
-        Skipped when the winning configuration carries no descriptor block,
-        since there is then no width to sweep.
-      gate:
-        id: best_width
-        chooses: [descriptor_pca]
-        rule: Lowest mean MAE across five seeds, same bootstrap treatment.
+          Same rule as the width gates: lowest five-seed ensemble MAE, ties
+          decided on cost and recorded.
 
     - id: calibration
       figures: [fig6]
       sweeps: [calibration]
-      fixed_from: best_width
+      fixed_from: [best_configuration, canonical_descriptors, embedding_reduction]
       gate: null
+      note: >
+        Held until the calibration question is settled. The report fitted an
+        affine map over out-of-fold predictions weighted by a train-versus-test
+        density ratio, and this arm fits an isotonic map on one held-out
+        partition, so the two are not the same experiment.
 
     - id: uncertainty
       figures: [fig7]
       sweeps: []
-      fixed_from: best_width
+      fixed_from: [best_configuration, canonical_descriptors, embedding_reduction]
       reuses_runs: true
       note: >
         A diagnostic over predictions the earlier stages already wrote, adding
@@ -287,9 +341,11 @@ gnn:
       prior: pxr_baseline_chemeleon_pec50
 
 # ---------------------------------------------------------------------------
-# Figures are slices of the completed table, not a sequence of gates. No figure
-# waits on another's winner, so there is no ordering to respect and no
-# backfill rule to apply after an upset.
+# Figures are slices of the completed table. Their order is the order the story
+# is told in, which is not the order the stages run in: the width probes run
+# first and are reported late. A select may say "@gate" for an axis, meaning
+# whatever value the resolved gates chose, so a figure never restates a winner
+# the gate files already hold.
 # ---------------------------------------------------------------------------
 figures:
   - id: fig1
@@ -300,25 +356,53 @@ figures:
   - id: fig2
     title: Single-ingredient tabular features
     question: How far does each feature block get on its own?
-    select: {kind: tabular, n_blocks: 1, descriptor_pca: 128, calibration: none}
+    # 0 is the width of a block that is absent or unreduced, so this keeps the
+    # embedding-only and readout-only rows alongside the settled descriptor ones
+    select:
+      kind: tabular
+      n_blocks: 1
+      descriptor_pca: [0, "@gate"]
+      embedding_pca: [0, "@gate"]
+      calibration: none
 
   - id: fig3
     title: Featureset combinations
     question: Which combination of blocks wins?
     # a combination is two blocks or three; the single-block rows are figure 2's
-    select: {kind: tabular, n_blocks: [2, 3], descriptor_pca: 128, calibration: none}
+    select:
+      kind: tabular
+      n_blocks: [2, 3]
+      descriptor_pca: [0, "@gate"]
+      embedding_pca: [0, "@gate"]
+      calibration: none
 
   - id: fig4
     title: Regressor comparison
     question: Which regressor wins, and does the answer depend on the featureset?
-    select: {kind: tabular, descriptor_pca: 128, calibration: none}
+    select:
+      kind: tabular
+      descriptor_pca: [0, "@gate"]
+      embedding_pca: [0, "@gate"]
+      calibration: none
     facet: regressor
 
   - id: fig5
     title: Descriptor PCA width
-    question: How much does the descriptor block's width matter?
-    select: {kind: tabular, has_descriptors: true, calibration: none}
+    question: How much does reducing the descriptor block cost?
+    # the probe's own rows: descriptors alone, one regressor, four widths
+    select: {kind: tabular, embedding: none, has_descriptors: true, calibration: none}
     facet: descriptor_pca
+
+  - id: fig5b
+    title: Embedding PCA width
+    question: How much does reducing the CheMeleon embedding cost?
+    select:
+      kind: tabular
+      has_embedding: true
+      descriptors: none
+      readout: none
+      calibration: none
+    facet: embedding_pca
 
   - id: fig6
     title: Post-hoc calibration

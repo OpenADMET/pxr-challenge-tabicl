@@ -15,9 +15,29 @@ import pytest  # noqa: E402
 import aggregate  # noqa: E402
 import evaluate  # noqa: E402
 import figures  # noqa: E402
+import gates  # noqa: E402
 import manifest as manifest_module  # noqa: E402
 from data import CANONICAL_COL  # noqa: E402
 from manifest import TabularConfig  # noqa: E402
+
+# the decisions the figures' selections point at. A figure that says "@gate"
+# reads them rather than restating a winner, so the tests have to supply the
+# same thing the sweep would have written
+GATE_DECISIONS = {
+    "canonical_descriptors": {"descriptors": "rdkit", "descriptor_pca": 128},
+    "embedding_reduction": {"embedding_pca": 256},
+}
+
+
+@pytest.fixture(autouse=True)
+def resolved_gates(tmp_path_factory, monkeypatch):
+    """Point the gate directory at decisions matching the fixtures below."""
+    directory = tmp_path_factory.mktemp("gates")
+    for gate_id, chosen in GATE_DECISIONS.items():
+        (directory / f"{gate_id}.json").write_text(json.dumps({"gate": gate_id, "chosen": chosen}))
+    monkeypatch.setattr(gates, "GATES_DIR", directory)
+    return directory
+
 
 # the challenge's own phase-2 count, so the anchor applies to these slices
 N_COMPOUNDS = 260
@@ -33,17 +53,73 @@ RESAMPLES = 200
 # one single-block embedding configuration, one single-block descriptor one,
 # and one that combines them, so a block-count selection has something to
 # include and something to exclude
-EMBEDDING_ONLY = TabularConfig("chemeleon", "none", "none", 128, "lgbm", "none")
-DESCRIPTORS_ONLY = TabularConfig("none", "none", "rdkit", 128, "lgbm", "none")
-COMBINED = TabularConfig("chemeleon", "none", "rdkit", 128, "lgbm", "none")
+EMBEDDING_ONLY = TabularConfig(
+    embedding="chemeleon",
+    embedding_pca=256,
+    readout="none",
+    descriptors="none",
+    descriptor_pca=0,
+    regressor="lgbm",
+    calibration="none",
+)
+DESCRIPTORS_ONLY = TabularConfig(
+    embedding="none",
+    embedding_pca=0,
+    readout="none",
+    descriptors="rdkit",
+    descriptor_pca=128,
+    regressor="lgbm",
+    calibration="none",
+)
+COMBINED = TabularConfig(
+    embedding="chemeleon",
+    embedding_pca=256,
+    readout="none",
+    descriptors="rdkit",
+    descriptor_pca=128,
+    regressor="lgbm",
+    calibration="none",
+)
 
 # the same descriptor block at another width, and the calibrated arm of it
-WIDER_DESCRIPTORS = TabularConfig("none", "none", "rdkit", 256, "lgbm", "none")
-CALIBRATED = TabularConfig("none", "none", "rdkit", 128, "lgbm", "isotonic_fitval")
+WIDER_DESCRIPTORS = TabularConfig(
+    embedding="none",
+    embedding_pca=0,
+    readout="none",
+    descriptors="rdkit",
+    descriptor_pca=256,
+    regressor="lgbm",
+    calibration="none",
+)
+CALIBRATED = TabularConfig(
+    embedding="none",
+    embedding_pca=0,
+    readout="none",
+    descriptors="rdkit",
+    descriptor_pca=128,
+    regressor="lgbm",
+    calibration="isotonic_fitval",
+)
 
 # the two regressors that report a spread, and the kinds differ between them
-TABPFN = TabularConfig("chemeleon", "none", "none", 128, "tabpfn-v2.5", "none")
-TABICL = TabularConfig("chemeleon", "none", "none", 128, "tabicl", "none")
+TABPFN = TabularConfig(
+    embedding="chemeleon",
+    embedding_pca=256,
+    readout="none",
+    descriptors="none",
+    descriptor_pca=0,
+    regressor="tabpfn-v2.5",
+    calibration="none",
+)
+TABICL = TabularConfig(
+    embedding="chemeleon",
+    embedding_pca=256,
+    readout="none",
+    descriptors="none",
+    descriptor_pca=0,
+    regressor="tabicl",
+    calibration="none",
+)
 
 GNN_CELL = "chemeleon_pec50"
 
@@ -275,7 +351,7 @@ def test_render_all_writes_every_file_it_reports(spec, frame, tmp_path):
 
     written, _ = figures.render_all(spec, frame, out_dir, n_resamples=RESAMPLES)
 
-    assert set(written) == {"fig1", "fig2", "fig3", "fig4", "fig5", "fig6", "fig7"}
+    assert set(written) == {"fig1", "fig2", "fig3", "fig4", "fig5", "fig5b", "fig6", "fig7"}
     assert all(path.exists() for path in written.values())
 
 
@@ -369,8 +445,24 @@ def test_the_paired_bootstrap_ranks_the_leader_by_its_ensemble_score(spec, frame
 
 
 def test_a_clear_gap_separates_and_a_near_tie_does_not(spec, tmp_path):
-    close = TabularConfig("chemeleon", "none", "mordred", 128, "lgbm", "none")
-    far = TabularConfig("chemeleon", "chemprop_log2fc", "rdkit", 128, "lgbm", "none")
+    close = TabularConfig(
+        embedding="chemeleon",
+        embedding_pca=256,
+        readout="none",
+        descriptors="mordred",
+        descriptor_pca=128,
+        regressor="lgbm",
+        calibration="none",
+    )
+    far = TabularConfig(
+        embedding="chemeleon",
+        embedding_pca=256,
+        readout="chemprop_log2fc",
+        descriptors="rdkit",
+        descriptor_pca=128,
+        regressor="lgbm",
+        calibration="none",
+    )
     for seed in SEEDS:
         write_run(tmp_path, COMBINED, seed, offset=0.40)
         write_run(tmp_path, close, seed, offset=0.4001)

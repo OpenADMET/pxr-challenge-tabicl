@@ -170,11 +170,11 @@ def test_a_configuration_with_one_seed_has_no_spread(tmp_path):
 
 
 def test_coverage_names_both_a_missing_planned_run_and_an_unplanned_one(spec, tmp_path):
-    configs = spec.expand("featureset_and_regressor")
+    configs = spec.expand("descriptor_width")
     write_run(tmp_path, configs[0].slug, 0, config=configs[0].as_dict())
     unplanned = write_run(tmp_path, "emb-none__ro-none__desc-nowhere__reg-lgbm__cal-none", 0)
 
-    coverage = aggregate.stage_coverage(spec, "featureset_and_regressor", results_root=tmp_path)
+    coverage = aggregate.stage_coverage(spec, "descriptor_width", results_root=tmp_path)
 
     assert configs[0].run_dir(0, tmp_path) not in coverage.missing
     assert configs[0].run_dir(1, tmp_path) in coverage.missing
@@ -184,13 +184,13 @@ def test_coverage_names_both_a_missing_planned_run_and_an_unplanned_one(spec, tm
 
 
 def test_a_partial_sweep_reads_as_partial(spec, tmp_path):
-    configs = spec.expand("featureset_and_regressor")
+    configs = spec.expand("descriptor_width")
     write_run(tmp_path, configs[0].slug, 0, config=configs[0].as_dict())
 
-    coverage = aggregate.stage_coverage(spec, "featureset_and_regressor", results_root=tmp_path)
-    report = aggregate.coverage_report(coverage, "featureset_and_regressor")
+    coverage = aggregate.stage_coverage(spec, "descriptor_width", results_root=tmp_path)
+    report = aggregate.coverage_report(coverage, "descriptor_width")
 
-    assert report.startswith(f"featureset_and_regressor: 1/{len(coverage.expected)} planned runs")
+    assert report.startswith(f"descriptor_width: 1/{len(coverage.expected)} planned runs")
     assert "missing:" in report
 
 
