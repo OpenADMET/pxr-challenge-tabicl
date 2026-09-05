@@ -20,3 +20,7 @@ data/*
 results/*
 !results/gates/
 logs/
+
+# local type-checker override for a checkout whose environment is not ./.venv;
+# takes precedence over the [tool.pyright] block in pyproject.toml
+pyrightconfig.json

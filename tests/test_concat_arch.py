@@ -5,6 +5,7 @@ import dataclasses
 import itertools
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any, cast
 
 import lightning
 import numpy as np
@@ -727,8 +728,9 @@ def test_the_stop_callback_ends_training_at_the_chosen_epoch():
             self.should_stop = False
 
     early, last = _Trainer(1), _Trainer(2)
-    stop.on_train_epoch_end(early, None)
-    stop.on_train_epoch_end(last, None)
+    # a stand-in for the trainer, which the callback only reads two fields of
+    stop.on_train_epoch_end(cast("Any", early), None)
+    stop.on_train_epoch_end(cast("Any", last), None)
 
     assert early.should_stop is False
     # epochs are zero-indexed, so finishing epoch 2 is the third epoch
@@ -753,7 +755,7 @@ def test_the_schedule_carries_on_when_unfreezing_rebuilds_the_optimizer():
     rates: list[float] = []
 
     class _Record(lightning.Callback):
-        def on_train_batch_end(self, trainer, pl_module, *args):
+        def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, *args) -> None:
             rates.append(trainer.optimizers[0].param_groups[0]["lr"])
 
     trainer = lightning.Trainer(

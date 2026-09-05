@@ -35,6 +35,7 @@ import numpy as np
 import torch
 from chemprop.data import BatchMolGraph, MoleculeDatapoint, MoleculeDataset
 from chemprop.models import MPNN
+from lightning.pytorch.utilities.types import OptimizerLRScheduler
 from torch import Tensor
 from torch.optim import Adam
 from torch.optim.lr_scheduler import LambdaLR
@@ -234,7 +235,7 @@ class GraphRegressor(lightning.LightningModule):
         loss = masked_mse_loss(self(graph, extra), targets, mask)
         self.log(self.val_metric, loss, prog_bar=True, batch_size=targets.shape[0])
 
-    def configure_optimizers(self) -> dict[str, Any]:
+    def configure_optimizers(self) -> OptimizerLRScheduler:
         """Return an Adam and its noam schedule, over the head and then the body.
 
         The group learning rates given at construction are the schedule's
@@ -250,7 +251,7 @@ class GraphRegressor(lightning.LightningModule):
 
         Returns
         -------
-        dict
+        OptimizerLRScheduler
             The optimizer and a step-interval scheduler, in Lightning's
             configuration form.
         """

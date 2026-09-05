@@ -65,13 +65,10 @@ convention = "numpy"
 
 [tool.pyright]
 include = ["src", "run", "tests", "tools"]
-# the modelling stack lives in the shared venv beside this checkout; uv sync
-# does not reproduce it, so pyright is pointed at it explicitly
-venvPath = ".."
-venv = ".venv"
-# openadmet-models is installed editable, which pyright cannot follow, so its
-# source tree is resolved directly
-extraPaths = ["src", "../openadmet-models"]
+# resolves against the project environment uv sync creates. A checkout that
+# keeps its environment elsewhere overrides this with a pyrightconfig.json,
+# which takes precedence over this block and is not tracked
+extraPaths = ["src"]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
 
