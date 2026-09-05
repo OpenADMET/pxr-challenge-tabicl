@@ -290,15 +290,14 @@ def test_figure_five_selects_only_descriptor_bearing_configurations(spec, frame)
     assert CALIBRATED.slug not in set(data["config_id"])
 
 
-def test_figure_six_selects_both_calibration_arms(spec, frame):
-    data = figures.slice_for(spec, "fig6", frame)
+def test_figure_six_is_drawn_from_the_calibration_records_not_the_run_table(spec):
+    # calibration is post-hoc, so every run in the table carries cal-none and a
+    # facet over the run table would have one level and no content
+    figure = next(f for f in spec.figures if f["id"] == "fig6")
 
-    assert set(data["calibration"]) == {"none", "isotonic_fitval"}
-    # the calibrated configuration's own uncalibrated twin has to be there for
-    # the arms to be comparable
-    assert CALIBRATED.slug in set(data["config_id"])
-    uncalibrated = TabularConfig(**{**CALIBRATED.as_dict(), "calibration": "none"})
-    assert uncalibrated.slug in set(data["config_id"])
+    assert figure["source"] == "calibration"
+    assert "facet" not in figure
+    assert "select" not in figure
 
 
 def test_figure_seven_selects_only_regressors_that_report_a_spread(spec, frame):

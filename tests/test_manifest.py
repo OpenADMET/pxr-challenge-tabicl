@@ -32,7 +32,6 @@ def test_manifest_loads(spec):
         "embedding_width",
         "ingredients",
         "regressor",
-        "calibration",
         "uncertainty",
     ]
 
@@ -181,9 +180,11 @@ def test_a_restricted_axis_needs_the_gate_it_points_at(spec):
         spec.expand("ingredients", partial)
 
 
-def test_calibration_stage_sweeps_both_arms(spec):
-    configs = spec.expand("calibration", WINNER)
-    assert sorted(c.calibration for c in configs) == ["isotonic_fitval", "none"]
+def test_calibration_is_not_a_stage_and_not_an_axis_with_arms(spec):
+    # it is post-hoc, applied by run/07_calibrate.py over a configuration that
+    # has already run, so nothing sweeps it and every run carries none
+    assert "calibration" not in [stage.id for stage in spec.stages]
+    assert spec.axes["calibration"] == ["none"]
 
 
 def test_the_uncertainty_stage_adds_no_runs(spec):

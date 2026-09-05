@@ -166,7 +166,7 @@ def test_a_partial_stage_cannot_be_decided(spec, tmp_path):
 
 def test_a_stage_that_gates_nothing_cannot_be_resolved(spec, tmp_path):
     with pytest.raises(gates.GateError, match="no gate"):
-        gates.resolve(spec, "calibration", results_dir=tmp_path)
+        gates.resolve(spec, "uncertainty", results_dir=tmp_path)
 
 
 def test_a_decision_round_trips_through_the_file_it_is_written_to(spec, tmp_path, monkeypatch):

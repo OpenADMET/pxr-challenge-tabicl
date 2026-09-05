@@ -236,7 +236,9 @@ class Manifest:
 
         levels = {axis: self._stage_levels(stage, axis, settled) for axis in TABULAR_AXES}
         configs = [
-            _normalize(TabularConfig(**dict(zip(TABULAR_AXES, values, strict=True))), self.axes)
+            normalize_widths(
+                TabularConfig(**dict(zip(TABULAR_AXES, values, strict=True))), self.axes
+            )
             for values in product(*(levels[axis] for axis in TABULAR_AXES))
         ]
         # a width sweep over a featureset that carries no such block would
@@ -445,7 +447,7 @@ def native_width(axes: dict, block_axis: str, level: str) -> int | None:
     return (spec or {}).get("n_features")
 
 
-def _normalize(config: TabularConfig, axes: dict) -> TabularConfig:
+def normalize_widths(config: TabularConfig, axes: dict) -> TabularConfig:
     """Zero the width of any block this configuration does not reduce.
 
     A width only means something where its block is present and declared

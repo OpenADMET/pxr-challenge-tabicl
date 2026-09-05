@@ -11,12 +11,13 @@ left alone; a run whose inputs have changed has a different specification and is
 redone. So a sweep can be interrupted and restarted at any point, and changing
 an upstream block does not silently leave stale results behind.
 
-The calibration arm costs a second fit. An isotonic map has to be fitted on
-predictions the model has not already seen, so the arm trains a second model on
-the training partition alone, predicts the held-out validation partition, fits
-the map there, and applies it to the phase-2 predictions of the model fitted on
-everything. Fitting the map on predictions the model was trained on would flatter
-it, which is the whole failure mode calibration is supposed to detect.
+A run is never calibrated here. Calibration is post-hoc, fitted over a
+completed configuration by run/07_calibrate.py, which reproduces the challenge
+report's method: an affine map over out-of-fold predictions spanning the whole
+fit set, weighted by a train-versus-test density ratio. What used to sit here
+was a monotone map on a single held-out slice, which is a different experiment
+and was never run. The record's ``calibrated`` field stays, always False, so a
+record written before that change is distinguishable from one written after.
 """
 
 from __future__ import annotations
@@ -32,7 +33,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.isotonic import IsotonicRegression
 
 import evaluate
 import features
@@ -284,11 +284,6 @@ def run_one(
     prediction = regressors.fit_predict(config.regressor, x_fit, y_fit, x_test, seed=seed)
     predicted = prediction.mean
 
-    calibrator = None
-    if config.calibration == "isotonic_fitval":
-        calibrator = _fit_calibrator(config, artifacts, partitions, seed)
-        predicted = calibrator.predict(predicted)
-
     scores = write_run(
         run_dir,
         spec=spec,
@@ -308,7 +303,9 @@ def run_one(
             ],
             "n_features": int(x_fit.shape[1]),
             "n_fit": int(x_fit.shape[0]),
-            "calibrated": calibrator is not None,
+            # calibration is post-hoc now, applied by run/07_calibrate.py over a
+            # completed configuration rather than inside a fit
+            "calibrated": False,
             # what the library said about this fit, such as adapting its own
             # memory settings, which means it did not run under the pinned ones
             "regressor_notes": list(prediction.notes),
@@ -513,24 +510,6 @@ def run_stage(
                 )
             )
     return written
-
-
-def _fit_calibrator(
-    config: TabularConfig,
-    artifacts: Sequence[provenance.Artifact],
-    partitions: Partitions,
-    seed: int,
-) -> IsotonicRegression:
-    """Fit an isotonic map on predictions the model has not been trained on."""
-    x_train = assemble(artifacts, partitions.fit_train[CANONICAL_COL].tolist())
-    y_train = partitions.fit_train[TARGET_COL].to_numpy(dtype=np.float64)
-    x_val = assemble(artifacts, partitions.fit_val[CANONICAL_COL].tolist())
-    y_val = partitions.fit_val[TARGET_COL].to_numpy(dtype=np.float64)
-
-    held_out = regressors.fit_predict(config.regressor, x_train, y_train, x_val, seed=seed)
-    calibrator = IsotonicRegression(out_of_bounds="clip")
-    calibrator.fit(held_out.mean, y_val)
-    return calibrator
 
 
 def _seed_params(block: str, seed: int) -> dict[str, Any]:

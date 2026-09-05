@@ -111,9 +111,10 @@ tabular:
       - tabpfn-v3
       - tabicl
       - tabfm
+    # calibration is post-hoc and applied by run/07_calibrate.py over a
+    # completed configuration, so it is not swept and every run carries none
     calibration:
       - none
-      - isotonic_fitval
 
   # Where the tabular models stop fitting, measured on this machine at 4,392
   # training rows rather than taken from documentation.
@@ -168,22 +169,38 @@ tabular:
       would share a run directory under different specifications and each
       would read the other's results as stale.
 
+  # Calibration is no longer a stage. It is post-hoc, applied by
+  # run/07_calibrate.py over a configuration that has already run, and it
+  # reproduces the report's method rather than asking a question of our own:
+  # an affine map over out-of-fold predictions spanning the whole fit set,
+  # weighted per compound by the density ratio P(test|x) / (1 - P(test|x))
+  # from a Morgan-fingerprint classifier separating fit from test, clipped to
+  # [1/3, 3]. It runs on whatever the gates settled unless a slug names another
+  # configuration, and it reads no test label: the test compounds enter only as
+  # the classifier's positive class.
   calibration_note: >
-    The isotonic arm costs one additional fit per configuration and seed: train
-    on fit_train, predict the held-out fit_val, fit the isotonic map on those
-    predictions, then apply it to the phase-2 predictions of the model fitted on
-    fit_all. It is a separate arm rather than a post-processing step because
-    fitting the map needs predictions the model has not seen. Running it in its
-    own stage, on the configuration the earlier gates settled, costs ten runs
-    rather than doubling the sweep.
+    The method is the report's, reproduced rather than reinterpreted. Fit the
+    model under k-fold cross-validation over the whole fit partition so that
+    every compound has a prediction made without it; train a logistic
+    regression on Morgan fingerprints to separate the fit compounds from the
+    test compounds; weight each fit compound by P(test|x) / (1 - P(test|x)),
+    clipped to [1/3, 3] because the report calls that clip essential; and fit
+    calibrated = slope * raw + intercept by weighted least squares. Apply the
+    coefficients to the seed-ensembled test predictions.
 
-    This is not the N283T report's method. They fitted an affine map, not an
-    isotonic one, over out-of-fold predictions spanning all 4,140 training
-    compounds rather than one held-out partition, weighted per compound by a
-    density ratio from a Morgan-fingerprint classifier separating train from
-    test, and validated under 5-fold nested cross-validation. Matching that
-    would mean k-fold out-of-fold predictions and the weighting, which is a
-    larger job than this arm; it is recorded as an open question.
+    Two things this cannot do that the report did, and both are stated in the
+    run's own record rather than left to be discovered. The report validated
+    under 5-fold nested cross-validation and reported the calibration's effect
+    on a 513-compound pooled evaluation; this applies it to the 260-compound
+    phase-2 set, so the numbers are not comparable to their 0.4209 to 0.4077.
+    And the out-of-fold predictions are generated at one seed per fold by
+    default while the map is applied to a five-seed ensemble, which differ in
+    variance; --oof-seeds 5 removes that mismatch at five times the cost.
+
+    A positive slope leaves every ranking metric unchanged, so Spearman and
+    Kendall cannot move and only the error metrics can. That is a property of
+    the method rather than a result, and a figure drawn on a ranking metric
+    should not carry a calibration facet at all.
 
   # Each stage sweeps every level of the dimensions it names, and holds fixed
   # only what an earlier gate already decided on this split. A gate is resolved
@@ -296,18 +313,6 @@ tabular:
         id: best_regressor
         chooses: [regressor]
         rule: Same rule again, on the same 260 compounds.
-
-    - id: calibration
-      figures: [fig6]
-      sweeps: [calibration]
-      fixed_from:
-        [canonical_descriptors, embedding_reduction, best_featureset, best_regressor]
-      gate: null
-      note: >
-        Held until the calibration question is settled. The report fitted an
-        affine map over out-of-fold predictions weighted by a train-versus-test
-        density ratio, and this arm fits an isotonic map on one held-out
-        partition, so the two are not the same experiment.
 
     - id: uncertainty
       figures: [fig7]
@@ -547,15 +552,12 @@ figures:
 
   - id: fig6
     title: Post-hoc calibration
-    # not a reproduction of the report's calibration: theirs was an affine map
-    # over out-of-fold predictions across the whole training set, weighted by a
-    # train-versus-test density ratio, so this asks a question of our own
-    question: Does a post-hoc isotonic map help on the challenge split?
-    # no width is pinned here on purpose: the calibration stage runs on whatever
-    # width the gate before it settled, so pinning 128 would empty this figure
-    # whenever that gate chose 64 or 256
-    select: {kind: tabular}
-    facet: calibration
+    # drawn from results/calibration/, not from the run table, because
+    # calibration is post-hoc and the runs it applies to all carry cal-none.
+    # A positive slope cannot move a ranking metric, so this figure is drawn on
+    # error and bias and would be empty of content on Spearman
+    question: Does the report's density-ratio affine map help on the challenge split?
+    source: calibration
 
   - id: fig7
     title: Predicted uncertainty against actual error

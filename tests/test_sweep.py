@@ -115,21 +115,17 @@ def test_a_changed_input_makes_the_run_incomplete(spec, tiny):
     assert not sweep.is_complete(run_dir, moved)
 
 
-def test_the_calibration_arm_fits_on_held_out_predictions(spec, tiny):
+def test_a_run_is_never_calibrated_in_the_sweep(spec, tiny):
+    # calibration is post-hoc now, fitted by run/07_calibrate.py over a
+    # configuration that has already run. The field stays so that a record
+    # written before that change is distinguishable from one written after
     partitions, tmp_path = tiny
-    run_dir = _run(_config(calibration="isotonic_fitval"), spec, partitions, tmp_path)
+    run_dir = _run(_config(), spec, partitions, tmp_path)
     record = json.loads((run_dir / "run.json").read_text())
-    assert record["calibrated"] is True
-    assert record["config"]["calibration"] == "isotonic_fitval"
 
-
-def test_calibration_changes_the_predictions(spec, tiny):
-    partitions, tmp_path = tiny
-    plain = _run(_config(), spec, partitions, tmp_path)
-    calibrated = _run(_config(calibration="isotonic_fitval"), spec, partitions, tmp_path)
-    a = pd.read_csv(plain / "predictions.csv")["predicted"].to_numpy()
-    b = pd.read_csv(calibrated / "predictions.csv")["predicted"].to_numpy()
-    assert not (a == b).all()
+    assert record["calibrated"] is False
+    assert record["config"]["calibration"] == "none"
+    assert "isotonic" not in (REPO_ROOT / "src" / "sweep.py").read_text().lower()
 
 
 def test_assembling_a_block_that_misses_compounds_is_refused(spec, tiny):

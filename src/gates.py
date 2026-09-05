@@ -41,7 +41,14 @@ import aggregate
 import evaluate
 import manifest as manifest_module
 import provenance
-from manifest import Manifest, TabularConfig
+from manifest import (
+    NOT_REDUCED,
+    TABULAR_AXES,
+    Manifest,
+    ManifestError,
+    TabularConfig,
+    normalize_widths,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -329,3 +336,68 @@ def _public(row: dict[str, Any]) -> dict[str, Any]:
         "seed_spread": float(row["seed_spread"]),
         **{name: float(row[name]) for name in evaluate.METRIC_NAMES if name in row},
     }
+
+
+def gated_config(manifest: Manifest) -> TabularConfig:
+    """Return the configuration the settled gates point at.
+
+    Raises
+    ------
+    SystemExit
+        If a gate the winning configuration depends on has not been decided,
+        since guessing at one would calibrate something no stage chose.
+    """
+    settled = all_chosen(manifest)
+    missing = [axis for axis in ("embedding", "readout", "descriptors") if axis not in settled]
+    if missing:
+        raise SystemExit(
+            f"no gated winner yet: {', '.join(missing)} unsettled. "
+            "Run the ingredient stage and aggregate it, or name a --slug."
+        )
+
+    # the regressor gate may not have run; the manifest's fixed value stands in
+    # and the record says which of the two it was
+    levels = dict(settled)
+    levels.setdefault("regressor", manifest.stage("ingredients").fixed["regressor"])
+    levels.setdefault("calibration", "none")
+    for axis in ("embedding_pca", "descriptor_pca"):
+        levels.setdefault(axis, NOT_REDUCED)
+
+    config = TabularConfig(**{a: levels[a] for a in TABULAR_AXES})
+    # a later gate can supersede an earlier one on a block while leaving its
+    # width behind: the featureset gate may drop descriptors that the width
+    # probe settled at 128, and an unnormalized width would name a run
+    # directory no stage ever wrote
+    return normalize_widths(config, manifest.axes)
+
+
+def find_config(manifest: Manifest, slug: str) -> TabularConfig:
+    """Return the configuration a slug names, from every stage the manifest declares."""
+    settled = all_chosen(manifest)
+    for stage in manifest.stages:
+        try:
+            for config in manifest.expand(stage.id, settled):
+                if config.slug == slug:
+                    return config
+        except ManifestError:
+            continue
+    raise SystemExit(f"no configuration in the manifest has slug {slug!r}")
+
+
+def resolve_target(manifest: Manifest, slug: str | None = None) -> TabularConfig:
+    """Return the configuration to act on: the one a slug names, or the gated winner.
+
+    Parameters
+    ----------
+    manifest : Manifest
+        The coverage spec.
+    slug : str or None, optional
+        A configuration to act on instead of the gated winner. None resolves
+        the winner, which is the point of the default: a post-hoc step acts on
+        what the sweep chose rather than on what was typed.
+
+    Returns
+    -------
+    TabularConfig
+    """
+    return find_config(manifest, slug) if slug else gated_config(manifest)
