@@ -30,8 +30,8 @@
       "xgboost": "3.1.3"
     },
     "repo": {
-      "commit": "02adf1b48ff2ccb598e3faf2a98381d35dbadb9b",
-      "dirty": true
+      "commit": "50502ff535beed85a08df49bf0bc1bed0c641c4f",
+      "dirty": false
     }
   },
   "gate": "best_featureset",
@@ -820,7 +820,7 @@
     "emb-chemeleon_pec50256__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none"
   ],
   "version": 1,
-  "wall_clock_s": 0.544,
+  "wall_clock_s": 0.533,
   "within_seed_spread": [
     "emb-chemeleon_log2fc256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none",
     "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none",

@@ -28,8 +28,8 @@
       "xgboost": "3.1.3"
     },
     "repo": {
-      "commit": "02adf1b48ff2ccb598e3faf2a98381d35dbadb9b",
-      "dirty": true
+      "commit": "50502ff535beed85a08df49bf0bc1bed0c641c4f",
+      "dirty": false
     }
   },
   "gate": "canonical_descriptors",
@@ -367,7 +367,7 @@
     "emb-none__ro-none__desc-rdkit_mordred64__reg-tabpfn-v3__cal-none"
   ],
   "version": 1,
-  "wall_clock_s": 0.245,
+  "wall_clock_s": 0.248,
   "within_seed_spread": [
     "emb-none__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none"
   ]
