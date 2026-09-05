@@ -284,3 +284,68 @@ def test_a_reduction_records_how_long_it_took(tmp_path):
 
     assert record["wall_clock_s"] >= 0.0
     assert "wall_clock_s" not in record["spec"]
+
+
+def test_a_gated_block_is_planned_only_at_the_width_its_gate_settled(spec):
+    # the width probe sweeps every level on the frozen block, so those are all
+    # built; the fine-tuned embeddings are only ever read at the settled width,
+    # and planning from the axes rather than the stages would build the rest
+    settled = {"descriptors": "rdkit", "descriptor_pca": 128, "embedding_pca": 256}
+    planned = planned_reductions(spec, resolved=settled)
+
+    probe = {width for names, width in planned if names == ["chemeleon"]}
+    finetuned = {width for names, width in planned if names == ["chemeleon_log2fc_embedding"]}
+
+    assert probe == {32, 64, 128, 256, 384, 512}
+    assert finetuned == {256}
+
+
+def test_the_plan_is_a_function_of_the_gates_it_is_given(spec):
+    # not of what results/gates happens to hold, so a reader can tell what a
+    # given set of decisions builds without consulting the working tree
+    base = {"descriptors": "rdkit", "descriptor_pca": 128}
+    at_256 = planned_reductions(spec, resolved={**base, "embedding_pca": 256})
+    at_64 = planned_reductions(spec, resolved={**base, "embedding_pca": 64})
+
+    assert (["chemeleon_pec50_embedding"], 256) in at_256
+    assert (["chemeleon_pec50_embedding"], 256) not in at_64
+    assert (["chemeleon_pec50_embedding"], 64) in at_64
+
+
+def test_before_any_gate_only_the_probes_are_planned(spec):
+    # the two width probes need no trained encoder, which is what lets them run
+    # first; nothing that depends on an encoder is planned until a gate exists
+    planned = planned_reductions(spec, resolved={})
+    named = {name for names, _ in planned for name in names}
+
+    assert named == {"rdkit", "mordred", "chemeleon"}
+
+
+def test_every_planned_reduction_is_one_some_stage_reads(spec):
+    # the contract this script has to keep: running it with no arguments builds
+    # what the sweep will look for and nothing besides, so no width has to be
+    # named on the command line to get a correct cache
+    settled = {"descriptors": "rdkit", "descriptor_pca": 128, "embedding_pca": 256}
+    planned = {(tuple(names), width) for names, width in planned_reductions(spec, resolved=settled)}
+
+    read: set[tuple[tuple[str, ...], int | None]] = set()
+    for stage in spec.stages:
+        if any(
+            gate not in {"canonical_descriptors", "embedding_reduction"}
+            for gate in stage.depends_on
+        ):
+            continue
+        for config in spec.expand(stage.id, settled):
+            for group in sweep.BLOCK_ORDER:
+                level = getattr(config, group)
+                if level == "none":
+                    continue
+                axis = spec.axes[group][level]
+                names = tuple(axis.get("blocks", [axis["block"]] if "block" in axis else []))
+                width_axis = manifest.WIDTH_OF.get(group)
+                width = getattr(config, width_axis) if width_axis and axis.get("reduce") else None
+                if width in (manifest.NATIVE, manifest.NOT_REDUCED):
+                    width = None
+                read.add((names, width))
+
+    assert planned == read

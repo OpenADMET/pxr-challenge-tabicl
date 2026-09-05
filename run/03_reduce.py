@@ -1,9 +1,21 @@
-"""Precompute the stage-two reductions the manifest's axes declare.
+"""Precompute the stage-two reductions the sweep will ask for.
 
 Optional. The sweep builds a reduction on demand and caches it under the same
 key, so this script only moves that work forward: run it to fill the reduction
 cache before a sweep, or skip it and let the first run of each configuration
 pay for its own blocks.
+
+What it builds is derived from the stages, with the settled gates applied, and
+not from the width axes' declared levels. The two differ once a gate has
+chosen: the embedding width axis declares six levels because the width probe
+sweeps all six on the frozen CheMeleon block, but every later stage reads the
+one width the gate settled, so the fine-tuned embeddings are only ever asked
+for at that width. Planning from the axes would build the other five for them,
+and planning from the stages does not. The consequence worth stating is that
+running this with no arguments builds what the sweep will read and nothing
+else, so no width has to be named on the command line; --widths and --blocks
+remain as ways to ask for more than that, never as a way to get what is
+needed.
 
 Every reduction is fitted on the fit partition alone and then applied to all
 molecules, test set included, which is the one place in the pipeline that can
@@ -23,10 +35,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import encoders  # noqa: E402
 import features  # noqa: E402
+import gates  # noqa: E402
 import manifest as manifest_module  # noqa: E402
 import reduce as reduction  # noqa: E402
 
-DESCRIPTION = "Precompute the stage-two reductions the manifest's axes declare."
+DESCRIPTION = "Precompute the stage-two reductions the sweep will ask for."
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +52,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         nargs="+",
         type=int,
         metavar="N",
-        help="PCA widths to build; defaults to those each width axis declares",
+        help="PCA widths to build; defaults to those the stages actually read",
     )
     parser.add_argument(
         "--blocks",
@@ -65,68 +78,116 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _reductions_for(config: Any, axes: dict[str, Any]) -> list[tuple[list[str], int | None]]:
+    """Return the reductions one configuration reads, as (block names, width).
+
+    A width of None means imputed but not rotated, which is what a block gets
+    when it is passed through whole: either it declares no reduction, or the
+    configuration keeps it native.
+    """
+    wanted: list[tuple[list[str], int | None]] = []
+    for group in ("embedding", "readout", "descriptors"):
+        level_name = getattr(config, group)
+        level = axes[group].get(level_name)
+        if level is None:
+            continue
+
+        names = list(level.get("blocks", [level["block"]] if "block" in level else []))
+        width_axis = manifest_module.WIDTH_OF.get(group)
+        width = getattr(config, width_axis) if width_axis else manifest_module.NOT_REDUCED
+
+        # NATIVE is a block kept whole and NOT_REDUCED is one with no width to
+        # keep; a level that declares no reduction has no width either way
+        if not level.get("reduce") or width in (
+            manifest_module.NATIVE,
+            manifest_module.NOT_REDUCED,
+        ):
+            wanted.append((names, None))
+            continue
+        wanted.append((names, width))
+    return wanted
+
+
 def planned_reductions(
     spec: manifest_module.Manifest,
     widths: list[int] | None = None,
     blocks: list[str] | None = None,
+    resolved: dict[str, Any] | None = None,
 ) -> list[tuple[list[str], int | None]]:
-    """Return every (block names, width) reduction the axes call for.
+    """Return every (block names, width) reduction the stages call for.
 
-    A block level declaring ``reduce: true`` is built at every level of the
-    width axis that belongs to it; anything else is imputed but not rotated.
-    The widths come from the manifest rather than from here, so this script
-    cannot drift from what the sweep will ask for.
+    The plan is the union over every tabular stage of what its configurations
+    read, with the settled gates applied, so it is exactly what the sweep will
+    look for in the cache and nothing besides. Planning from the width axes
+    instead would build every declared width for every reducible block, which
+    over-builds any block a gate has already narrowed.
 
     Parameters
     ----------
     spec : Manifest
-        The coverage spec, whose axis levels name their raw blocks.
+        The coverage spec, whose stages name the configurations that run.
     widths : list of int or None
-        Override the widths to build. Defaults to each width axis's own levels.
+        Keep only these widths, of those the stages read. Unreduced blocks are
+        kept whatever this says, since they carry no width to filter on.
     blocks : list of str or None
         Keep only reductions drawing entirely on these raw blocks. Defaults to
         every block, which includes the ones a trained encoder produces.
+    resolved : dict or None
+        Gate decisions to apply, as axis name to chosen level. Defaults to
+        whatever ``results/gates`` holds. A stage whose gates are not among
+        them is skipped rather than guessed at, so the plan grows as the gates
+        are decided.
 
     Returns
     -------
     list of (list of str, int or None)
         The blocks to join and the width to project them to, a width of None
-        meaning imputed but not rotated.
+        meaning imputed but not rotated. Deduplicated, in the order the stages
+        first ask for them.
     """
+    settled = gates.all_chosen(spec) if resolved is None else resolved
+
+    # a gate counts as decided when every axis it chooses is in the resolved
+    # set, which keeps the plan a function of its arguments rather than of what
+    # results/gates happens to hold
+    decided = {
+        stage.gate.id
+        for stage in spec.stages
+        if stage.gate and all(axis in settled for axis in stage.gate.chooses)
+    }
     axes: dict[str, Any] = spec.axes
+
     wanted: list[tuple[list[str], int | None]] = []
+    for stage in spec.stages:
+        # a stage whose gates have not been decided cannot say what it reads,
+        # so it is left for the next run of this script rather than guessed at.
+        # Nothing is lost: its reductions are built when its gate exists, and
+        # the ones it shares with an earlier stage are already cached by then
+        pending = [gate for gate in stage.depends_on if gate not in decided]
+        if pending:
+            logger.info("stage %s: waiting on %s", stage.id, ", ".join(pending))
+            continue
+        for config in spec.expand(stage.id, settled):
+            wanted.extend(_reductions_for(config, axes))
 
-    for group in ("embedding", "readout", "descriptors"):
-        width_axis = manifest_module.WIDTH_OF.get(group)
-        declared = axes.get(width_axis or "", [])
-        available = (
-            widths
-            if widths is not None
-            else [manifest_module.width_level(level) for level in declared]
-        )
-        for level in axes[group].values():
-            if level is None:
-                continue
-            names = list(level.get("blocks", [level["block"]] if "block" in level else []))
-            if not (width_axis and level.get("reduce")):
-                wanted.append((names, None))
-                continue
+    # a stage's configurations repeat a block's reduction across every other
+    # axis, and stages overlap besides, so the union is taken by hand to keep
+    # the order the stages ask in
+    unique: list[tuple[list[str], int | None]] = []
+    seen: set[tuple[tuple[str, ...], int | None]] = set()
+    for names, width in wanted:
+        key = (tuple(names), width)
+        if key not in seen:
+            seen.add(key)
+            unique.append((names, width))
 
-            # a width at or above the block's own size is not a reduction, and
-            # the decomposition refuses it; the manifest declares the size
-            columns = level.get("n_features")
-            for width in available:
-                if width in (manifest_module.NATIVE, manifest_module.NOT_REDUCED):
-                    # only for a block narrow enough to be run unreduced
-                    if columns is None or columns <= spec.native_max_features:
-                        wanted.append((names, None))
-                elif columns is None or width < columns:
-                    wanted.append((names, width))
-
-    if blocks is None:
-        return wanted
-    allowed = set(blocks)
-    return [(names, width) for names, width in wanted if allowed.issuperset(names)]
+    if widths is not None:
+        allowed_widths = set(widths)
+        unique = [(n, w) for n, w in unique if w is None or w in allowed_widths]
+    if blocks is not None:
+        allowed = set(blocks)
+        unique = [(n, w) for n, w in unique if allowed.issuperset(n)]
+    return unique
 
 
 def _seed_params(name: str, seed: int) -> dict[str, Any]:
