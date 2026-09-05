@@ -16,6 +16,14 @@ written out here rather than inherited silently, so a future version of that
 library bumping its own default renames the artifact instead of quietly changing
 it.
 
+Memory settings are pinned here too, for the same reason. TabPFN runs in
+``low_memory`` fit mode with ``memory_saving_mode`` on, and TabICL at batch size
+1 with its key-value cache off and inactive weights offloaded to host memory.
+None of these change what a model predicts; they trade speed for headroom, and
+pinning them means the whole sweep runs under one configuration rather than one
+found per featureset. They enter the cache key like any other parameter, so
+changing one renames the artifacts it produced.
+
 Semantics are versioned by hand, on the same convention as ``features.BLOCKS``.
 Bump a regressor's ``version`` when the meaning of its output changes, never for
 a change that cannot alter the numbers.
@@ -43,13 +51,20 @@ logger = logging.getLogger(__name__)
 # this sweep run to roughly 2,300 columns, so the flag has to be derived
 PRETRAINING_FEATURE_LIMIT = 2000
 
-# tabicl 2.1.1's own default. Written out rather than inherited because peak
-# memory does not move monotonically with it across feature widths: at 130
-# columns and 4,392 training rows this value OOMs a 24 GB GPU and batch_size=2
-# fits, while at 258 and 386 columns the reverse holds and only this value
-# fits. There is no batch size that is safe everywhere, so callers must choose
-# per featureset and the choice must be visible in the record.
-TABICL_BATCH_SIZE = 8
+# TabICL's peak memory does not move monotonically with batch size across
+# feature widths: measured at 4,392 training rows, the library default of 8
+# OOMs a 24 GB GPU at 130 columns while fitting at 258 and 386. Rather than
+# search for a setting per featureset, the sweep takes the smallest batch and
+# offloads what it can, which fits at every width this sweep produces. It is
+# slower than the default where the default fits, and one setting the whole
+# sweep runs under is worth more than the seconds.
+TABICL_BATCH_SIZE = 1
+
+# keep the key-value cache off and move inactive weights to host memory. Both
+# are traded against speed rather than against the numbers: neither changes
+# what TabICL predicts, only where it holds the tensors while predicting it.
+TABICL_KV_CACHE = False
+TABICL_OFFLOAD_MODE = "cpu"
 
 # TabFM's in-context rows enter the same between-items attention TabPFN's do.
 # The full 4,392-row training context OOMs this GPU, and so did caps of 2,000
@@ -422,7 +437,12 @@ REGRESSORS: dict[str, _Spec] = {
     ),
     "tabicl": _Spec(
         1,
-        {"device": "auto", "batch_size": TABICL_BATCH_SIZE},
+        {
+            "device": "auto",
+            "batch_size": TABICL_BATCH_SIZE,
+            "kv_cache": TABICL_KV_CACHE,
+            "offload_mode": TABICL_OFFLOAD_MODE,
+        },
         _construct_tabicl,
         _resolve_seeded,
     ),

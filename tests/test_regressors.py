@@ -107,18 +107,52 @@ def test_registry_holds_exactly_the_seven_documented_names():
     assert sorted(regressors.REGRESSORS) == sorted(FAST_NAMES + SLOW_NAMES)
 
 
-def test_tabicl_batch_size_is_recorded_rather_than_inherited():
+def test_tabicl_runs_under_pinned_memory_settings():
+    # the widths this sweep produces do not share a safe batch size at the
+    # library default, so the smallest one is pinned and the whole sweep runs
+    # under it rather than under a setting searched per featureset
     resolved = regressors.resolved_params("tabicl", seed=0, n_features=130)
 
-    assert resolved["batch_size"] == regressors.TABICL_BATCH_SIZE
+    assert resolved["batch_size"] == regressors.TABICL_BATCH_SIZE == 1
+    assert resolved["kv_cache"] is regressors.TABICL_KV_CACHE is False
+    assert resolved["offload_mode"] == regressors.TABICL_OFFLOAD_MODE == "cpu"
 
 
-def test_tabicl_batch_size_can_be_overridden_per_featureset():
+def test_tabicl_memory_settings_can_still_be_overridden():
     resolved = regressors.resolved_params(
-        "tabicl", seed=0, n_features=130, params={"batch_size": 2}
+        "tabicl", seed=0, n_features=130, params={"batch_size": 8, "offload_mode": "auto"}
     )
 
-    assert resolved["batch_size"] == 2
+    assert resolved["batch_size"] == 8
+    assert resolved["offload_mode"] == "auto"
+
+
+@pytest.mark.parametrize("name", regressors.TABPFN_NAMES)
+def test_every_tabpfn_checkpoint_runs_under_pinned_memory_settings(name):
+    resolved = regressors.resolved_params(name, seed=0, n_features=130)
+
+    assert resolved["fit_mode"] == "low_memory"
+    assert resolved["memory_saving_mode"] is True
+
+
+@pytest.mark.parametrize(
+    ("name", "setting"),
+    [
+        ("tabicl", "batch_size"),
+        ("tabicl", "kv_cache"),
+        ("tabicl", "offload_mode"),
+        ("tabpfn-v3", "fit_mode"),
+        ("tabpfn-v3", "memory_saving_mode"),
+    ],
+)
+def test_a_memory_setting_is_a_real_constructor_argument(name, setting):
+    # pinning a keyword the library does not take would fail only at fit time,
+    # deep into a sweep, so the names are checked against the installed version
+    import inspect
+
+    estimator = regressors.build(name, seed=0, n_features=130)
+
+    assert setting in inspect.signature(type(estimator).__init__).parameters
 
 
 def test_tabfm_caps_its_in_context_rows():
