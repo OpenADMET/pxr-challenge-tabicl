@@ -575,3 +575,14 @@ def test_the_stop_callback_ends_training_at_the_chosen_epoch():
     assert early.should_stop is False
     # epochs are zero-indexed, so finishing epoch 2 is the third epoch
     assert last.should_stop is True
+
+
+def test_the_epoch_budget_leaves_room_for_early_stopping():
+    config = encoders.EncoderConfig(seed=0)
+
+    # the budget is what noam decays across, so it is set near where early
+    # stopping is expected to land rather than far above it; patience still has
+    # to fit inside it or the budget, not the metric, would end every fit
+    assert config.max_epochs == 30
+    assert config.warmup_epochs < config.max_epochs
+    assert config.patience < config.max_epochs - config.warmup_epochs

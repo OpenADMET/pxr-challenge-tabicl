@@ -151,6 +151,12 @@ class EncoderConfig:
     val_fraction : float or None
         Fraction of the log2FC pool held out for early stopping. Must be None
         for the pEC50 encoder, whose validation partition is a split resource.
+    max_epochs : int
+        The training budget, and the length noam calibrates its decay against:
+        the learning rate reaches ``final_lr`` at this epoch and not before.
+        It is deliberately close to where early stopping is expected to land,
+        so a fit that stops early has still travelled most of the schedule
+        rather than halting near the peak learning rate.
     warmup_epochs : int
         Epochs the noam schedule spends ramping the learning rate to
         ``max_lr`` before it decays. Both passes run noam: a plateau schedule
@@ -173,7 +179,7 @@ class EncoderConfig:
     batch_size: int = 64
     max_lr: float = 1e-3
     weight_decay: float = 0.0
-    max_epochs: int = 50
+    max_epochs: int = 30
     freeze_epochs: int = 2
     patience: int = 10
     min_delta: float = 1e-3
@@ -722,7 +728,7 @@ def _refit_on_all(
 
     # noam calibrates its decay to the trainer's epoch budget, so the budget
     # here is the first pass's, not the count it settled on. Otherwise this pass
-    # would compress a fifty-epoch schedule into a handful and train under
+    # would compress the whole schedule into a handful of epochs and train under
     # learning rates the first pass never saw, which would make the count it
     # chose meaningless. The run is stopped at that count instead
     trainer = L.Trainer(
