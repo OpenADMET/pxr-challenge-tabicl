@@ -182,7 +182,38 @@ def test_cost_prefers_fewer_blocks_before_narrower_reductions(spec):
         c for c in configs.values() if c.descriptors == "mordred" and c.descriptor_pca == 256
     )
 
-    assert gates.cost(narrow) < gates.cost(wide)
+    assert gates.cost(narrow, spec.axes) < gates.cost(wide, spec.axes)
+
+
+def test_a_block_kept_whole_costs_its_own_width_not_its_sentinel(spec):
+    configs = {c.slug: c for c in spec.expand("descriptor_width")}
+    whole = next(
+        c
+        for c in configs.values()
+        if c.descriptors == "rdkit" and c.descriptor_pca == manifest_module.NATIVE
+    )
+    reduced = [c for c in configs.values() if c.descriptors == "rdkit" and c.descriptor_pca > 0]
+
+    # RDKit's 217 columns kept whole are the widest option on that axis, not
+    # the narrowest; ordering on the sentinel would make it the cheapest
+    assert gates.cost(whole, spec.axes)[1] == 217
+    assert all(gates.cost(c, spec.axes) < gates.cost(whole, spec.axes) for c in reduced)
+
+
+def test_an_undeclared_block_kept_whole_is_treated_as_the_most_expensive(spec):
+    whole = manifest_module.TabularConfig(
+        "none",
+        manifest_module.NOT_REDUCED,
+        "none",
+        "rdkit",
+        manifest_module.NATIVE,
+        "lgbm",
+        "none",
+    )
+
+    # with no column count declared there is nothing to compare against, and
+    # guessing cheap would hand a tie to the widest featureset
+    assert gates.cost(whole, {"descriptors": {}, "embedding": {}})[1] == gates._WIDEST
 
 
 def test_the_gate_ranks_on_the_ensemble_rather_than_on_a_mean_of_seed_scores(spec, tmp_path):

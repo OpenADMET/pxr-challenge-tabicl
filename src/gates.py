@@ -17,7 +17,7 @@ but a difference smaller than compound sampling noise is not a result, so the
 leader is compared to every other configuration by a paired bootstrap over the
 260 phase-2 compounds and the ones it does not separate from are recorded as
 tied. The cheapest of that tied set wins, cheap meaning fewer feature blocks
-and then narrower reductions, and the file says the choice was a tie-break.
+and then fewer columns, and the file says the choice was a tie-break.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from typing import Any
 
 import aggregate
 import evaluate
+import manifest as manifest_module
 import provenance
 from manifest import Manifest, TabularConfig
 
@@ -41,6 +42,11 @@ VERSION = 1
 
 # the metric every gate rule ranks on
 RANK_METRIC = "mae"
+
+# stands in for a block whose column count the manifest does not declare, so an
+# undeclared block kept whole is treated as the most expensive rather than the
+# cheapest thing on its axis
+_WIDEST = 1 << 30
 
 
 class GateError(RuntimeError):
@@ -121,14 +127,27 @@ def all_chosen(gates_dir: Path | None = None) -> dict[str, Any]:
     return chosen
 
 
-def cost(config: TabularConfig) -> tuple[int, int, int]:
+def cost(config: TabularConfig, axes: dict[str, Any]) -> tuple[int, int]:
     """Rank configurations by expense, for breaking a statistical tie.
 
-    Fewer blocks first, then narrower reductions. Comparing tied
+    Fewer blocks first, then fewer columns in total. Comparing tied
     configurations on cost rather than on a difference the data does not
     support keeps the sweep from chasing noise into a wider featureset.
+
+    A block kept whole costs its own column count, not the sentinel that
+    records it: keeping RDKit's 217 descriptors is the widest option on that
+    axis, not the narrowest, and ordering on the raw sentinel would rank it
+    cheaper than every reduction. Widths are summed rather than compared axis
+    by axis, so the ordering does not depend on which axis is looked at first.
     """
-    return (config.n_blocks, config.descriptor_pca, config.embedding_pca)
+    total = 0
+    for width_axis, block_axis in manifest_module.WIDTH_AXES.items():
+        width = getattr(config, width_axis)
+        if width == manifest_module.NATIVE:
+            columns = manifest_module.native_width(axes, block_axis, getattr(config, block_axis))
+            width = columns if columns is not None else _WIDEST
+        total += width
+    return (config.n_blocks, total)
 
 
 def resolve(
@@ -178,7 +197,7 @@ def resolve(
         # everything the leader does not separate from is a candidate on cost
         tied = _tied_with(leader, ranked[1:], n_resamples=n_resamples)
     candidates = [leader, *tied]
-    chosen_row = min(candidates, key=lambda row: cost(row["config"]))
+    chosen_row = min(candidates, key=lambda row: cost(row["config"], manifest.axes))
     chosen = {axis: getattr(chosen_row["config"], axis) for axis in stage.gate.chooses}
 
     return {
