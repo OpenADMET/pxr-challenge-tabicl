@@ -308,3 +308,41 @@ def test_the_sweep_reports_an_undecided_gate_without_a_traceback(tmp_path, monke
 
     assert "canonical_descriptors" in str(raised.value)
     assert "has not been resolved" in str(raised.value)
+
+
+def test_no_stage_reads_the_gate_it_produces(spec):
+    # a stage that inherited its own decision would plan against the answer it
+    # exists to find: the ingredient stage would stop sweeping descriptors over
+    # nothing-or-the-winner as soon as it had chosen, so the comparison that
+    # ruled descriptors out could never be reproduced from scratch
+    for stage in spec.stages:
+        if stage.gate is None:
+            continue
+        assert stage.gate.id not in stage.depends_on, stage.id
+
+
+def test_a_stage_inherits_only_the_gates_decided_before_it(spec):
+    order = [s.id for s in spec.stages]
+    produced_by = {s.gate.id: order.index(s.id) for s in spec.stages if s.gate}
+
+    for position, stage in enumerate(spec.stages):
+        for gate_id in stage.depends_on:
+            assert produced_by[gate_id] < position, f"{stage.id} waits on {gate_id}"
+
+
+def test_the_ingredient_stage_still_sweeps_both_descriptor_arms(spec, tmp_path, monkeypatch):
+    # the featureset gate supersedes the descriptor gate on that axis, which is
+    # correct for every stage after it and would be wrong for this one
+    monkeypatch.setattr(gates, "GATES_DIR", tmp_path / "gates")
+    (tmp_path / "gates").mkdir(parents=True)
+    for gate_id, chosen in (
+        ("canonical_descriptors", {"descriptors": "rdkit", "descriptor_pca": 128}),
+        ("embedding_reduction", {"embedding_pca": 256}),
+        ("best_featureset", {"descriptors": "none", "embedding": "chemeleon_log2fc"}),
+    ):
+        (tmp_path / "gates" / f"{gate_id}.json").write_text(json.dumps({"chosen": chosen}))
+
+    settled = gates.settled(spec, "ingredients")
+
+    assert settled["descriptors"] == "rdkit"
+    assert {c.descriptors for c in spec.expand("ingredients", settled)} == {"none", "rdkit"}
