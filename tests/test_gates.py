@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -8,6 +9,9 @@ import evaluate
 import gates
 import manifest as manifest_module
 from data import CANONICAL_COL
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+RUN_DIR = REPO_ROOT / "run"
 
 # enough compounds that a paired bootstrap has something to resample
 COMPOUNDS = [f"C{index:03d}" for index in range(60)]
@@ -194,3 +198,19 @@ def test_the_gate_ranks_on_the_ensemble_rather_than_on_a_mean_of_seed_scores(spe
 
     assert leader["slug"] == configs[2].slug
     assert leader["mae"] == pytest.approx(evaluate.metrics(OBSERVED, OBSERVED + 0.05)["mae"])
+
+
+def test_the_sweep_reports_an_undecided_gate_without_a_traceback(tmp_path, monkeypatch):
+    # an undecided gate is an ordinary state of a staged sweep, so the entry
+    # point has to name the stage to run rather than dumping a stack
+    import runpy
+    import sys
+
+    monkeypatch.setattr(gates, "GATES_DIR", tmp_path)
+    monkeypatch.setattr(sys, "argv", ["04_sweep.py", "--stage", "ingredients", "--dry-run"])
+
+    with pytest.raises(SystemExit) as raised:
+        runpy.run_path(str(RUN_DIR / "04_sweep.py"), run_name="__main__")
+
+    assert "canonical_descriptors" in str(raised.value)
+    assert "has not been resolved" in str(raised.value)

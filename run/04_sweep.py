@@ -152,7 +152,12 @@ def main() -> None:
         return
 
     overrides = parse_fixed(args.fix)
-    settled = gates.settled(spec, args.stage)
+    try:
+        settled = gates.settled(spec, args.stage)
+    except gates.GateError as err:
+        # an undecided gate is an ordinary state of a staged sweep, not a
+        # failure worth a traceback: say which stage to run first
+        raise SystemExit(f"{args.stage}: {err}") from err
     resolved = {**settled, **overrides}
     configs = spec.expand(args.stage, resolved)
 
