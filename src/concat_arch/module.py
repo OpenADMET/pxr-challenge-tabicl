@@ -13,6 +13,12 @@ the body's own learning rate. Setting ``freeze_epochs`` at or above the epoch
 budget therefore means the body never trains at all, which is E4's literal
 recipe rather than an accident of a large number.
 
+Both parameter groups run one noam learning-rate schedule, calibrated to the
+trainer's epoch budget rather than to the epochs a given pass happens to run.
+The body joins that schedule already in progress when it unfreezes: it does
+not get a warm-up of its own, so the learning rate at a given step is the same
+whether or not the optimizer was rebuilt on the way there.
+
 Inference chunks the input itself instead of going through chemprop's
 dataloader, so a chunk's feature rows line up with its graphs by construction.
 The model carries no batch normalisation over the pooled embedding, so the
@@ -31,11 +37,52 @@ from chemprop.data import BatchMolGraph, MoleculeDatapoint, MoleculeDataset
 from chemprop.models import MPNN
 from torch import Tensor
 from torch.optim import Adam
+from torch.optim.lr_scheduler import LambdaLR
 
 from .backbone import body_parameters, head_parameters
 from .datasets import Batch
 
 logger = logging.getLogger(__name__)
+
+# chemprop's own noam defaults: the schedule starts at a tenth of the peak
+# learning rate and decays to a hundredth of it. They are ratios rather than
+# absolute rates so one lambda serves both parameter groups, whose peaks differ
+INIT_LR_RATIO = 0.1
+FINAL_LR_RATIO = 0.01
+
+
+def noam_factor(step: int, warmup_steps: int, cooldown_steps: int) -> float:
+    """Return the noam multiplier on a parameter group's initial learning rate.
+
+    The rate climbs linearly from ``INIT_LR_RATIO`` of the peak to the peak
+    over ``warmup_steps``, then decays exponentially to ``FINAL_LR_RATIO`` of
+    it over ``cooldown_steps``, and holds there. The multiplier is relative to
+    the group's initial rate, so it is the same for every group whatever its
+    peak, which is why one lambda drives both.
+
+    Parameters
+    ----------
+    step : int
+        Optimisation steps taken so far.
+    warmup_steps : int
+        Steps spent climbing to the peak.
+    cooldown_steps : int
+        Steps spent decaying afterwards.
+
+    Returns
+    -------
+    float
+        Multiplier for the group's initial learning rate.
+    """
+    peak = 1.0 / INIT_LR_RATIO
+    if step < warmup_steps:
+        return step * (peak - 1.0) / warmup_steps + 1.0
+
+    if step < warmup_steps + cooldown_steps:
+        decay = FINAL_LR_RATIO ** (1.0 / cooldown_steps)
+        return peak * decay ** (step - warmup_steps)
+
+    return FINAL_LR_RATIO / INIT_LR_RATIO
 
 
 def masked_mse_loss(predictions: Tensor, targets: Tensor, mask: Tensor) -> Tensor:
@@ -88,6 +135,11 @@ class GraphRegressor(lightning.LightningModule):
         Learning rate applied to the body once it unfreezes.
     head_lr : float
         Learning rate applied to the aggregation and predictor from the start.
+    warmup_epochs : int
+        Epochs the noam schedule spends climbing to ``body_lr`` and
+        ``head_lr``, which are the schedule's peaks rather than constant
+        rates. The decay after it is calibrated to the trainer's epoch budget,
+        so a pass that stops early has still travelled most of the schedule.
     weight_decay : float, optional
         Applied to both parameter groups. Defaults to 0.
     prefix : str, optional
@@ -101,6 +153,7 @@ class GraphRegressor(lightning.LightningModule):
         freeze_epochs: int,
         body_lr: float,
         head_lr: float,
+        warmup_epochs: int = 2,
         weight_decay: float = 0.0,
         prefix: str = "",
     ) -> None:
@@ -110,6 +163,7 @@ class GraphRegressor(lightning.LightningModule):
         self.freeze_epochs = freeze_epochs
         self.body_lr = body_lr
         self.head_lr = head_lr
+        self.warmup_epochs = warmup_epochs
         self.weight_decay = weight_decay
         self.prefix = prefix
         self.body_is_frozen = True
@@ -180,20 +234,30 @@ class GraphRegressor(lightning.LightningModule):
         loss = masked_mse_loss(self(graph, extra), targets, mask)
         self.log(self.val_metric, loss, prog_bar=True, batch_size=targets.shape[0])
 
-    def configure_optimizers(self) -> Adam:
-        """Return an Adam over the head, joined by the body once it unfreezes.
+    def configure_optimizers(self) -> dict[str, Any]:
+        """Return an Adam and its noam schedule, over the head and then the body.
+
+        The group learning rates given at construction are the schedule's
+        peaks, so each group starts at ``INIT_LR_RATIO`` of its own rate. The
+        schedule is calibrated to the trainer's epoch budget rather than to the
+        epochs a pass runs, which is what lets a refit stop early without
+        compressing the whole decay into the epochs it runs.
+
+        Lightning calls this again when the body unfreezes. The replacement
+        schedule is wound forward to the current step so the head carries on
+        where it left off rather than warming up a second time, and the body
+        joins at whatever point the schedule has reached.
 
         Returns
         -------
-        Adam
-            One parameter group while the body is frozen, two after. Lightning
-            calls this again on unfreezing, which is how the body's group
-            appears mid-run.
+        dict
+            The optimizer and a step-interval scheduler, in Lightning's
+            configuration form.
         """
         groups: list[dict[str, Any]] = [
             {
                 "params": head_parameters(self.model),
-                "lr": self.head_lr,
+                "lr": self.head_lr * INIT_LR_RATIO,
                 "weight_decay": self.weight_decay,
             }
         ]
@@ -201,11 +265,35 @@ class GraphRegressor(lightning.LightningModule):
             groups.append(
                 {
                     "params": body_parameters(self.model),
-                    "lr": self.body_lr,
+                    "lr": self.body_lr * INIT_LR_RATIO,
                     "weight_decay": self.weight_decay,
                 }
             )
-        return Adam(groups)
+        optimizer = Adam(groups)
+
+        # the budget the schedule is calibrated against is the trainer's, which
+        # a refit holds at the first pass's budget while stopping earlier
+        total_steps = int(self.trainer.estimated_stepping_batches)
+        budget = max(1, self.trainer.max_epochs or 1)
+        steps_per_epoch = max(1, total_steps // budget)
+        warmup_steps = max(1, self.warmup_epochs * steps_per_epoch)
+        cooldown_steps = max(1, total_steps - warmup_steps)
+
+        # LambdaLR sets the rate for last_epoch + 1 as it is constructed, so
+        # handing it the step already taken resumes the schedule instead of
+        # restarting it. Every group needs initial_lr for that to be legal
+        step = self.trainer.global_step
+        for group in optimizer.param_groups:
+            group["initial_lr"] = group["lr"]
+        scheduler = LambdaLR(
+            optimizer,
+            lambda taken: noam_factor(taken, warmup_steps, cooldown_steps),
+            last_epoch=step - 1,
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {"scheduler": scheduler, "interval": "step"},
+        }
 
     @torch.inference_mode()
     def embed(self, smiles: list[str], batch_size: int = 256) -> np.ndarray:
