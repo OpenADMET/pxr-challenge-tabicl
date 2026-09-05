@@ -43,7 +43,7 @@ from .concat_features import build_features
 from .config import RunConfig
 from .datasets import GraphDataModule, GraphDataset
 from .module import GraphRegressor
-from .readouts import LOG2FC_PATH, load_readouts, task_columns
+from .readouts import LOG2FC_PATH, TASKS, load_readouts
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,7 @@ AUX_TRAINING_FIELDS = (
     "aux_ffn_hidden_dim",
     "aux_ffn_num_layers",
     "aux_freeze_epochs",
+    "aux_warmup_epochs",
     "aux_val_fraction",
     "batch_size",
     "num_workers",
@@ -263,9 +264,7 @@ def run_cell(
             cache_dir=aux_cache_dir,
             force=force_aux,
         )
-        readouts = load_readouts(
-            splits.log2fc, tasks=config.aux_encoder.tasks, exclude=test_compounds
-        )
+        readouts = load_readouts(splits.log2fc, exclude=test_compounds)
         for name, frame in (("train", fit_train), ("val", fit_val), ("test", test)):
             features[name] = build_features(
                 frame[CANONICAL_COL].tolist(),
@@ -293,6 +292,7 @@ def run_cell(
             freeze_epochs=config.freeze_epochs,
             body_lr=config.training.mpnn_lr,
             head_lr=config.training.ffn_lr,
+            warmup_epochs=config.training.warmup_epochs,
         )
 
     # first pass: train on the training partition and let early stopping choose
@@ -325,7 +325,14 @@ def run_cell(
             num_workers=config.training.num_workers,
             seed=seed,
         )
-        refit_record = _fit(model, refit_data, config, max_epochs=epochs, validate=False)
+        refit_record = _fit(
+            model,
+            refit_data,
+            config,
+            max_epochs=config.training.max_epochs,
+            stop_after=epochs,
+            validate=False,
+        )
         refit_record["n_train"] = len(fit_all)
         refit_record["epochs_requested"] = epochs
 
@@ -446,8 +453,8 @@ def _pretrain_encoder(
     """
     aux = config.aux_encoder
     assert aux is not None  # noqa: S101 - the caller checks; this narrows the type
-    tasks = task_columns(aux.tasks)
-    table = load_readouts(splits.log2fc, tasks=aux.tasks, exclude=exclude)
+    tasks = TASKS
+    table = load_readouts(splits.log2fc, exclude=exclude)
 
     smiles = table.index.tolist()
     values = table.to_numpy(dtype=np.float32)
@@ -473,6 +480,7 @@ def _pretrain_encoder(
             freeze_epochs=config.training.aux_freeze_epochs,
             body_lr=config.training.aux_lr,
             head_lr=config.training.aux_lr,
+            warmup_epochs=config.training.aux_warmup_epochs,
             prefix="aux_",
         )
 
@@ -516,7 +524,14 @@ def _pretrain_encoder(
                 num_workers=config.training.num_workers,
                 seed=seed,
             )
-            refit_record = _fit(encoder, refit_data, config, max_epochs=epochs, validate=False)
+            refit_record = _fit(
+                encoder,
+                refit_data,
+                config,
+                max_epochs=config.training.aux_max_epochs,
+                stop_after=epochs,
+                validate=False,
+            )
             refit_record["n_train"] = len(order)
             refit_record["epochs_requested"] = epochs
 
@@ -566,22 +581,46 @@ def _load_encoder(
     return encoder, {**record["auxiliary"], "cache_key": artifact.key, "loaded_from_cache": True}
 
 
+class _StopAfter(lightning.Callback):
+    """End training after a fixed number of epochs, leaving the schedule alone.
+
+    ``max_epochs`` is what the noam schedule calibrates its decay against, so
+    it has to stay at the budget the first pass ran under. This stops the
+    second pass at the epoch that pass chose without shortening the schedule
+    underneath it.
+    """
+
+    def __init__(self, epochs: int) -> None:
+        self.epochs = epochs
+
+    def on_train_epoch_end(self, trainer: lightning.Trainer, pl_module: Any) -> None:
+        """Ask the trainer to stop once the chosen count is reached."""
+        if trainer.current_epoch + 1 >= self.epochs:
+            trainer.should_stop = True
+
+
 def _fit(
     model: GraphRegressor,
     data: GraphDataModule,
     config: RunConfig,
     *,
     max_epochs: int,
+    stop_after: int | None = None,
     validate: bool = True,
 ) -> dict[str, Any]:
     """Run one Lightning fit, optionally rewinding to the best validation epoch.
 
     With ``validate`` false there is no validation partition to watch, so
-    neither early stopping nor checkpoint selection applies and the fit simply
-    runs its epoch budget. That is the second pass of a refit, whose epoch count
-    was already chosen by the first.
+    neither early stopping nor checkpoint selection applies. That is the second
+    pass of a refit, whose epoch count was already chosen by the first and is
+    passed as ``stop_after``: ``max_epochs`` stays at the first pass's budget so
+    the learning-rate schedule is the one that count was chosen under, and the
+    run is stopped at the count instead of having the schedule compressed into
+    it.
     """
     callbacks: list[Any] = []
+    if stop_after is not None:
+        callbacks.append(_StopAfter(stop_after))
     if validate:
         callbacks.append(
             EarlyStopping(

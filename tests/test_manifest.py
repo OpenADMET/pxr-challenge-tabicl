@@ -225,10 +225,10 @@ def test_an_inapplicable_width_is_normalized_away_rather_than_hidden(spec):
 
 def test_graph_network_cells_expand_the_declared_grid(spec):
     ids = [c.id for c in spec.gnn_cells]
-    # 3 freeze settings x 2 widths x 3 clip settings, plus 7 named variants
-    assert len(ids) == 18 + 7
+    # 3 freeze settings x 2 widths at one clip, plus 4 named variants
+    assert len(ids) == 6 + 4
     assert len(set(ids)) == len(ids)
-    assert "concat_freeze2_hd512_clipoff" in ids
+    assert "concat_freeze2_hd512_clip0p5" in ids
     assert all(cell.axes for cell in spec.gnn_cells)
 
 

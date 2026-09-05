@@ -6,6 +6,7 @@ import itertools
 from collections.abc import Iterator
 from pathlib import Path
 
+import lightning
 import numpy as np
 import pandas as pd
 import pytest
@@ -15,6 +16,7 @@ import yaml
 import manifest as manifest_module
 import provenance
 from concat_arch import (
+    TASKS,
     AuxEncoderConfig,
     BackboneError,
     ConfigError,
@@ -28,12 +30,13 @@ from concat_arch import (
     feature_dim,
     masked_mse_loss,
     run_cell,
-    task_columns,
     write_body_checkpoint,
 )
+from concat_arch import module as module_module
 from concat_arch import readouts as readouts_module
 from concat_arch import run as run_module
 from concat_arch.backbone import CHEMELEON
+from concat_arch.datasets import GraphDataModule, GraphDataset
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC = REPO_ROOT / "src"
@@ -87,7 +90,7 @@ def tiny_encoder() -> GraphRegressor:
 @pytest.fixture(scope="module")
 def tiny_run_pair(tiny_splits: SplitPaths) -> tuple[run_module.RunResult, run_module.RunResult]:
     config = RunConfig(
-        aux_encoder=AuxEncoderConfig(tasks=2, use_observed_readout=True),
+        aux_encoder=AuxEncoderConfig(use_observed_readout=True),
         **TINY_BODY,
     ).with_training(
         max_epochs=1, aux_max_epochs=1, accelerator="cpu", batch_size=16, inference_batch_size=8
@@ -135,7 +138,7 @@ def test_training_compounds_are_disjoint_from_phase_two():
 
 
 def test_log2fc_screen_holds_no_phase_two_compound():
-    screen = readouts_module.load_readouts(LOG2FC_CSV, tasks=4)
+    screen = readouts_module.load_readouts(LOG2FC_CSV)
     phase_two = set(pd.read_csv(SPLITS / "test_phase2.csv")["canonical_smiles"])
 
     assert set(screen.index) & phase_two == set()
@@ -189,16 +192,19 @@ def test_every_graph_network_cell_in_the_manifest_parses_into_a_configuration():
 
     configs = [RunConfig.from_axes(a) for a in axes]
 
-    # the freeze/width/clip grid is 3 x 2 x 3, and the standalone cells cover
-    # the readout variants, the two E4 arms and the plain fine-tune
-    assert len(configs) >= 18 + 7
+    # the freeze/width grid is 3 x 2 at one clip, and the standalone cells cover
+    # the predicted readout, the two E4 arms and the plain fine-tune
+    assert len(configs) >= 6 + 4
     assert {c.encoder_init for c in configs} == {"chemeleon", "log2fc_checkpoint"}
     assert all(c.aux_encoder is None for c in configs if c.encoder_init == "log2fc_checkpoint")
 
 
 def test_the_e4_frozen_cell_keeps_its_body_frozen_for_the_whole_run():
     raw = yaml.safe_load(MANIFEST.read_text())
-    cell = next(a for a in _standalone_axes(raw) if a["freeze_epochs"] >= 50)
+    # "never unfrozen" is a freeze at or above the epoch budget rather than any
+    # particular large number, so the budget is what selects the cell
+    budget = RunConfig().training.max_epochs
+    cell = next(a for a in _standalone_axes(raw) if a["freeze_epochs"] >= budget)
 
     config = RunConfig.from_axes(cell)
 
@@ -253,17 +259,16 @@ def test_a_missing_body_checkpoint_is_rejected_at_construction(tmp_path: Path):
 
 
 def test_configuration_round_trips_to_hashable_data():
-    config = RunConfig.from_axes({"aux_encoder": {"tasks": 4, "use_observed_readout": True}})
+    config = RunConfig.from_axes({"aux_encoder": {"use_observed_readout": True}})
 
     payload = config.as_dict()
 
     assert payload["aux_encoder"] == {
         "target": "log2fc",
-        "tasks": 4,
         "use_observed_readout": True,
         "use_predicted_readout": False,
     }
-    assert payload["training"]["max_epochs"] == 50
+    assert payload["training"]["max_epochs"] == 30
 
 
 def test_the_log2fc_body_is_requested_from_encoders_and_says_so_when_absent(monkeypatch):
@@ -310,16 +315,14 @@ def test_feature_width_is_three_readout_blocks_an_embedding_and_a_flag(
     assert feature_dim(n_tasks, embedding_dim) == expected
 
 
-def test_task_columns_name_the_screened_concentrations():
-    assert task_columns(2) == ("log2fc_8.251e-06", "log2fc_3.300e-05")
-    assert task_columns(4) == (
-        "log2fc_9.803e-07",
-        "log2fc_8.251e-06",
-        "log2fc_3.300e-05",
-        "log2fc_9.901e-05",
-    )
-    with pytest.raises(ValueError, match="must be 2 or 4"):
-        task_columns(3)
+def test_the_tasks_are_the_two_populated_concentrations_and_nothing_else():
+    # the screen also ran 9.803e-07 and 9.901e-05, at 27 and 706 rows over
+    # 10,870 compounds. They are not built, so no masked column stands in for
+    # them, and these are the same two src/encoders.py pretrains on
+    assert TASKS == ("log2fc_8.251e-06", "log2fc_3.300e-05")
+    assert readouts_module.CONCENTRATIONS_M == (8.251e-06, 3.300e-05)
+    assert "9.803e-07" not in str(TASKS)
+    assert "9.901e-05" not in str(TASKS)
 
 
 def test_canonicalization_agrees_with_the_split_files():
@@ -341,7 +344,7 @@ def test_replicate_readouts_at_one_concentration_pool_by_median(tmp_path: Path):
     path = tmp_path / "screen.csv"
     screen.to_csv(path, index=False)
 
-    table = readouts_module.load_readouts(path, tasks=2)
+    table = readouts_module.load_readouts(path)
 
     assert list(table.columns) == ["log2fc_8.251e-06", "log2fc_3.300e-05"]
     assert table.loc["CCO", "log2fc_8.251e-06"] == pytest.approx(2.0)
@@ -360,7 +363,7 @@ def test_excluded_compounds_never_reach_the_readout_table(tmp_path: Path):
     path = tmp_path / "screen.csv"
     screen.to_csv(path, index=False)
 
-    table = readouts_module.load_readouts(path, tasks=2, exclude={"CCO"})
+    table = readouts_module.load_readouts(path, exclude={"CCO"})
 
     assert table.index.tolist() == ["CCC"]
 
@@ -443,7 +446,7 @@ def test_a_tiny_run_records_what_it_did(tiny_run_pair):
     assert result.record["n_val"] == 24
     assert result.record["n_test"] == 12
     assert result.record["extra_feature_dim"] == feature_dim(2, result.record["embedding_dim"])
-    assert result.record["auxiliary"]["tasks"] == list(task_columns(2))
+    assert result.record["auxiliary"]["tasks"] == list(TASKS)
     assert result.spec["name"] == "concat_arch"
     assert result.spec["params"]["seed"] == 0
 
@@ -491,7 +494,7 @@ def test_extracting_a_body_from_weights_that_hold_none_is_refused(tmp_path: Path
 
 @pytest.mark.slow
 def test_a_full_size_fit_beats_predicting_the_training_mean():
-    config = RunConfig(aux_encoder=AuxEncoderConfig(tasks=2), ffn_hidden_dim=512, freeze_epochs=2)
+    config = RunConfig(aux_encoder=AuxEncoderConfig(), ffn_hidden_dim=512, freeze_epochs=2)
     baseline = pd.read_csv(SPLITS / "fit_train.csv")["pEC50"].mean()
     truth = pd.read_csv(SPLITS / "test_phase2.csv")["pEC50"]
 
@@ -545,22 +548,23 @@ def _cell_configs() -> list[tuple[str, RunConfig]]:
 
 def _key(config: RunConfig, seed: int, splits: SplitPaths) -> str:
     assert config.aux_encoder is not None  # noqa: S101 - every caller passes one
-    tasks = readouts_module.task_columns(config.aux_encoder.tasks)
+    tasks = readouts_module.TASKS
     return provenance.spec_key(run_module.aux_spec(config, seed, splits, CHEMELEON, tasks))
 
 
 def test_the_auxiliary_encoder_is_shared_across_the_cells_that_agree_on_it(tiny_splits):
     keys = {cell_id: _key(config, 0, tiny_splits) for cell_id, config in _cell_configs()}
 
-    # 22 cells carry an auxiliary arm, and they ask for four encoders: one per
-    # gradient clip, since the auxiliary fit uses the cell's clip, plus the
-    # four-task variant
-    assert len(keys) == 22
-    assert len(set(keys.values())) == 4
+    # 7 cells carry an auxiliary arm and they now ask for a single encoder per
+    # seed. The auxiliary fit reads the cell's gradient clip, so holding the
+    # clip at one value leaves nothing for those cells to disagree on: the main
+    # model's width and freeze schedule are not the encoder's to care about
+    assert len(keys) == 7
+    assert len(set(keys.values())) == 1
 
 
 def test_the_main_model_does_not_change_the_encoder_it_concatenates(tiny_splits):
-    base = RunConfig(aux_encoder=AuxEncoderConfig(tasks=2))
+    base = RunConfig(aux_encoder=AuxEncoderConfig())
     for changed in (
         base.with_training(max_epochs=99, mpnn_lr=0.5, ffn_lr=0.5),
         dataclasses.replace(base, ffn_hidden_dim=1024),
@@ -571,14 +575,11 @@ def test_the_main_model_does_not_change_the_encoder_it_concatenates(tiny_splits)
 
 
 def test_what_the_encoder_does_depend_on_renames_it(tiny_splits):
-    base = RunConfig(aux_encoder=AuxEncoderConfig(tasks=2))
+    base = RunConfig(aux_encoder=AuxEncoderConfig())
     original = _key(base, 0, tiny_splits)
 
     assert _key(base, 1, tiny_splits) != original
-    assert (
-        _key(dataclasses.replace(base, aux_encoder=AuxEncoderConfig(tasks=4)), 0, tiny_splits)
-        != original
-    )
+    assert _key(base.with_training(aux_lr=0.5), 0, tiny_splits) != original
     assert _key(dataclasses.replace(base, gradient_clip_val=5.0), 0, tiny_splits) != original
     assert _key(dataclasses.replace(base, depth=5), 0, tiny_splits) != original
     assert _key(base.with_training(aux_lr=0.5), 0, tiny_splits) != original
@@ -587,7 +588,7 @@ def test_what_the_encoder_does_depend_on_renames_it(tiny_splits):
 
 
 def test_a_different_screen_renames_the_encoder(tiny_splits, tmp_path):
-    config = RunConfig(aux_encoder=AuxEncoderConfig(tasks=2))
+    config = RunConfig(aux_encoder=AuxEncoderConfig())
     shortened = tmp_path / "log2fc.csv"
     pd.read_csv(tiny_splits.log2fc).head(100).to_csv(shortened, index=False)
     other = dataclasses.replace(tiny_splits, log2fc=shortened)
@@ -629,7 +630,7 @@ def test_a_second_cell_loads_the_encoder_the_first_one_trained(tiny_splits, tmp_
     # the two cells differ only in the predictor head, which the encoder knows
     # nothing about, so the second must not repeat the pretraining
     first = RunConfig(
-        aux_encoder=AuxEncoderConfig(tasks=2, use_observed_readout=True), **TINY_BODY
+        aux_encoder=AuxEncoderConfig(use_observed_readout=True), **TINY_BODY
     ).with_training(
         max_epochs=1, aux_max_epochs=1, accelerator="cpu", batch_size=16, inference_batch_size=8
     )
@@ -645,7 +646,7 @@ def test_a_second_cell_loads_the_encoder_the_first_one_trained(tiny_splits, tmp_
 
 def test_forcing_the_encoder_retrains_it_even_when_cached(tiny_splits, tmp_path):
     config = RunConfig(
-        aux_encoder=AuxEncoderConfig(tasks=2, use_observed_readout=True), **TINY_BODY
+        aux_encoder=AuxEncoderConfig(use_observed_readout=True), **TINY_BODY
     ).with_training(
         max_epochs=1, aux_max_epochs=1, accelerator="cpu", batch_size=16, inference_batch_size=8
     )
@@ -654,3 +655,132 @@ def test_forcing_the_encoder_retrains_it_even_when_cached(tiny_splits, tmp_path)
     forced = run_cell(config, seed=0, splits=tiny_splits, aux_cache_dir=tmp_path, force_aux=True)
 
     assert forced.record["auxiliary"]["loaded_from_cache"] is False
+
+
+def test_the_graph_epoch_budgets_match_the_encoders_and_leave_room_to_stop_early():
+    training = RunConfig().training
+
+    # the budget is what noam decays across, so both graph paths run the same
+    # one: an encoder trained under src/encoders.py and a network trained here
+    # otherwise spend their epochs under different learning rates
+    assert training.max_epochs == 30
+    assert training.aux_max_epochs == 30
+    assert training.warmup_epochs < training.max_epochs
+    assert training.aux_warmup_epochs < training.aux_max_epochs
+    assert training.patience < training.max_epochs - training.warmup_epochs
+
+
+def test_the_noam_factor_matches_chemprops_own_schedule():
+    # the schedule is reimplemented here to take a resume point, which
+    # chemprop's builder does not expose, so it has to stay the same curve
+    from chemprop.schedulers import build_NoamLike_LRSched
+
+    warmup, cooldown, peak = 40, 260, 1e-3
+    parameter = torch.nn.Parameter(torch.zeros(1))
+    optimizer = torch.optim.Adam([parameter], lr=peak * module_module.INIT_LR_RATIO)
+    reference = build_NoamLike_LRSched(
+        optimizer,
+        warmup_steps=warmup,
+        cooldown_steps=cooldown,
+        init_lr=peak * module_module.INIT_LR_RATIO,
+        max_lr=peak,
+        final_lr=peak * module_module.FINAL_LR_RATIO,
+    )
+
+    for step in [0, 1, 20, 39, 40, 41, 150, 299, 300, 400]:
+        assert module_module.noam_factor(step, warmup, cooldown) == pytest.approx(
+            reference.lr_lambdas[0](step)
+        )
+
+
+def test_the_noam_factor_peaks_at_warmup_and_bottoms_out_after_cooldown():
+    warmup, cooldown = 40, 260
+
+    # the multiplier is on the group's initial rate, which is a tenth of its
+    # peak, so reaching the peak means a factor of ten
+    assert module_module.noam_factor(0, warmup, cooldown) == pytest.approx(1.0)
+    assert module_module.noam_factor(warmup, warmup, cooldown) == pytest.approx(10.0)
+    floor = module_module.FINAL_LR_RATIO / module_module.INIT_LR_RATIO
+    assert module_module.noam_factor(warmup + cooldown, warmup, cooldown) == pytest.approx(floor)
+    assert module_module.noam_factor(10_000, warmup, cooldown) == pytest.approx(floor)
+
+
+def test_both_refits_keep_the_first_pass_epoch_budget_for_the_schedule():
+    # the same reason as src/encoders.py: shortening max_epochs to the chosen
+    # count would compress the decay and train the second pass under learning
+    # rates the first never saw
+    source = (REPO_ROOT / "src" / "concat_arch" / "run.py").read_text()
+
+    assert "max_epochs=config.training.max_epochs,\n            stop_after=epochs," in source
+    assert (
+        "max_epochs=config.training.aux_max_epochs,\n                stop_after=epochs," in source
+    )
+    assert "max_epochs=epochs" not in source
+
+
+def test_the_stop_callback_ends_training_at_the_chosen_epoch():
+    stop = run_module._StopAfter(3)
+
+    class _Trainer:
+        def __init__(self, epoch):
+            self.current_epoch = epoch
+            self.should_stop = False
+
+    early, last = _Trainer(1), _Trainer(2)
+    stop.on_train_epoch_end(early, None)
+    stop.on_train_epoch_end(last, None)
+
+    assert early.should_stop is False
+    # epochs are zero-indexed, so finishing epoch 2 is the third epoch
+    assert last.should_stop is True
+
+
+def test_the_schedule_carries_on_when_unfreezing_rebuilds_the_optimizer():
+    # unfreezing rebuilds the optimizer, and with it the scheduler. A fresh
+    # scheduler would restart the warm-up and hand the head a rate it already
+    # climbed past, so the replacement is wound forward to the current step
+    torch.manual_seed(0)
+    model = build_mpnn(
+        "random", ffn_hidden_dim=8, ffn_num_layers=1, message_hidden_dim=16, depth=2, n_tasks=1
+    )
+    regressor = GraphRegressor(model, freeze_epochs=1, body_lr=1e-3, head_lr=1e-3, warmup_epochs=1)
+
+    smiles = ["CCO", "CCC", "c1ccccc1", "CCN", "CCCl", "CCBr", "CCI", "CCF"]
+    targets = np.arange(len(smiles), dtype=float).reshape(-1, 1)
+    dataset = GraphDataset(smiles, targets, np.ones_like(targets))
+    data = GraphDataModule(train=dataset, val=None, batch_size=4)
+
+    rates: list[float] = []
+
+    class _Record(lightning.Callback):
+        def on_train_batch_end(self, trainer, pl_module, *args):
+            rates.append(trainer.optimizers[0].param_groups[0]["lr"])
+
+    trainer = lightning.Trainer(
+        max_epochs=4,
+        accelerator="cpu",
+        devices=1,
+        logger=False,
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+        callbacks=[_Record()],
+    )
+    trainer.fit(regressor, datamodule=data)
+
+    assert not regressor.body_is_frozen
+    assert len(trainer.optimizers[0].param_groups) == 2
+
+    # two batches an epoch and a one-epoch warm-up, so the rate peaks on the
+    # second step and the body joins on the third, after the rebuild. A
+    # scheduler that restarted there would climb to the peak a second time, so
+    # reaching it exactly once and decaying from then on is the property
+    peak = max(rates)
+    assert rates.index(peak) == 1
+    assert sum(rate == pytest.approx(peak) for rate in rates) == 1
+    after_peak = rates[1:]
+    assert all(later < earlier for earlier, later in itertools.pairwise(after_peak))
+
+    # the body joins the same curve rather than one of its own, at its own peak
+    groups = trainer.optimizers[0].param_groups
+    assert groups[1]["lr"] / groups[0]["lr"] == pytest.approx(regressor.body_lr / regressor.head_lr)

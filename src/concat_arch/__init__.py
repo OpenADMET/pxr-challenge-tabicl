@@ -26,7 +26,7 @@ from .backbone import BackboneError, build_mpnn, write_body_checkpoint
 from .concat_features import build_features, feature_dim
 from .config import AuxEncoderConfig, ConfigError, RunConfig, TrainingConfig
 from .module import GraphRegressor, masked_mse_loss
-from .readouts import load_readouts, task_columns
+from .readouts import TASKS, load_readouts
 from .run import (
     PRODUCER,
     PRODUCER_VERSION,
@@ -56,6 +56,6 @@ __all__ = [
     "load_readouts",
     "masked_mse_loss",
     "run_cell",
-    "task_columns",
+    "TASKS",
     "write_body_checkpoint",
 ]

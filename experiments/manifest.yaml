@@ -50,6 +50,13 @@ prior:
     Context only. Used to check that every configuration the previous
     generation ran is expressible here, never to decide what runs.
 
+# Every model here is fitted on dose-response pEC50 alone. The single-point
+# primary screen is not folded in as censored targets, which the prior
+# generation did through moal: it did not pay for itself there, and vendoring
+# the censored-likelihood machinery is more work than the arm is worth. The
+# consequence to state plainly is that this rebuild is what the prior called
+# drc_only, so its drc_plus_primary rows describe a training set we do not
+# build, and no cell here reproduces them.
 split:
   fit: data/splits/fit_all.csv
   fit_train: data/splits/fit_train.csv
@@ -319,11 +326,11 @@ tabular:
 gnn:
   grids:
     - id: concat
-      title: Concatenation architecture, freeze and width and clip
+      title: Concatenation architecture, freeze and width
       axes:
         freeze_epochs: [0, 1, 2]
         ffn_hidden_dim: [512, 1024]
-        gradient_clip_val: [1.0, 5.0, null]
+        gradient_clip_val: [0.5]
       # abbreviations used in run directory names, matching the previous
       # generation's convention so a reader can line the two up
       slug_names:
@@ -335,62 +342,45 @@ gnn:
         finetune_target: pec50
         aux_encoder:
           target: log2fc
-          tasks: 2
           use_observed_readout: false
           use_predicted_readout: false
       note: >
-        All 18 cells run. Only one of them produced metrics that survived into
-        the prior aggregation, so this axis was never settled and cannot be
-        pruned against anything.
+        Six cells: the freeze and width axes crossed, at one gradient clip.
+
+        Clipping is held at 0.5 rather than swept. It is a training-stability
+        setting rather than a question figure 1 asks, and this stage has no
+        gate, so nothing downstream reads a winner along that axis. Three
+        levels would cost twelve further cells and sixty runs to answer a
+        question the figure does not pose. This is a stated compute budget, in
+        the same sense as native_max_features, and not a conclusion drawn from
+        any measurement: the prior sweep ran the grid but only one of its
+        eighteen cells produced metrics that survived aggregation, so there is
+        no clip contrast in it to prune against.
 
   cells:
-    - id: readout_observed_2task
-      title: Observed log2FC readout, two tasks
-      axes: &concat_base
+    # only the predicted readout is run. The alternative supplies a compound's
+    # measured log2FC where the screen has one and a prediction where it does
+    # not, which is a branch on data availability rather than a modelling
+    # choice: the column means a different thing for different rows, and a
+    # compound's own measurement is a stronger input than any model's estimate
+    # of it, so the arms are not comparable at equal information. The prior
+    # generation ran all three and the measured variants did not pay for
+    # themselves, at one seed each. Predicting the readout for every compound
+    # is also what the tabular side does, so figure 1 and figures 2 to 3 now
+    # carry the same readout block rather than two different ones
+    - id: readout_predicted_2task
+      title: Predicted log2FC readout, two tasks
+      axes:
         encoder_init: chemeleon
         finetune_target: pec50
         ffn_hidden_dim: 512
         freeze_epochs: 2
-        gradient_clip_val: 1.0
+        gradient_clip_val: 0.5
         aux_encoder:
           target: log2fc
-          tasks: 2
-          use_observed_readout: true
-          use_predicted_readout: false
-      prior: feat_observed_2task
-
-    - id: readout_observed_4task
-      title: Observed log2FC readout, four tasks
-      axes:
-        <<: *concat_base
-        aux_encoder:
-          target: log2fc
-          tasks: 4
-          use_observed_readout: true
-          use_predicted_readout: false
-      prior: feat_observed_4task
-
-    - id: readout_predicted_2task
-      title: Predicted log2FC readout, two tasks
-      axes:
-        <<: *concat_base
-        aux_encoder:
-          target: log2fc
-          tasks: 2
           use_observed_readout: false
           use_predicted_readout: true
       prior: feat_predicted_native_2task
-
-    - id: readout_observed_and_predicted_2task
-      title: Observed and predicted log2FC readout
-      axes:
-        <<: *concat_base
-        aux_encoder:
-          target: log2fc
-          tasks: 2
-          use_observed_readout: true
-          use_predicted_readout: true
-      prior: feat_observed_and_predicted_2task
 
     - id: e4_frozen
       title: E4, body pretrained on log2FC and never unfrozen
@@ -398,8 +388,9 @@ gnn:
         encoder_init: log2fc_checkpoint
         finetune_target: pec50
         ffn_hidden_dim: 512
-        freeze_epochs: 50
-        gradient_clip_val: 1.0
+        # at or above the epoch budget, which is what "never unfrozen" means
+        freeze_epochs: 30
+        gradient_clip_val: 0.5
         aux_encoder: null
       prior: e4_frozen
 
@@ -410,7 +401,7 @@ gnn:
         finetune_target: pec50
         ffn_hidden_dim: 512
         freeze_epochs: 2
-        gradient_clip_val: 1.0
+        gradient_clip_val: 0.5
         aux_encoder: null
       prior: e4_finetune
 
@@ -421,7 +412,7 @@ gnn:
         finetune_target: pec50
         ffn_hidden_dim: 512
         freeze_epochs: 2
-        gradient_clip_val: null
+        gradient_clip_val: 0.5
         aux_encoder: null
       prior: pxr_baseline_chemeleon_pec50
 

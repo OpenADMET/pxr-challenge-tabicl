@@ -5,15 +5,16 @@ auxiliary encoder wants one row per compound and one column per concentration,
 so replicate measurements at the same concentration are pooled by median and
 the result is indexed by the same canonical SMILES the splits are keyed on.
 
-Four concentrations were screened, but two of them are barely populated: 27
-rows at 9.803e-07 and 706 at 9.901e-05, against roughly ten thousand at each
-of the other two. The two-task setting keeps only the well-populated pair,
-matching the E4 pretraining recipe; the four-task setting keeps all four and
-lets the mask carry the sparsity.
+Four concentrations were screened and only two are used. Against 10,747 rows
+at 8.251e-06 and 9,523 at 3.300e-05, the other two carry 27 rows at 9.803e-07
+and 706 at 9.901e-05, which over 10,870 compounds is 0.2% and 6.5% coverage.
+Columns that sparse contribute almost nothing through a masked loss, so they
+are not built at all rather than being built and masked away. The pair that
+remains is the one src/encoders.py pretrains on, so the auxiliary encoder and
+the pretrained bodies predict the same two quantities.
 
-A compound with no row at a concentration has no value there, not a zero. The
-missing entry is what the auxiliary encoder's masked loss and the main model's
-observed-readout mask are for.
+A compound with no row at a used concentration has no value there, not a zero.
+The missing entry is what the auxiliary encoder's masked loss is for.
 """
 
 from __future__ import annotations
@@ -39,15 +40,14 @@ SMILES_COL = "SMILES"
 CONCENTRATION_COL = "concentration_M"
 VALUE_COL = "log2_fc_estimate"
 
-# the four screened concentrations, in molar, ordered low to high
-CONCENTRATIONS_M = (9.803e-07, 8.251e-06, 3.300e-05, 9.901e-05)
+# the screened concentrations that carry enough compounds to be a task, in
+# molar, ordered low to high. The screen also ran 9.803e-07 and 9.901e-05,
+# which the module docstring explains are not built
+CONCENTRATIONS_M = (8.251e-06, 3.300e-05)
 
 # the task column names, in the fixed order that decides the readout blocks'
 # column order everywhere downstream
-ALL_TASKS = tuple(f"log2fc_{concentration:.3e}" for concentration in CONCENTRATIONS_M)
-
-# the well-populated pair, the two-task setting
-TWO_TASKS = (ALL_TASKS[1], ALL_TASKS[2])
+TASKS = tuple(f"log2fc_{concentration:.3e}" for concentration in CONCENTRATIONS_M)
 
 # per-molecule parse failures are counted through None returns, so RDKit's
 # per-row stderr chatter is redundant
@@ -55,35 +55,9 @@ RDLogger.DisableLog("rdApp.*")  # pyright: ignore[reportAttributeAccessIssue]
 _LARGEST_FRAGMENT = rdMolStandardize.LargestFragmentChooser()
 
 
-def task_columns(tasks: int) -> tuple[str, ...]:
-    """Return the log2FC column names a task count selects.
-
-    Parameters
-    ----------
-    tasks : int
-        2 for the well-populated concentration pair, 4 for all of them.
-
-    Returns
-    -------
-    tuple of str
-        Column names in the fixed order downstream blocks are laid out in.
-
-    Raises
-    ------
-    ValueError
-        If ``tasks`` is neither 2 nor 4.
-    """
-    if tasks == 2:
-        return TWO_TASKS
-    if tasks == 4:
-        return ALL_TASKS
-    raise ValueError(f"tasks must be 2 or 4, got {tasks!r}")
-
-
 def load_readouts(
     path: Path = LOG2FC_PATH,
     *,
-    tasks: int = 2,
     exclude: Iterable[str] = (),
 ) -> pd.DataFrame:
     """Read the screen and pivot it to one row per compound.
@@ -93,9 +67,6 @@ def load_readouts(
     path : path-like, optional
         The single-concentration CSV. Defaults to the raw file the split was
         built alongside.
-    tasks : int, optional
-        2 or 4; how many concentration columns the result carries. Defaults
-        to 2.
     exclude : iterable of str, optional
         Canonical SMILES to drop, which is how phase-2 compounds are kept out
         of anything the auxiliary encoder trains on.
@@ -103,12 +74,12 @@ def load_readouts(
     Returns
     -------
     pandas.DataFrame
-        Indexed by canonical SMILES, one float column per selected
-        concentration, NaN where a compound was not screened at it. Rows with
-        no value in any selected column are dropped, since they carry no
-        auxiliary signal.
+        Indexed by canonical SMILES, one float column per concentration in
+        :data:`TASKS`, NaN where a compound was not screened at it. Rows with
+        no value in any of them are dropped, since they carry no auxiliary
+        signal.
     """
-    columns = task_columns(tasks)
+    columns = TASKS
     raw = pd.read_csv(path, usecols=[SMILES_COL, CONCENTRATION_COL, VALUE_COL])
 
     # canonicalize once per distinct input string, not once per row

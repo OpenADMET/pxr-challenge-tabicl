@@ -37,10 +37,6 @@ FINETUNE_TARGETS = frozenset({"pec50"})
 # what the auxiliary encoder is pretrained against
 AUX_TARGETS = frozenset({"log2fc"})
 
-# task counts the auxiliary encoder supports, being the two well-populated
-# concentrations or all four
-AUX_TASK_COUNTS = frozenset({2, 4})
-
 # the only regressor family this module builds
 MODEL_KINDS = frozenset({"gnn"})
 
@@ -67,10 +63,6 @@ class AuxEncoderConfig:
     ----------
     target : str
         What the encoder is pretrained against. Only ``log2fc``.
-    tasks : int
-        Number of log2FC concentration columns predicted jointly, 2 or 4. Two
-        selects the well-populated concentrations the E4 pretraining recipe
-        used; four adds the sparse and the empty one.
     use_observed_readout : bool
         Whether a compound's own measured log2FC values (and their observed
         mask) are concatenated into the main model's predictor input.
@@ -81,19 +73,14 @@ class AuxEncoderConfig:
     """
 
     target: str = "log2fc"
-    tasks: int = 2
     use_observed_readout: bool = False
     use_predicted_readout: bool = False
 
     def __post_init__(self) -> None:
-        """Reject an auxiliary arm whose target or task count is not supported."""
+        """Reject an auxiliary arm whose target is not supported."""
         if self.target not in AUX_TARGETS:
             raise ConfigError(
                 f"aux_encoder.target {self.target!r} is not one of {sorted(AUX_TARGETS)}"
-            )
-        if self.tasks not in AUX_TASK_COUNTS:
-            raise ConfigError(
-                f"aux_encoder.tasks {self.tasks!r} is not one of {sorted(AUX_TASK_COUNTS)}"
             )
 
 
@@ -108,17 +95,22 @@ class TrainingConfig:
     Attributes
     ----------
     max_epochs : int
-        Epoch budget for the main model. A ``freeze_epochs`` at or above this
+        Epoch budget for the main model, and the length the noam schedule
+        calibrates its decay against. A ``freeze_epochs`` at or above this
         means the body never unfreezes.
     aux_max_epochs : int
-        Epoch budget for the auxiliary encoder's pretraining.
+        Epoch budget for the auxiliary encoder's pretraining, calibrating its
+        schedule the same way.
+    warmup_epochs, aux_warmup_epochs : int
+        Epochs each noam schedule spends climbing to its peak learning rate.
     batch_size : int
         Molecules per optimisation step, both models.
     mpnn_lr, ffn_lr : float
-        Learning rates for the message-passing body and the predictor head.
+        Peak learning rates for the message-passing body and the predictor
+        head. They are the noam schedule's peaks rather than constant rates.
     aux_lr : float
-        Single learning rate for the auxiliary encoder; the prior recipe drew
-        no discriminative split there.
+        Single peak learning rate for the auxiliary encoder; the prior recipe
+        drew no discriminative split there.
     aux_ffn_hidden_dim, aux_ffn_num_layers, aux_freeze_epochs : int
         The auxiliary encoder's own head width, head depth, and warm-up.
     aux_val_fraction : float
@@ -148,8 +140,8 @@ class TrainingConfig:
         Molecules per forward pass at prediction time.
     """
 
-    max_epochs: int = 50
-    aux_max_epochs: int = 50
+    max_epochs: int = 30
+    aux_max_epochs: int = 30
     batch_size: int = 64
     mpnn_lr: float = 1e-3
     ffn_lr: float = 1e-3
@@ -157,6 +149,8 @@ class TrainingConfig:
     aux_ffn_hidden_dim: int = 512
     aux_ffn_num_layers: int = 2
     aux_freeze_epochs: int = 2
+    warmup_epochs: int = 2
+    aux_warmup_epochs: int = 2
     aux_val_fraction: float = 0.2
     patience: int = 5
     min_delta: float = 1e-3
@@ -325,8 +319,8 @@ class RunConfig:
         ...         "calibration": "none",
         ...     }
         ... )
-        >>> config.uses_aux_encoder, config.aux_encoder.tasks
-        (True, 2)
+        >>> config.uses_aux_encoder, config.aux_encoder.target
+        (True, 'log2fc')
         """
         fields = {f for f in cls.__dataclass_fields__}
         unknown = set(axes) - fields
