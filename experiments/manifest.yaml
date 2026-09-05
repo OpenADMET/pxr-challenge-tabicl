@@ -361,6 +361,7 @@ figures:
     select:
       kind: tabular
       n_blocks: 1
+      descriptors: [none, "@gate"]
       descriptor_pca: [0, "@gate"]
       embedding_pca: [0, "@gate"]
       calibration: none
@@ -372,6 +373,7 @@ figures:
     select:
       kind: tabular
       n_blocks: [2, 3]
+      descriptors: [none, "@gate"]
       descriptor_pca: [0, "@gate"]
       embedding_pca: [0, "@gate"]
       calibration: none
@@ -381,15 +383,19 @@ figures:
     question: Which regressor wins, and does the answer depend on the featureset?
     select:
       kind: tabular
+      descriptors: [none, "@gate"]
       descriptor_pca: [0, "@gate"]
       embedding_pca: [0, "@gate"]
       calibration: none
     facet: regressor
 
   - id: fig5
-    title: Descriptor PCA width
-    question: How much does reducing the descriptor block cost?
-    # the probe's own rows: descriptors alone, one regressor, four widths
+    title: Descriptor blocks and how far they reduce
+    # this figure, not figure 2, is where RDKit, Mordred and the two together
+    # are compared. Figures 2 to 4 carry only the block this probe settled, so
+    # that every bar in them stands on the same seven regressors; the losing
+    # blocks were run under one regressor and belong beside it, here
+    question: Which descriptor block wins, and how much does reducing it cost?
     select: {kind: tabular, embedding: none, has_descriptors: true, calibration: none}
     facet: descriptor_pca
 

@@ -446,10 +446,10 @@ def test_the_paired_bootstrap_ranks_the_leader_by_its_ensemble_score(spec, frame
 
 def test_a_clear_gap_separates_and_a_near_tie_does_not(spec, tmp_path):
     close = TabularConfig(
-        embedding="chemeleon",
-        embedding_pca=256,
+        embedding="chemprop_log2fc",
+        embedding_pca=0,
         readout="none",
-        descriptors="mordred",
+        descriptors="rdkit",
         descriptor_pca=128,
         regressor="lgbm",
         calibration="none",
