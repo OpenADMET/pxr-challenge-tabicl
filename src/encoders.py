@@ -403,7 +403,11 @@ def register(registry: MutableMapping[str, Any] | None = None) -> MutableMapping
         # every block here comes out of a training run, so each seed is its own
         # artifact; stage three relies on this flag to thread the seed through
         target[name] = features._Block(
-            spec.version, _compute_block(name), dict(spec.defaults), seeded=True
+            spec.version,
+            _compute_block(name),
+            dict(spec.defaults),
+            seeded=True,
+            encoder=spec.prefix,
         )
     return target
 

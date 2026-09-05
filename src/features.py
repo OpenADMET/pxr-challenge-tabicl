@@ -231,6 +231,7 @@ class _Block:
         defaults: dict,
         *,
         seeded: bool = False,
+        encoder: str | None = None,
     ):
         self.version = version
         self.compute = compute
@@ -238,6 +239,10 @@ class _Block:
         # a seeded block is computed once per replicate seed, because a trained
         # encoder produces different features each time it is trained
         self.seeded = seeded
+        # which encoder produces it, or None for a block that needs no training.
+        # Two blocks off one encoder share a name here, which is what lets a
+        # cost comparison count encoders rather than blocks
+        self.encoder = encoder
 
 
 # Bump a block's version when the meaning of its output changes; never for a

@@ -167,12 +167,54 @@ def all_chosen(manifest: Manifest, gates_dir: Path | None = None) -> dict[str, A
     return chosen
 
 
-def cost(config: TabularConfig, axes: dict[str, Any]) -> tuple[int, int]:
+def trained_encoders(config: TabularConfig, axes: dict[str, Any]) -> int:
+    """Return how many encoders a configuration has to train before it can run.
+
+    Distinct encoders, not blocks: a prefix's embedding and readout come off
+    one trained network, so a configuration using both pays for one. A block
+    needing no training, such as the frozen CheMeleon embedding or any
+    descriptor set, costs nothing here.
+
+    Parameters
+    ----------
+    config : TabularConfig
+        The configuration to price.
+    axes : dict
+        The axis vocabulary, mapping a level to the raw blocks behind it.
+
+    Returns
+    -------
+    int
+        Encoders to train, each of which is trained once per replicate seed.
+    """
+    import features
+
+    names: set[str] = set()
+    for axis in ("embedding", "readout", "descriptors"):
+        level = (axes.get(axis) or {}).get(getattr(config, axis))
+        if not level:
+            continue
+        for block in level.get("blocks", [level["block"]] if "block" in level else []):
+            spec = features.BLOCKS.get(block)
+            encoder = None if spec is None else getattr(spec, "encoder", None)
+            if encoder is not None:
+                names.add(encoder)
+    return len(names)
+
+
+def cost(config: TabularConfig, axes: dict[str, Any]) -> tuple[int, int, int]:
     """Rank configurations by expense, for breaking a statistical tie.
 
-    Fewer blocks first, then fewer columns in total. Comparing tied
-    configurations on cost rather than on a difference the data does not
-    support keeps the sweep from chasing noise into a wider featureset.
+    Fewer blocks, then fewer encoders to train, then fewer columns in total.
+    Comparing tied configurations on cost rather than on a difference the data
+    does not support keeps the sweep from chasing noise into a wider featureset.
+
+    The middle term is what separates two featuresets of the same shape and
+    different provenance. A frozen foundation embedding and one fine-tuned on
+    log2FC are both a single 256-column block, and only the second has to be
+    trained, five times over. Ordering on width alone calls them equal and
+    picks whichever happens to score lower, which is how the more expensive of
+    two indistinguishable configurations wins.
 
     A block kept whole costs its own column count, not the sentinel that
     records it: keeping RDKit's 217 descriptors is the widest option on that
@@ -187,7 +229,7 @@ def cost(config: TabularConfig, axes: dict[str, Any]) -> tuple[int, int]:
             columns = manifest_module.native_width(axes, block_axis, getattr(config, block_axis))
             width = columns if columns is not None else _WIDEST
         total += width
-    return (config.n_blocks, total)
+    return (config.n_blocks, trained_encoders(config, axes), total)
 
 
 def resolve(

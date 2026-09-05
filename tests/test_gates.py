@@ -9,6 +9,7 @@ import evaluate
 import gates
 import manifest as manifest_module
 from data import CANONICAL_COL
+from manifest import TabularConfig
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUN_DIR = REPO_ROOT / "run"
@@ -259,7 +260,7 @@ def test_a_block_kept_whole_costs_its_own_width_not_its_sentinel(spec):
 
     # RDKit's 217 columns kept whole are the widest option on that axis, not
     # the narrowest; ordering on the sentinel would make it the cheapest
-    assert gates.cost(whole, spec.axes)[1] == 217
+    assert gates.cost(whole, spec.axes)[2] == 217
     assert all(gates.cost(c, spec.axes) < gates.cost(whole, spec.axes) for c in reduced)
 
 
@@ -276,7 +277,7 @@ def test_an_undeclared_block_kept_whole_is_treated_as_the_most_expensive(spec):
 
     # with no column count declared there is nothing to compare against, and
     # guessing cheap would hand a tie to the widest featureset
-    assert gates.cost(whole, {"descriptors": {}, "embedding": {}})[1] == gates._WIDEST
+    assert gates.cost(whole, {"descriptors": {}, "embedding": {}})[2] == gates._WIDEST
 
 
 def test_the_gate_ranks_on_the_ensemble_rather_than_on_a_mean_of_seed_scores(spec, tmp_path):
@@ -410,3 +411,61 @@ def test_a_gate_records_the_evidence_behind_every_verdict(spec, tmp_path, monkey
     for row in sig["against_leader"]:
         assert 0.0 < row["p_value"] <= 1.0
         assert 0.0 < row["bh_threshold"] <= gates.FDR
+
+
+def test_two_blocks_off_one_encoder_are_charged_once(spec):
+    # the embedding and readout of a prefix come off a single trained network,
+    # so a configuration carrying both pays for one encoder and not two
+    both = TabularConfig(
+        embedding="chemprop_log2fc",
+        readout="chemprop_log2fc",
+        descriptors="none",
+        embedding_pca=0,
+        descriptor_pca=0,
+        regressor="tabpfn-v3",
+        calibration="none",
+    )
+    assert gates.trained_encoders(both, spec.axes) == 1
+
+
+def test_a_block_needing_no_training_costs_no_encoder(spec):
+    frozen = TabularConfig(
+        embedding="chemeleon",
+        readout="none",
+        descriptors="rdkit",
+        embedding_pca=256,
+        descriptor_pca=128,
+        regressor="tabpfn-v3",
+        calibration="none",
+    )
+    assert gates.trained_encoders(frozen, spec.axes) == 0
+
+
+def test_cost_prefers_the_featureset_with_fewer_encoders_to_train(spec):
+    # both are two blocks at 256 columns; only the provenance differs, and only
+    # one of them has to fit a network five times before it can run
+    off_the_shelf = TabularConfig(
+        embedding="chemeleon",
+        readout="chemprop_log2fc",
+        descriptors="none",
+        embedding_pca=256,
+        descriptor_pca=0,
+        regressor="tabpfn-v3",
+        calibration="none",
+    )
+    fine_tuned = TabularConfig(
+        embedding="chemeleon_log2fc",
+        readout="chemprop_log2fc",
+        descriptors="none",
+        embedding_pca=256,
+        descriptor_pca=0,
+        regressor="tabpfn-v3",
+        calibration="none",
+    )
+
+    a, b = gates.cost(off_the_shelf, spec.axes), gates.cost(fine_tuned, spec.axes)
+
+    # same shape, so only the encoder term may separate them
+    assert a[0] == b[0]
+    assert a[2] == b[2]
+    assert a < b
