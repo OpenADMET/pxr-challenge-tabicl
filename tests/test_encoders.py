@@ -586,3 +586,26 @@ def test_the_epoch_budget_leaves_room_for_early_stopping():
     assert config.max_epochs == 30
     assert config.warmup_epochs < config.max_epochs
     assert config.patience < config.max_epochs - config.warmup_epochs
+
+
+def test_each_log2fc_prefix_offers_both_an_embedding_and_a_readout():
+    # a prefix's two blocks are one trained encoder read two ways, which is
+    # what lets the readout axis compare initialisations rather than networks
+    specs = encoders.BLOCK_SPECS
+    for prefix in ("chemprop_log2fc", "chemeleon_log2fc"):
+        pair = {name: s for name, s in specs.items() if s.prefix == prefix}
+        assert {s.readout for s in pair.values()} == {True, False}, prefix
+        # identical defaults are what make them the same encoder
+        defaults = [s.defaults for s in pair.values()]
+        assert defaults[0] == defaults[1], prefix
+
+
+def test_the_two_readout_blocks_come_from_differently_initialised_encoders():
+    specs = encoders.BLOCK_SPECS
+    chemprop = specs["chemprop_log2fc_readout"].defaults["from_foundation"]
+    chemeleon = specs["chemeleon_log2fc_readout"].defaults["from_foundation"]
+
+    # the whole point of having both: the readout ingredient must not silently
+    # mean a different network in one figure than in another
+    assert chemprop is None
+    assert chemeleon == "chemeleon"

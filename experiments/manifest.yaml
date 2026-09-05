@@ -95,8 +95,14 @@ tabular:
     readout:
       none: null
       # two predicted log2FC columns; they mean something column by column, so
-      # they are passed through rather than rotated
+      # they are passed through rather than rotated. Two levels because the
+      # network predicting them differs: chemprop_log2fc is randomly
+      # initialised at 256 and chemeleon_log2fc starts from the foundation
+      # checkpoint at 2,048, and the graph networks' auxiliary arm is the
+      # second of those. With one level the readout ingredient would mean a
+      # different thing in figure 1 than in figures 2 and 3
       chemprop_log2fc: {block: chemprop_log2fc_readout}
+      chemeleon_log2fc: {block: chemeleon_log2fc_readout}
     descriptors:
       none: null
       mordred: {blocks: [mordred], reduce: true, n_features: 1613}

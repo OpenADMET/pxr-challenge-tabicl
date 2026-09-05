@@ -899,8 +899,9 @@ def _defaults(**overrides: Any) -> dict[str, Any]:
 
 
 # Bump a block's version when the meaning of its output changes; never for a
-# change that cannot alter the numbers. The two chemprop_log2fc blocks carry
-# identical defaults on purpose: that is what makes them one trained encoder.
+# change that cannot alter the numbers. A prefix's embedding and readout blocks
+# carry identical defaults on purpose: that is what makes them one trained
+# encoder, read two ways, rather than two encoders that happen to agree.
 BLOCK_SPECS: dict[str, _BlockSpec] = {
     "chemprop_log2fc_embedding": _BlockSpec(
         version=VERSION,
@@ -921,6 +922,18 @@ BLOCK_SPECS: dict[str, _BlockSpec] = {
         target="log2fc",
         prefix="chemeleon_log2fc",
         readout=False,
+        defaults=_defaults(from_foundation="chemeleon"),
+    ),
+    # the readout twin of the block above, off the same trained encoder. Without
+    # it the readout axis offers predictions from a randomly initialised
+    # chemprop alone, so "adding the readout is worth X" in the tabular figures
+    # and the same sentence about the graph networks' auxiliary arm, which is
+    # CheMeleon-initialised, would be claims about different networks
+    "chemeleon_log2fc_readout": _BlockSpec(
+        version=VERSION,
+        target="log2fc",
+        prefix="chemeleon_log2fc",
+        readout=True,
         defaults=_defaults(from_foundation="chemeleon"),
     ),
     "chemeleon_pec50_embedding": _BlockSpec(
