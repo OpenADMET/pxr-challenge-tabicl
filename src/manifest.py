@@ -131,9 +131,30 @@ class GnnCell:
     axes: dict[str, Any]
     prior: str | None = None
 
+    @property
+    def slug(self) -> str:
+        """A cell is named rather than crossed, so its id is its slug."""
+        return self.id
+
     def run_dir(self, seed: int, results_dir: Path = RESULTS_DIR) -> Path:
         """Where this cell writes a given seed's run."""
         return results_dir / "gnn" / self.id / f"seed{seed}"
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the cell as flat data, for a record or a figure's labels.
+
+        The auxiliary encoder is a nested block in the manifest and is
+        flattened here into the three things that vary between cells: what it
+        was trained on, whether its predictions reach the predictor, and
+        whether its embedding does. Nested values would otherwise have to be
+        compared as whole dictionaries by anything reading these.
+        """
+        flat = {axis: value for axis, value in self.axes.items() if axis != "aux_encoder"}
+        aux = self.axes.get("aux_encoder")
+        flat["aux_target"] = aux["target"] if aux else "none"
+        flat["aux_readout"] = bool(aux and aux.get("use_predicted_readout", False))
+        flat["aux_embedding"] = bool(aux and aux.get("use_embedding", True))
+        return flat
 
 
 @dataclass(frozen=True)
