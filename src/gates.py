@@ -277,23 +277,72 @@ def evidence(
     if stage.gate is None:
         raise GateError(f"stage {stage_id!r} has no gate to decide")
 
+    configs = manifest.expand(stage_id, settled(manifest, stage_id, gates_dir))
+    measured = measure(configs, manifest, results_dir=results_dir, n_resamples=n_resamples)
+    return {
+        "gate": stage.gate.id,
+        "stage": stage_id,
+        "question": stage.gate.question,
+        "chooses": list(stage.gate.chooses),
+        **measured,
+    }
+
+
+def measure(
+    configs: list[Any],
+    manifest: Manifest,
+    *,
+    results_dir: Path = aggregate.RESULTS_DIR,
+    n_resamples: int = 10000,
+    labels: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Rank a family of configurations and test every pair within it.
+
+    The family is whatever it is given, which is what lets a figure that no
+    gate decides be measured the same way a gate is: the graph networks, or a
+    stage's rows with a reference point carried in beside them. The correction
+    is over the family passed, so a figure showing a slice of a stage is
+    corrected over what it shows rather than over what the stage ran.
+
+    Parameters
+    ----------
+    configs : list
+        Configurations or cells, anything carrying ``slug``, ``run_dir`` and
+        ``as_dict``. They may be of mixed kinds, since the comparison is over
+        predictions on the same compounds.
+    manifest : Manifest
+        Supplies the seeds and, for tabular rows, the column counts behind the
+        cost facts.
+    results_dir : path-like, optional
+        Root holding the run directories.
+    n_resamples : int, optional
+        Compound resamples for the family bootstrap.
+    labels : dict, optional
+        Slug mapped to the name a figure should show, for a family whose rows
+        have no axes in common to be named by.
+
+    Returns
+    -------
+    dict
+        The ranking, the significance evidence, and how long it took.
+
+    Raises
+    ------
+    GateError
+        If any configuration in the family has a missing run.
+    """
     with provenance.timed() as elapsed:
-        configs = manifest.expand(stage_id, settled(manifest, stage_id, gates_dir))
         scored = _score(configs, manifest, results_dir)
         ranked = sorted(scored, key=lambda row: row[RANK_METRIC])
         separated, significance = _separated(ranked, n_resamples=n_resamples)
 
     tied = [row["config"].slug for row in ranked[1:] if row not in separated]
     return {
-        "gate": stage.gate.id,
-        "stage": stage_id,
         "version": VERSION,
-        "question": stage.gate.question,
-        "chooses": list(stage.gate.chooses),
         "metric": RANK_METRIC,
         "leader_slug": ranked[0]["config"].slug,
         "indistinguishable_from_leader": tied,
-        "ranking": [_public(row, manifest) for row in ranked],
+        "ranking": [_public(row, manifest, labels) for row in ranked],
         "n_resamples": n_resamples,
         "significance": significance,
         "wall_clock_s": elapsed(),
@@ -410,10 +459,40 @@ def write(decision: dict[str, Any], gates_dir: Path | None = None) -> Path:
     return path
 
 
-def _score(
-    configs: list[TabularConfig], manifest: Manifest, results_dir: Path
+def scores(
+    configs: list[Any],
+    manifest: Manifest,
+    *,
+    results_dir: Path = aggregate.RESULTS_DIR,
+    labels: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Score every configuration's seed ensemble, requiring a complete stage."""
+    """Score configurations without testing them against anything.
+
+    For a figure that carries a point of comparison it is not asking about:
+    the reference is scored on the same compounds, but stays out of the family
+    the correction is computed over, so adding it cannot move a verdict.
+
+    Parameters
+    ----------
+    configs : list
+        Configurations or cells to score.
+    manifest : Manifest
+        Supplies the seeds.
+    results_dir : path-like, optional
+        Root holding the run directories.
+    labels : dict, optional
+        Slug mapped to the name a figure should show.
+
+    Returns
+    -------
+    list of dict
+        One public row each, in the order given.
+    """
+    return [_public(row, manifest, labels) for row in _score(configs, manifest, results_dir)]
+
+
+def _score(configs: list[Any], manifest: Manifest, results_dir: Path) -> list[dict[str, Any]]:
+    """Score every configuration's seeds, requiring a complete family."""
     rows: list[dict[str, Any]] = []
     for config in configs:
         run_dirs = [config.run_dir(seed, results_dir) for seed in manifest.seeds]
@@ -569,26 +648,34 @@ def _separated(
     return separated, evidence
 
 
-def _public(row: dict[str, Any], manifest: Manifest) -> dict[str, Any]:
+def _public(
+    row: dict[str, Any], manifest: Manifest, labels: dict[str, str] | None = None
+) -> dict[str, Any]:
     """Strip the arrays off a scored row, leaving what belongs in the record.
 
     Cost appears here as three facts about a configuration and not as an
     ordering: how many blocks it joins, how many encoders it has to train, and
     how many columns it carries. Whether any of that is worth a difference in
-    score is a judgement, and judgements live in a decision's reason.
+    score is a judgement, and judgements live in a decision's reason. A graph
+    network is one trained network end to end and joins no blocks, so the
+    three facts do not describe it and are left off rather than filled in with
+    numbers that would invite a comparison across kinds.
     """
-    blocks, encoders, columns = cost(row["config"], manifest.axes)
-    return {
-        "slug": row["config"].slug,
+    slug = row["config"].slug
+    public = {
+        "slug": slug,
         "config": row["config"].as_dict(),
         "n_seeds": int(row["n_seeds"]),
         "seed_spread": float(row["seed_spread"]),
-        "n_blocks": blocks,
-        "n_encoders_to_train": encoders,
-        "n_columns": columns,
         "ensemble": {k: float(v) for k, v in row["ensemble"].items()},
         **{name: float(row[name]) for name in evaluate.METRIC_NAMES if name in row},
     }
+    if isinstance(row["config"], TabularConfig):
+        blocks, encoders, columns = cost(row["config"], manifest.axes)
+        public |= {"n_blocks": blocks, "n_encoders_to_train": encoders, "n_columns": columns}
+    if labels and slug in labels:
+        public["label"] = labels[slug]
+    return public
 
 
 def gated_config(manifest: Manifest) -> TabularConfig:
