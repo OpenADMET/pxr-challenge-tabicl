@@ -505,6 +505,38 @@ def _separated(
     p_values = [evaluate.difference_p_value(resampled, i, j) for i, j in pairs]
     rejected = evaluate.benjamini_hochberg(p_values, fdr=fdr)
 
+    # what a figure draws: the leader-anchored difference interval per
+    # configuration, and a half width for the leader itself so it is not the
+    # one row that appears to have been measured without error.
+    #
+    # The interval is taken at the level Benjamini-Hochberg actually applied
+    # rather than at 95%, which is how the multiplicity reaches the geometry.
+    # A step-up procedure rejects everything at or below the p-value of its
+    # last rejection, so one cutoff describes the whole family, and an
+    # interval at that level contains zero exactly when the procedure did not
+    # separate the pair. Drawn at 95% instead, a corrected non-rejection can
+    # clear the leader and the figure contradicts the verdict beside it.
+    ordered = np.sort(np.asarray(p_values))
+    steps = np.arange(1, len(pairs) + 1) / len(pairs) * fdr
+    passing = np.flatnonzero(ordered <= steps)
+    alpha = float(steps[passing[-1]]) if passing.size else float(steps[0])
+
+    differences = resampled - resampled[0]
+    low, high = np.percentile(differences, [alpha / 2 * 100, (1 - alpha / 2) * 100], axis=1)
+    intervals = {
+        ranked[i]["config"].slug: (float(low[i]), float(high[i])) for i in range(len(ranked))
+    }
+
+    # statsmodels splits each Tukey comparison between the two intervals it
+    # joins, so that overlap is the test. The same split here has to leave
+    # every candidate's lower reach non-negative, so the leader takes half of
+    # the closest comparison it is in and every candidate is drawn offset by
+    # that much: a candidate then reaches the leader's interval exactly when
+    # its difference interval reaches zero
+    observed_gap = np.array([row[RANK_METRIC] - ranked[0][RANK_METRIC] for row in ranked])
+    reach = (observed_gap - low)[1:]
+    leader_halfwidth = float(reach.min() / 2) if reach.size and reach.min() > 0 else 0.0
+
     order = np.argsort(p_values)
     rank_of = {int(index): position + 1 for position, index in enumerate(order)}
     separated, against_leader = [], []
@@ -525,6 +557,9 @@ def _separated(
         )
 
     evidence = {
+        "comparison_intervals": intervals,
+        "leader_halfwidth": leader_halfwidth,
+        "interval_alpha": alpha,
         "procedure": "all-pairwise paired bootstrap, Benjamini-Hochberg",
         "fdr": fdr,
         "n_comparisons": len(pairs),
