@@ -30,7 +30,7 @@ anchor:
   not_the_anchor:
     0.437: >
       An out-of-fold MAE on the training set, from the report's Table 4,
-      "OOF results for the same log2fc-pretrained ChemProp with only the
+      "OOF results for the same log2fc-pretrained Chemprop with only the
       downstream model changed". It is a development number over training
       compounds, not a phase-2 score, and drawing it beside one compares
       different quantities. The previous generation treated it as a phase-2
@@ -577,7 +577,10 @@ gnn:
 # move a verdict, and draws it without an interval to say so.
 #
 # Each names a cell, for the graph networks, or the axis levels that pick out
-# one configuration of a stage. The panel that measured the family a reference
+# one configuration of a stage, and carries the title it is drawn under. Away
+# from the figure that established it, a reference is read for what it is
+# rather than for how it is built: a row labelled by its blocks in a figure
+# comparing other things invites being read as one of them. The panel that measured the family a reference
 # came from warns if the runs have moved and it is no longer that family's
 # leader, which is a judgement for whoever reads the log rather than something
 # to override silently.

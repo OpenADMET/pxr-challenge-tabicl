@@ -84,7 +84,7 @@ RECORDED_AXES = (
 METRICS = ("mae", "rmse", "rae", "r2", "kendall_tau", "spearman_rho")
 
 # run-directory prefixes whose runs are the concatenation architecture: a main
-# ChemProp model fine-tuned on pEC50 (`value_column: value`) alongside an
+# A Chemprop model fine-tuned on pEC50 (`value_column: value`) alongside an
 # auxiliary encoder trained on log2FC, per configs/freeze*.yaml and
 # configs/feat_*.yaml on main
 _CONCAT_PREFIXES = ("freeze", "feat_")

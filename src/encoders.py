@@ -1,7 +1,7 @@
 """Stage one, seeded: the feature blocks that come out of an encoder we train ourselves.
 
 The blocks in ``features`` are functions of structure alone, so one table serves
-every run. These four are not. Each is read off a ChemProp D-MPNN that this
+every run. These four are not. Each is read off a Chemprop D-MPNN that this
 module trains, so its numbers depend on the weight initialisation and on the
 order the training batches arrived in. The seed that fixes both is part of every
 block's specification, which makes each seed a separate cached artifact and a
@@ -201,7 +201,7 @@ class TrainingSet:
         Canonical SMILES of the training and validation rows.
     train_targets, val_targets : ndarray
         Target matrices of shape ``(n_rows, n_tasks)``, NaN where a compound
-        has no observation for that task. ChemProp masks NaN out of the loss.
+        has no observation for that task. Chemprop masks NaN out of the loss.
     """
 
     task_names: list[str]
@@ -576,7 +576,7 @@ class _KeepBestWeights(L.Callback):
 
 
 def _build_model(config: EncoderConfig, n_tasks: int, scaler: Any) -> ChemPropModel:
-    """Assemble an unfitted ChemProp model for a configuration."""
+    """Assemble an unfitted Chemprop model for a configuration."""
     model = ChemPropModel(
         n_tasks=n_tasks,
         from_foundation=config.from_foundation,
@@ -599,7 +599,7 @@ def _build_model(config: EncoderConfig, n_tasks: int, scaler: Any) -> ChemPropMo
 
 
 def _dataset(smiles: Sequence[str], targets: np.ndarray | None = None) -> MoleculeDataset:
-    """Build a ChemProp dataset, with NaN marking an unobserved task."""
+    """Build a Chemprop dataset, with NaN marking an unobserved task."""
     if targets is None:
         points = [MoleculeDatapoint.from_smi(smi) for smi in smiles]
     else:
@@ -613,7 +613,7 @@ def _dataset(smiles: Sequence[str], targets: np.ndarray | None = None) -> Molecu
 
 
 def _safe_batch_size(n_rows: int, batch_size: int) -> int:
-    """Return a batch size ChemProp will not silently drop a trailing row from.
+    """Return a batch size Chemprop will not silently drop a trailing row from.
 
     ``build_dataloader`` drops a trailing batch of size one so batch norm cannot
     see a single molecule. During extraction that would lose a row and misalign

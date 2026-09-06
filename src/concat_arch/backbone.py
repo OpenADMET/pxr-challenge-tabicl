@@ -1,4 +1,4 @@
-"""Assemble the ChemProp D-MPNN both models in this package are built from.
+"""Assemble the Chemprop D-MPNN both models in this package are built from.
 
 The main pEC50 model and the auxiliary log2FC encoder share this constructor
 rather than each rolling its own, so their pooled embeddings live in the same

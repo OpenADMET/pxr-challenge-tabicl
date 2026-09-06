@@ -1,6 +1,6 @@
 """The concatenation architecture: a pEC50 D-MPNN augmented by a log2FC encoder.
 
-A main ChemProp D-MPNN predicts pEC50. Beside it, an auxiliary D-MPNN is
+A main Chemprop D-MPNN predicts pEC50. Beside it, an auxiliary D-MPNN is
 pretrained on the single-concentration log2FC screen, and what it learned is
 concatenated into the main model's predictor input: always its pooled
 structural embedding, and optionally a readout of log2FC values, either the
