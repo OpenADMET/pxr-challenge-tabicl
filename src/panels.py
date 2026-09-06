@@ -148,7 +148,6 @@ def annotations(
                 widths=widths,
                 width_separator=width_separator,
             )
-            label = plots.wrap_label(label)
             detail = tabular_detail(flat, dims)
         else:
             label, detail = plots.gnn_label(flat, freeze=freeze), gnn_detail(flat, dims)
@@ -353,7 +352,6 @@ def ingredient_panels(
             named=named,
             home="best_single",
             carried=carried_slugs,
-            hidden=SETTLED_IN_PLACE,
         ),
         Panel(
             id="fig4",
@@ -363,7 +361,6 @@ def ingredient_panels(
             references=references,
             named=named,
             carried=carried_slugs,
-            hidden=SETTLED_IN_PLACE,
         ),
     )
 
@@ -405,7 +402,6 @@ def regressor_panel(
         references=references,
         named=_identities(manifest, gates_dir),
         carried={config.slug for config in carried_configs},
-        hidden=SETTLED_IN_PLACE,
     )
 
 
@@ -695,9 +691,10 @@ def tabular_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> 
         native = dims.get((axis, level))
         width = int(config.get(width_axis, 0)) if width_axis else 0
         name = plots.PRETTY.get(level, level)
-        prefix = f"{name} {axis}: " if present > 1 else ""
+        # a comma rather than a colon, since the line that follows carries one
+        prefix = f"{name} {axis}, " if present > 1 else ""
         if width > 0:
-            lines.append(f"{prefix}PCA {native or '?'} \u2192 {width}")
+            lines.append(f"{prefix}PCA: {native or '?'} \u2192 {width}")
             total += width
         elif axis == "readout":
             # a readout is a network's predictions, not a compressed block, so
@@ -706,7 +703,7 @@ def tabular_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> 
             total += native or 0
             known = known and native is not None
         else:
-            lines.append(f"{prefix}PCA none ({native or '?'})")
+            lines.append(f"{prefix}PCA: none ({native or '?'})")
             total += native or 0
             known = known and native is not None
     if known:
@@ -741,7 +738,7 @@ def gnn_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> str:
     level = "chemeleon" if str(config["encoder_init"]) == "chemeleon" else "chemprop_log2fc"
     width = dims.get(("embedding", level))
     lines = [
-        "model: Chemprop D-MPNN with a feed-forward predictor",
+        "model: Chemprop D-MPNN",
         f"MPNN body from: {started}" + (f", width {width}" if width else ""),
         f"MPNN body: {'frozen' if frozen else 'free'}",
         f"predictor head: {config['ffn_hidden_dim']} wide",

@@ -83,7 +83,10 @@ def test_no_two_identities_read_as_the_same_colour():
 def test_the_verdict_colours_are_not_in_any_identity_family():
     # a reader reads blue as "not separated" and grey as "separated" wherever
     # they appear, so no identity may borrow either reading
+    # a grey that is faintly blue reads as an identity, which is what this
+    # caught when the verdicts moved off blue and an identity moved onto it
     reserved = {family(colour) for colour in plots.VERDICT_COLOUR.values()}
+    assert reserved == {"grey"}
     for name, colour in plots.IDENTITY_COLOUR.items():
         assert family(colour) not in reserved, f"{name} reads as a verdict colour"
 
@@ -163,8 +166,8 @@ def test_a_tooltip_opens_with_the_name_and_the_score():
     assert lines[0] == "<b>B</b>"
     assert lines[1].startswith("MAE 0.5000 ")
     assert "over seeds" in lines[1]
-    assert lines[2].startswith("ensemble of those seeds")
-    assert lines[3].startswith(plots.SEPARATED)
+    assert lines[2].startswith("seed ensemble MAE:")
+    assert lines[3] == "leader-separated: p=0.0100"
 
 
 def test_a_carried_row_says_where_it_came_from():

@@ -53,7 +53,12 @@ logger = logging.getLogger(__name__)
 # figure is sorted and position already says it
 TIED = "not separated from the leader"
 SEPARATED = "separated from the leader"
-VERDICT_COLOUR = {TIED: "#0969da", SEPARATED: "#9aa4ae"}
+
+# A verdict is drawn in grey, dark for a row the procedure does not separate
+# from the leader and light for one it does. Colour is then spent entirely on
+# identity: a hue means a particular configuration and nothing else, and a row
+# with no hue has earned no name rather than having been assigned a reading.
+VERDICT_COLOUR = {TIED: "#57606a", SEPARATED: "#c6cbd1"}
 
 # Each gate's winner takes one colour and keeps it wherever that configuration
 # appears again, so a reader can follow it across the figures and read its
@@ -63,7 +68,8 @@ VERDICT_COLOUR = {TIED: "#0969da", SEPARATED: "#9aa4ae"}
 # differ from stage to stage.
 GATE_COLOUR = {
     "canonical_descriptors": "#ff6ac1",
-    "embedding_reduction": "#00c2d1",
+    # blue, which the verdicts no longer need
+    "embedding_reduction": "#0969da",
     "best_featureset": "#b967ff",
     "best_regressor": "#ff9e64",
 }
@@ -104,7 +110,7 @@ METRIC_LABEL = "MAE"
 # establishes is a star. Shape and colour answer different questions, so a
 # carried row keeps its identity colour and a swept one keeps its circle even
 # when it is somebody's winner.
-CHOSEN, CARRIED, SCORED = "established here", "carried", "scored"
+CHOSEN, CARRIED, SCORED = "chosen here", "carried", "scored"
 SYMBOL = {CHOSEN: "star", CARRIED: "diamond", SCORED: "circle"}
 SIZE = {CHOSEN: 15, CARRIED: 11, SCORED: 9}
 
@@ -279,7 +285,8 @@ def comparison_frame(
                 "verdict": (
                     ""
                     if slug == leader
-                    else f"{SEPARATED if is_separated else TIED}, p {p_values.get(slug, 0):.4f}"
+                    else f"{'' if is_separated else 'not '}leader-separated: "
+                    f"p={p_values.get(slug, 0):.4f}"
                 ),
             }
         )
@@ -331,7 +338,7 @@ def _hover(row: pd.Series) -> str:
     if pd.notna(row["seed_spread"]):
         lines[-1] += f" \u00b1 {row['seed_spread']:.4f} over seeds"
     if pd.notna(row["ensemble"]) and row["ensemble"] != row["mae"]:
-        lines.append(f"ensemble of those seeds {row['ensemble']:.4f}")
+        lines.append(f"seed ensemble MAE: {row['ensemble']:.4f}")
     if row["verdict"]:
         lines.append(row["verdict"])
     if row["detail"]:
@@ -424,7 +431,7 @@ def varying_axes(ranking: list[dict[str, Any]]) -> tuple[str, ...]:
 # a block whose width is not shown is named by what kind of block it is, since
 # the level alone ("CheMeleon") does not say whether it is an embedding, a
 # readout or a descriptor set
-BLOCK_NOUN = {"embedding": "embedding", "descriptors": "descriptors"}
+BLOCK_NOUN = {"embedding": "emb.", "descriptors": "descriptors"}
 
 
 def label_for(
@@ -487,7 +494,7 @@ def label_for(
         # a readout is two predicted columns, not an embedding, and the two are
         # produced by the same networks, so the name has to say which it is
         if axis == "readout":
-            name = f"{name} readout"
+            name = f"{name} r.o."
         elif not shown and axis in BLOCK_NOUN:
             name = f"{name} {BLOCK_NOUN[axis]}"
         parts.append(f"{name}{suffix}")
@@ -654,9 +661,14 @@ def row_traces(frame: pd.DataFrame) -> list[go.Scatter]:
                 x=xs,
                 y=ys,
                 mode="lines+markers",
-                line={"color": colour, "width": 1.4},
+                line={"color": colour, "width": 2.4},
                 # the end caps, one on each point the line was built from
-                marker={"color": colour, "symbol": "line-ns-open", "size": 7},
+                marker={
+                    "color": colour,
+                    "symbol": "line-ns-open",
+                    "size": 8,
+                    "line": {"width": 2.0, "color": colour},
+                },
                 hoverinfo="skip",
                 showlegend=False,
             )
@@ -800,7 +812,7 @@ def _legend(frame: pd.DataFrame) -> list[go.Scatter]:
         if colour in colours:
             entries.append((verdict, colour, "circle"))
     roles = set(frame["role"])
-    for role, label in ((CHOSEN, "established here"), (CARRIED, "carried in")):
+    for role, label in ((CHOSEN, "chosen here"), (CARRIED, "carried in")):
         if role in roles:
             entries.append((label, _LEGEND_NEUTRAL, SYMBOL[role]))
 
