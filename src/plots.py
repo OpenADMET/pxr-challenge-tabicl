@@ -118,7 +118,12 @@ METRIC_LABEL = "MAE"
 # when it is somebody's winner.
 CHOSEN, CARRIED, SCORED = "chosen here", "carried", "scored"
 SYMBOL = {CHOSEN: "star", CARRIED: "diamond", SCORED: "circle"}
-SIZE = {CHOSEN: 15, CARRIED: 11, SCORED: 9}
+
+# The row every interval in a panel is measured against. Any shape can be the
+# leader, and it is a statistical role rather than a choice, so it is marked on
+# the name rather than spending a shape or a colour on it.
+LEADER_MARK = " *"
+SIZE = {CHOSEN: 11, CARRIED: 10, SCORED: 9}
 
 # names that read as prose rather than as identifiers
 # Names as prose. The subscripts are markup rather than unicode because plotly
@@ -323,6 +328,9 @@ def comparison_frame(
 
     frame = pd.DataFrame(rows).sort_values("mae").reset_index(drop=True)
     frame["hover"] = [_hover(row) for _, row in frame.iterrows()]
+    # the leader is the top tested row, which is not the top row: the anchor
+    # sits above it and is not part of any comparison
+    frame.loc[frame["slug"] == leader, "label"] += LEADER_MARK
     # the axis takes one font colour for every tick, so a row's own colour has
     # to travel in the label. The name is the category key as well, so both
     # the axis and the y values carry the same marked-up string
@@ -830,6 +838,13 @@ def _layout(n_rows: int) -> dict[str, Any]:
             "y": 1.0,
             "xanchor": "right",
             "x": 1.0,
+            # A key rather than a filter. Every row carries a verdict and a
+            # shape, which are orthogonal, and a trace can belong to one
+            # legend group only: filtering by either one leaves rows that
+            # answer to the other untouched, which is worse than a legend that
+            # does nothing when clicked because it looks like it worked.
+            "itemclick": False,
+            "itemdoubleclick": False,
         },
         "margin": {"l": 10, "r": 30, "t": 50, "b": 60},
     }
@@ -845,7 +860,8 @@ _LEGEND_NEUTRAL = "#57606a"
 def _legend(frame: pd.DataFrame) -> list[go.Scatter]:
     """Build the key: what the two verdict colours and the two shapes mean.
 
-    Both verdicts are always drawn, even where a panel has no example of one.
+    Both verdicts and the leader are always drawn, even where a panel has no
+    example of one.
     A key that changes between figures is one a reader has to reread, and a
     missing entry says nothing about why it is missing: a figure that
     separates nothing and one that happens not to have been checked would look
@@ -862,6 +878,7 @@ def _legend(frame: pd.DataFrame) -> list[go.Scatter]:
     for role, label in ((CHOSEN, "chosen here"), (CARRIED, "carried in")):
         if role in roles:
             entries.append((label, _LEGEND_NEUTRAL, SYMBOL[role], role))
+    entries.append(("* leader", _LEGEND_NEUTRAL, "asterisk-open", "leader"))
 
     return [
         go.Scatter(
