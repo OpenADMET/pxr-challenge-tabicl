@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -59,7 +60,7 @@ SEPARATED = "separated from the leader"
 # from the leader and light for one it does. Colour is then spent entirely on
 # identity: a hue means a particular configuration and nothing else, and a row
 # with no hue has earned no name rather than having been assigned a reading.
-VERDICT_COLOUR = {TIED: "#57606a", SEPARATED: "#c6cbd1"}
+VERDICT_COLOUR = {TIED: "#646d7a", SEPARATED: "#c6cbd1"}
 
 # Plotly's default qualitative palette, named by position so the source of a
 # colour is legible and nothing is invented. Ten colours, of which eight are
@@ -322,6 +323,12 @@ def comparison_frame(
 
     frame = pd.DataFrame(rows).sort_values("mae").reset_index(drop=True)
     frame["hover"] = [_hover(row) for _, row in frame.iterrows()]
+    # the axis takes one font colour for every tick, so a row's own colour has
+    # to travel in the label. The name is the category key as well, so both
+    # the axis and the y values carry the same marked-up string
+    frame["label"] = [
+        f'<span style="color:{row["colour"]}">{row["label"]}</span>' for _, row in frame.iterrows()
+    ]
     return frame
 
 
@@ -558,6 +565,7 @@ def _visible(label: str) -> str:
     A line break stands for the space it replaced, so a wrapped name read back
     as a tooltip's title does not run two words together.
     """
+    label = re.sub(r"</?span[^>]*>", "", label)
     for tag in ("<sub>", "</sub>", "<b>", "</b>"):
         label = label.replace(tag, "")
     return label.replace("<br>", " ")
@@ -616,12 +624,14 @@ def gnn_label(config: dict[str, Any], *, frozen_at: int = 30, freeze: bool = Tru
     return ", ".join(parts)
 
 
-def darken(colour: str, factor: float = 0.62) -> str:
+def darken(colour: str, factor: float = 0.78) -> str:
     """Return a darker shade of a hex colour, for a marker's own outline.
 
     One neutral outline on every marker flattens the palette: a light fill
     reads as unfinished and the identity colours stop being distinguishable at
     a glance. An outline of the fill's own hue keeps the marker one object.
+    Only a shade darker, since a heavy darkening turns a pale fill's outline
+    into something that reads as grey rather than as the colour it belongs to.
     """
     value = colour.lstrip("#")
     channels = (int(value[i : i + 2], 16) for i in (0, 2, 4))
@@ -648,7 +658,14 @@ def row_traces(frame: pd.DataFrame) -> list[go.Scatter]:
         In draw order.
     """
     whiskers = []
-    for colour, group in frame.groupby("whisker", sort=False):
+    # grouped by the marker's colour rather than the whisker's, so a whisker
+    # and the marker it belongs to land in the same legend group and are
+    # hidden together. Within one marker colour the whisker colour is uniform:
+    # a verdict colour is only ever given to rows carrying that verdict, and an
+    # identity colour to one row
+    for _, group in frame.groupby("colour", sort=False):
+        band = _band(group)
+        whisker = str(group["whisker"].iloc[0])
         # a null between rows breaks the line rather than joining one row's
         # whisker to the next
         xs: list[float | None] = []
@@ -666,15 +683,16 @@ def row_traces(frame: pd.DataFrame) -> list[go.Scatter]:
                 x=xs,
                 y=ys,
                 mode="lines+markers",
-                line={"color": colour, "width": 2.4},
+                line={"color": whisker, "width": 2.4},
                 # the end caps, one on each point the line was built from
                 marker={
-                    "color": colour,
+                    "color": whisker,
                     "symbol": "line-ns-open",
                     "size": 8,
-                    "line": {"width": 2.0, "color": colour},
+                    "line": {"width": 2.0, "color": whisker},
                 },
                 hoverinfo="skip",
+                legendgroup=band,
                 showlegend=False,
             )
         )
@@ -690,14 +708,34 @@ def row_traces(frame: pd.DataFrame) -> list[go.Scatter]:
                     "color": colour,
                     "symbol": [SYMBOL[role] for role in group["role"]],
                     "size": [SIZE[role] for role in group["role"]],
-                    "line": {"color": darken(colour), "width": 1.1},
+                    "opacity": 1.0,
+                    "line": {"color": darken(colour), "width": 1.2},
                 },
                 customdata=group[["hover"]].to_numpy(),
                 hovertemplate="%{customdata[0]}<extra></extra>",
+                legendgroup=_band(group),
                 showlegend=False,
             )
         )
     return whiskers + markers
+
+
+def _band(group: pd.DataFrame) -> str:
+    """Return the legend entry a group of rows belongs to.
+
+    A trace holds rows of one colour, and a colour is either a verdict, which
+    every row in the group shares, or an identity, which one row holds and
+    which the legend describes by its shape. Naming the group after that entry
+    is what makes clicking the entry hide the rows it describes: plotly toggles
+    a legend group together, and without one a legend built from empty traces
+    toggles nothing but itself.
+    """
+    colours = set(group["colour"])
+    for verdict, colour in VERDICT_COLOUR.items():
+        if colours == {colour}:
+            return verdict
+    roles = set(group["role"])
+    return roles.pop() if len(roles) == 1 else ""
 
 
 def comparison_figure(
@@ -807,19 +845,23 @@ _LEGEND_NEUTRAL = "#57606a"
 def _legend(frame: pd.DataFrame) -> list[go.Scatter]:
     """Build the key: what the two verdict colours and the two shapes mean.
 
-    Only entries the figure uses are drawn, so a panel with nothing carried
-    into it does not advertise a shape it has no example of. The traces hold
-    no points, which keeps them out of the axis ranges and the hover.
+    Both verdicts are always drawn, even where a panel has no example of one.
+    A key that changes between figures is one a reader has to reread, and a
+    missing entry says nothing about why it is missing: a figure that
+    separates nothing and one that happens not to have been checked would look
+    the same. The two shapes are drawn only where they occur, since those are
+    claims about particular rows rather than about the scale.
+
+    Each entry names the group its rows are drawn in, which is what lets
+    clicking it hide them.
     """
-    entries: list[tuple[str, str, str]] = []
-    colours = set(frame["colour"])
+    entries: list[tuple[str, str, str, str]] = []
     for verdict, colour in VERDICT_COLOUR.items():
-        if colour in colours:
-            entries.append((verdict, colour, "circle"))
+        entries.append((verdict, colour, "circle", verdict))
     roles = set(frame["role"])
     for role, label in ((CHOSEN, "chosen here"), (CARRIED, "carried in")):
         if role in roles:
-            entries.append((label, _LEGEND_NEUTRAL, SYMBOL[role]))
+            entries.append((label, _LEGEND_NEUTRAL, SYMBOL[role], role))
 
     return [
         go.Scatter(
@@ -831,12 +873,13 @@ def _legend(frame: pd.DataFrame) -> list[go.Scatter]:
                 "color": colour,
                 "symbol": symbol,
                 "size": 10,
-                "line": {"color": "#24292f", "width": 0.8},
+                "line": {"color": darken(colour), "width": 1.2},
             },
             hoverinfo="skip",
+            legendgroup=band,
             showlegend=True,
         )
-        for name, colour, symbol in entries
+        for name, colour, symbol, band in entries
     ]
 
 
