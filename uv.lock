@@ -1538,6 +1538,19 @@ wheels = [
 ]
 
 [[package]]
+name = "plotly"
+version = "6.5.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "narwhals" },
+    { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e3/4f/8a10a9b9f5192cb6fdef62f1d77fa7d834190b2c50c0cd256bd62879212b/plotly-6.5.2.tar.gz", hash = "sha256:7478555be0198562d1435dee4c308268187553cc15516a2f4dd034453699e393", size = 7015695, upload-time = "2026-01-14T21:26:51.222Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8a/67/f95b5460f127840310d2187f916cf0023b5875c0717fdf893f71e1325e87/plotly-6.5.2-py3-none-any.whl", hash = "sha256:91757653bd9c550eeea2fa2404dba6b85d1e366d54804c340b2c874e5a7eb4a4", size = 9895973, upload-time = "2026-01-14T21:26:47.135Z" },
+]
+
+[[package]]
 name = "pluggy"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1682,6 +1695,7 @@ dependencies = [
     { name = "numpy" },
     { name = "openadmet-models" },
     { name = "pandas" },
+    { name = "plotly" },
     { name = "pyarrow" },
     { name = "pyyaml" },
     { name = "rdkit" },
@@ -1712,6 +1726,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.0" },
     { name = "openadmet-models", git = "https://github.com/OpenADMET/openadmet-models.git?rev=4a8df806d12a7385edb6365074ce218af19002a5" },
     { name = "pandas", specifier = ">=2.2" },
+    { name = "plotly", specifier = "==6.5.2" },
     { name = "pyarrow", specifier = ">=15" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "rdkit", specifier = ">=2024.3" },
