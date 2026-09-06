@@ -79,16 +79,24 @@ GATE_COLOUR = {
 NAMED_COLOUR = {
     # the published leaderboard score, which is a landmark rather than a
     # competitor: it has no per-compound predictions here to test against
-    "anchor": "#22223b",
+    "anchor": "#ff2e63",
     "best_gnn": "#00b37e",
-    "chemeleon_baseline": "#e5484d",
+    # deep plum, which is the furthest any candidate sits from everything the
+    # baseline shares a panel with. The pair to watch is this one and the best
+    # graph network, which figure 1 introduces together: two greens read as
+    # related however far apart they measure, so the two graph networks are
+    # deliberately in different hue families rather than in one
+    "chemeleon_baseline": "#6a1b4d",
     "best_single": "#f5d300",
 }
 
 IDENTITY_COLOUR = {**GATE_COLOUR, **NAMED_COLOUR}
 
-X_RANGE = (0.30, 0.70)
-METRIC_LABEL = "MAE on phase 2 (n = 260), mean over five seeds"
+X_RANGE = (0.30, 0.75)
+
+# axis labels are read at a glance and against a dense column of markers
+BOLD = {"weight": "bold"}
+METRIC_LABEL = "MAE"
 
 # shape says how a row got here, colour says what it is. A gate's own choice is
 # marked in the figure that decided it; the same configuration reappearing
@@ -99,13 +107,20 @@ SYMBOL = {CHOSEN: "star", CARRIED: "diamond", SCORED: "circle"}
 SIZE = {CHOSEN: 15, CARRIED: 11, SCORED: 9}
 
 # names that read as prose rather than as identifiers
+# Names as prose. The subscripts are markup rather than unicode because plotly
+# renders <sub> in labels and tooltips alike, and a unicode subscript would not
+# survive a copy into a caption
+LOG2FC = "log<sub>2</sub>FC"
+PEC50 = "pEC<sub>50</sub>"
+
 PRETTY = {
     "rdkit_mordred": "RDKit + Mordred",
-    "chemprop_log2fc": "ChemProp log2FC",
-    "chemeleon_log2fc": "CheMeleon log2FC",
-    "chemeleon_pec50": "CheMeleon pEC50",
+    "chemprop_log2fc": f"Chemprop {LOG2FC}",
+    "chemeleon_log2fc": f"CheMeleon {LOG2FC}",
+    "chemeleon_pec50": f"CheMeleon {PEC50}",
     "chemeleon": "CheMeleon",
-    "log2fc": "log2FC",
+    "log2fc": LOG2FC,
+    "pec50": PEC50,
     "rdkit": "RDKit",
     "mordred": "Mordred",
     "tabpfn-v2.6": "TabPFN v2.6",
@@ -217,6 +232,10 @@ def comparison_frame(
         else:
             err_minus = max(0.0, row["mae"] - (best + low + halfwidth))
             err_plus = max(0.0, (best + high + halfwidth) - row["mae"])
+        is_separated = slug in separated
+        colour = (
+            IDENTITY_COLOUR.get(gate or "") or VERDICT_COLOUR[SEPARATED if is_separated else TIED]
+        )
         rows.append(
             {
                 "slug": slug,
@@ -231,10 +250,21 @@ def comparison_frame(
                 "gate": gate,
                 # an identity colour where the row is somebody's winner, a
                 # verdict colour otherwise
-                "colour": IDENTITY_COLOUR.get(gate or "")
-                or VERDICT_COLOUR[SEPARATED if slug in separated else TIED],
+                "colour": colour,
+                # the interval says how the row stands whatever its marker is
+                # coloured, so an identity keeps its colour and still reads as
+                # separated
+                "whisker": VERDICT_COLOUR[SEPARATED] if is_separated else colour,
                 "role": CHOSEN if gate == this_gate else (CARRIED if gate else SCORED),
                 "p_value": p_values.get(slug),
+                "detail": row.get("detail", ""),
+                # the leader has nothing to be compared against and is the top
+                # row, which says it without a line of its own
+                "verdict": (
+                    ""
+                    if slug == leader
+                    else f"{SEPARATED if is_separated else TIED}, p {p_values.get(slug, 0):.4f}"
+                ),
             }
         )
 
@@ -249,15 +279,44 @@ def comparison_frame(
                 # was computed over, so it has no verdict to draw
                 "err_minus": 0.0,
                 "err_plus": 0.0,
-                "seed_spread": reference["seed_spread"],
+                "seed_spread": reference.get("seed_spread"),
                 "ensemble": (reference.get("ensemble") or {}).get("mae"),
                 "gate": identity,
                 "colour": IDENTITY_COLOUR[identity],
+                "whisker": IDENTITY_COLOUR[identity],
                 "role": CHOSEN if identity == this_gate else CARRIED,
                 "p_value": None,
+                "detail": reference.get("detail", ""),
+                "verdict": "shown for reference, not tested here",
             }
         )
-    return pd.DataFrame(rows).sort_values("mae").reset_index(drop=True)
+
+    frame = pd.DataFrame(rows).sort_values("mae").reset_index(drop=True)
+    frame["hover"] = [_hover(row) for _, row in frame.iterrows()]
+    return frame
+
+
+def _hover(row: pd.Series) -> str:
+    """Render one row's tooltip: how it scored, how it stands, and what it is.
+
+    Everything a reader would otherwise have to look up in a table, since the
+    labels carry only what varies. A row with no seeds behind it, the published
+    anchor, is not offered statistics it does not have.
+
+    Written with the characters themselves rather than HTML entities: a
+    hovertemplate is not parsed as markup beyond its tags, so an entity would
+    be shown as it was typed.
+    """
+    lines = [f"<b>{row['label']}</b>", f"MAE {row['mae']:.4f}"]
+    if pd.notna(row["seed_spread"]):
+        lines[-1] += f" \u00b1 {row['seed_spread']:.4f} over seeds"
+    if pd.notna(row["ensemble"]) and row["ensemble"] != row["mae"]:
+        lines.append(f"ensemble of those seeds {row['ensemble']:.4f}")
+    if row["verdict"]:
+        lines.append(row["verdict"])
+    if row["detail"]:
+        lines.append(f"<br>{row['detail']}")
+    return "<br>".join(lines)
 
 
 def gate_winners(gates_dir: Path | None = None) -> dict[str, dict[str, Any]]:
@@ -342,16 +401,40 @@ def varying_axes(ranking: list[dict[str, Any]]) -> tuple[str, ...]:
     return tuple(axis for axis in axes if len({str(row["config"][axis]) for row in ranking}) > 1)
 
 
-def label_for(config: dict[str, Any], axes: tuple[str, ...]) -> str:
-    """Return a short name for a configuration, over the axes that vary.
+# a block whose width is not shown is named by what kind of block it is, since
+# the level alone ("CheMeleon") does not say whether it is an embedding, a
+# readout or a descriptor set
+BLOCK_NOUN = {"embedding": "embedding", "descriptors": "descriptors"}
+
+
+def label_for(
+    config: dict[str, Any],
+    axes: tuple[str, ...],
+    *,
+    dims: dict[tuple[str, str], int] | None = None,
+    widths: tuple[str, ...] = ("embedding", "descriptors"),
+    width_separator: str = " ",
+) -> str:
+    """Return a short name for a configuration, over the axes that name it.
 
     Parameters
     ----------
     config : dict
         One configuration's axis levels.
     axes : tuple of str
-        The axes to name, from :func:`varying_axes`. Empty names everything,
-        which is the degenerate case of a single-row figure.
+        The axes to name, usually from :func:`varying_axes`. Empty names
+        everything, which is the degenerate case of a single-row figure.
+    dims : dict, optional
+        Native column count per ``(axis, level)``, which is what a block kept
+        whole is called: "RDKit 217 (native)" rather than "RDKit native".
+    widths : tuple of str, optional
+        The block axes whose width belongs in the name. A width says something
+        where it varies or where it was chosen; the embedding's is dropped
+        once it is settled, since an integer beside a foundation model reads
+        as ambiguous between the reduction and the network's own size.
+    width_separator : str, optional
+        What comes between a block and its width. ``"<br>"`` sets the width on
+        its own line, for a figure whose rows differ in nothing else.
 
     Returns
     -------
@@ -362,39 +445,50 @@ def label_for(config: dict[str, Any], axes: tuple[str, ...]) -> str:
 
     # a width belongs to its block rather than standing on its own, so it is
     # folded into the block's name wherever both are being shown
-    widths = {"embedding": "embedding_pca", "descriptors": "descriptor_pca"}
+    width_axes = {"embedding": "embedding_pca", "descriptors": "descriptor_pca"}
     for axis in named:
-        if axis in widths.values():
+        if axis in width_axes.values():
             continue
         level = config.get(axis, "none")
         if level == "none":
             continue
-        width_axis = widths.get(axis)
+        width_axis = width_axes.get(axis)
         width = int(config.get(width_axis, 0)) if width_axis else 0
+        shown = axis in widths
         suffix = ""
-        if width_axis and (width_axis in named or width > 0):
-            suffix = f" {width}" if width > 0 else " native"
+        if shown and width_axis and (width_axis in named or width > 0):
+            if width > 0:
+                suffix = f"{width_separator}{width}"
+            else:
+                native = (dims or {}).get((axis, str(level)))
+                whole = f"{native} (native)" if native else "native"
+                suffix = f"{width_separator}{whole}"
         name = PRETTY.get(str(level), str(level))
         # a readout is two predicted columns, not an embedding, and the two are
         # produced by the same networks, so the name has to say which it is
         if axis == "readout":
             name = f"{name} readout"
+        elif not shown and axis in BLOCK_NOUN:
+            name = f"{name} {BLOCK_NOUN[axis]}"
         parts.append(f"{name}{suffix}")
 
     if not parts:
-        # every varying axis is a width, so the widths are the whole story
+        # every named axis is a width, so the widths are the whole story
         for axis in named:
-            if axis in widths.values():
+            if axis in width_axes.values():
                 value = int(config[axis])
                 parts.append("native" if value < 0 else str(value))
     return " + ".join(parts) or "none"
 
 
-# how a graph-network cell's axes read as a name
-BODY = {"chemeleon": "CheMeleon", "log2fc_checkpoint": "log2FC body"}
+# What a cell's message-passing network was initialised from. Both are Chemprop
+# D-MPNNs: one starts from the CheMeleon foundation checkpoint, the other from
+# this project's own checkpoint pretrained on log2FC, which is what a network
+# was trained to predict and never a body of its own
+BODY = {"chemeleon": "CheMeleon", "log2fc_checkpoint": f"Chemprop {LOG2FC}"}
 
 
-def gnn_label(config: dict[str, Any], frozen_at: int = 30) -> str:
+def gnn_label(config: dict[str, Any], *, frozen_at: int = 30, freeze: bool = True) -> str:
     """Return a short name for one graph-network cell.
 
     The cells are enumerated rather than crossed, so they share no single
@@ -410,21 +504,24 @@ def gnn_label(config: dict[str, Any], frozen_at: int = 30) -> str:
     frozen_at : int, optional
         The epoch budget. A freeze at or above it never releases the body,
         which is what "frozen" means here rather than a number of epochs.
+    freeze : bool, optional
+        Whether the number of warmup epochs belongs in the name. It does not
+        once a figure reports the best over that axis, though never releasing
+        the body is a different thing and is always named.
 
     Returns
     -------
     str
     """
-    freeze = int(config["freeze_epochs"])
-    parts = [
-        BODY.get(str(config["encoder_init"]), str(config["encoder_init"])),
-        "frozen" if freeze >= frozen_at else f"freeze {freeze}",
-        str(config["ffn_hidden_dim"]),
-    ]
-    name = ", ".join(parts)
+    held = int(config["freeze_epochs"]) >= frozen_at
+    name = BODY.get(str(config["encoder_init"]), str(config["encoder_init"]))
 
-    # the auxiliary arm is two separable things, and which of them is present
-    # is the question several of these cells exist to answer
+    # the auxiliary arm is a second network feeding the same predictor, so it
+    # is joined with a circled plus rather than the plain one that joins the
+    # feature blocks of a tabular row: nothing is concatenated into a table
+    # here, a second network's output is folded into the predictor's input. Its
+    # two halves belong to it and are named under it, where a bare "readout"
+    # would read as a third ingredient
     if config.get("aux_target", "none") != "none":
         target = PRETTY.get(str(config["aux_target"]), str(config["aux_target"]))
         halves = []
@@ -432,8 +529,28 @@ def gnn_label(config: dict[str, Any], frozen_at: int = 30) -> str:
             halves.append("embedding")
         if config.get("aux_readout"):
             halves.append("readout")
-        name += f" + {target} " + " + ".join(halves)
-    return name
+        name += f" \u2295 {target} ({', '.join(halves)})"
+
+    # the head's width is a property of the predictor rather than something
+    # added to the inputs, so it follows them behind a comma
+    parts = [name, f"FFN {config['ffn_hidden_dim']}"]
+    if held:
+        parts.append("frozen")
+    elif freeze:
+        parts.append(f"freeze {int(config['freeze_epochs'])}")
+    return ", ".join(parts)
+
+
+def darken(colour: str, factor: float = 0.62) -> str:
+    """Return a darker shade of a hex colour, for a marker's own outline.
+
+    One neutral outline on every marker flattens the palette: a light fill
+    reads as unfinished and the identity colours stop being distinguishable at
+    a glance. An outline of the fill's own hue keeps the marker one object.
+    """
+    value = colour.lstrip("#")
+    channels = (int(value[i : i + 2], 16) for i in (0, 2, 4))
+    return "#" + "".join(f"{int(channel * factor):02x}" for channel in channels)
 
 
 def row_traces(frame: pd.DataFrame) -> list[go.Scatter]:
@@ -443,8 +560,7 @@ def row_traces(frame: pd.DataFrame) -> list[go.Scatter]:
     plotly renders a trace's error bars above the marker layer whatever the
     trace order, so an error bar runs through the shape it belongs to. A line
     trace is covered by the markers added after it. There is one trace per
-    colour, since a line takes a single colour and a whisker in a colour other
-    than its marker reads as a separate object.
+    whisker colour, since a line takes a single colour for its whole trace.
 
     Parameters
     ----------
@@ -456,28 +572,20 @@ def row_traces(frame: pd.DataFrame) -> list[go.Scatter]:
     list of plotly.graph_objects.Scatter
         In draw order.
     """
-    whiskers, markers = [], []
-    tested_hover = (
-        "<b>%{y}</b><br>MAE %{customdata[0]:.4f}"
-        "<br>p %{customdata[1]:.4f}"
-        "<br>seed spread %{customdata[2]:.4f}"
-        "<br>ensemble %{customdata[3]:.4f}<extra></extra>"
-    )
-    # a row outside the family has no p-value and, for the anchor, no seeds
-    # either, so it is not offered statistics it does not have
-    untested_hover = "<b>%{y}</b><br>MAE %{customdata[0]:.4f}<extra></extra>"
-    for colour, group in frame.groupby("colour", sort=False):
-        hover = tested_hover if group["p_value"].notna().any() else untested_hover
+    whiskers = []
+    for colour, group in frame.groupby("whisker", sort=False):
         # a null between rows breaks the line rather than joining one row's
         # whisker to the next
         xs: list[float | None] = []
         ys: list[str | None] = []
         for _, row in group.iterrows():
             if not row["err_minus"] and not row["err_plus"]:
-                # a reference row, shown but not tested here
+                # a row shown without being tested here
                 continue
             xs += [row["mae"] - row["err_minus"], row["mae"] + row["err_plus"], None]
             ys += [row["label"], row["label"], None]
+        if not xs:
+            continue
         whiskers.append(
             go.Scatter(
                 x=xs,
@@ -490,6 +598,9 @@ def row_traces(frame: pd.DataFrame) -> list[go.Scatter]:
                 showlegend=False,
             )
         )
+
+    markers = []
+    for colour, group in frame.groupby("colour", sort=False):
         markers.append(
             go.Scatter(
                 x=group["mae"],
@@ -499,10 +610,10 @@ def row_traces(frame: pd.DataFrame) -> list[go.Scatter]:
                     "color": colour,
                     "symbol": [SYMBOL[role] for role in group["role"]],
                     "size": [SIZE[role] for role in group["role"]],
-                    "line": {"color": "#24292f", "width": 0.8},
+                    "line": {"color": darken(colour), "width": 1.1},
                 },
-                customdata=group[["mae", "p_value", "seed_spread", "ensemble"]].to_numpy(),
-                hovertemplate=hover,
+                customdata=group[["hover"]].to_numpy(),
+                hovertemplate="%{customdata[0]}<extra></extra>",
                 showlegend=False,
             )
         )
@@ -556,7 +667,7 @@ def comparison_figure(
         rows=1,
         cols=len(frames),
         subplot_titles=list(subtitles) or None,
-        horizontal_spacing=0.12,
+        horizontal_spacing=0.06,
     )
     for column, frame in enumerate(frames, start=1):
         for trace in row_traces(frame):
@@ -570,10 +681,13 @@ def comparison_figure(
             categoryorder="array",
             categoryarray=frame["label"].tolist(),
             autorange="reversed",
+            tickfont=BOLD,
             row=1,
             col=column,
         )
-        figure.update_xaxes(title_text=metric_label, range=list(x_range), row=1, col=column)
+        figure.update_xaxes(
+            title_text=f"<b>{metric_label}</b>", range=list(x_range), row=1, col=column
+        )
 
     # one key for the whole figure, built from every panel so a shape used on
     # only one side is still explained
@@ -581,6 +695,7 @@ def comparison_figure(
         figure.add_trace(trace, row=1, col=1)
 
     figure.update_layout(**_layout(max(len(frame) for frame in frames)))
+    figure.update_xaxes(tickfont=BOLD)
     figure.update_annotations(font={"size": 13})
     return figure
 
@@ -648,7 +763,11 @@ def _legend(frame: pd.DataFrame) -> list[go.Scatter]:
 # the two kinds of spread a run reports, which are not the same quantity and
 # are never pooled: what the model itself claims, and how far the seeds of one
 # configuration disagree
-SPREAD_COLOUR = {"model": "#ff9e64", "ensemble": "#00c2d1"}
+SPREAD_COLOUR = {"model": "#ff2e63", "ensemble": "#00c2d1"}
+
+# the scatter is one quantity rather than a comparison of two, so it takes the
+# palette's neutral working colour rather than either curve's
+SCATTER_COLOUR = "#00c2d1"
 STAGE_DASH = {"raw": "solid", "calibrated": "dot"}
 
 
@@ -694,22 +813,17 @@ def uncertainty_figure(
     if column not in points:
         raise PlotError(f"points carry no {column!r} column, so there is no spread to draw")
 
-    figure = make_subplots(
-        rows=1,
-        cols=2,
-        subplot_titles=["predicted spread against error", "coverage"],
-        horizontal_spacing=0.12,
-    )
+    figure = make_subplots(rows=1, cols=2, horizontal_spacing=0.09)
     figure.add_trace(
         go.Scatter(
             x=points[column],
             y=points["abs_residual"],
             mode="markers",
             marker={
-                "color": SPREAD_COLOUR.get(source, "#0969da"),
+                "color": SCATTER_COLOUR,
                 "size": 6,
                 "opacity": 0.7,
-                "line": {"color": "#24292f", "width": 0.5},
+                "line": {"color": darken(SCATTER_COLOUR), "width": 0.6},
             },
             hovertemplate=("sigma %{x:.3f}<br>|error| %{y:.3f}<extra></extra>"),
             showlegend=False,
@@ -750,10 +864,14 @@ def uncertainty_figure(
             col=2,
         )
 
-    figure.update_xaxes(title_text=metric_label, row=1, col=1)
-    figure.update_yaxes(title_text="absolute error", row=1, col=1)
-    figure.update_xaxes(title_text="nominal coverage", range=[0, 1], row=1, col=2)
-    figure.update_yaxes(title_text="observed coverage", range=[0, 1], row=1, col=2)
-    figure.update_layout(**{**_layout(6), "height": 420})
-    figure.update_annotations(font={"size": 13})
+    figure.update_xaxes(title_text=f"<b>{metric_label}</b>", row=1, col=1)
+    figure.update_yaxes(title_text="<b>absolute error</b>", row=1, col=1)
+    figure.update_xaxes(title_text="<b>nominal coverage</b>", range=[0, 1], row=1, col=2)
+    figure.update_yaxes(title_text="<b>observed coverage</b>", range=[0, 1], row=1, col=2)
+    figure.update_xaxes(tickfont=BOLD)
+    figure.update_yaxes(tickfont=BOLD)
+    # both panels carry their own axis titles, so the margin has to hold one
+    layout = {**_layout(6), "height": 420}
+    layout["margin"] = {"l": 70, "r": 30, "t": 20, "b": 60}
+    figure.update_layout(**layout)
     return figure

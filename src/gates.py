@@ -294,7 +294,7 @@ def measure(
     *,
     results_dir: Path = aggregate.RESULTS_DIR,
     n_resamples: int = 10000,
-    labels: dict[str, str] | None = None,
+    annotations: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Rank a family of configurations and test every pair within it.
 
@@ -317,9 +317,11 @@ def measure(
         Root holding the run directories.
     n_resamples : int, optional
         Compound resamples for the family bootstrap.
-    labels : dict, optional
-        Slug mapped to the name a figure should show, for a family whose rows
-        have no axes in common to be named by.
+    annotations : dict, optional
+        Slug mapped to extra fields to record on that row, such as the name and
+        the detail a figure shows for it. A family whose rows are of mixed
+        kinds has no axes in common to be named by, so the names come from
+        whoever assembled it.
 
     Returns
     -------
@@ -342,7 +344,7 @@ def measure(
         "metric": RANK_METRIC,
         "leader_slug": ranked[0]["config"].slug,
         "indistinguishable_from_leader": tied,
-        "ranking": [_public(row, manifest, labels) for row in ranked],
+        "ranking": [_public(row, manifest, annotations) for row in ranked],
         "n_resamples": n_resamples,
         "significance": significance,
         "wall_clock_s": elapsed(),
@@ -464,7 +466,7 @@ def scores(
     manifest: Manifest,
     *,
     results_dir: Path = aggregate.RESULTS_DIR,
-    labels: dict[str, str] | None = None,
+    annotations: dict[str, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Score configurations without testing them against anything.
 
@@ -480,15 +482,15 @@ def scores(
         Supplies the seeds.
     results_dir : path-like, optional
         Root holding the run directories.
-    labels : dict, optional
-        Slug mapped to the name a figure should show.
+    annotations : dict, optional
+        Slug mapped to extra fields to record on that row.
 
     Returns
     -------
     list of dict
         One public row each, in the order given.
     """
-    return [_public(row, manifest, labels) for row in _score(configs, manifest, results_dir)]
+    return [_public(row, manifest, annotations) for row in _score(configs, manifest, results_dir)]
 
 
 def _score(configs: list[Any], manifest: Manifest, results_dir: Path) -> list[dict[str, Any]]:
@@ -649,7 +651,7 @@ def _separated(
 
 
 def _public(
-    row: dict[str, Any], manifest: Manifest, labels: dict[str, str] | None = None
+    row: dict[str, Any], manifest: Manifest, annotations: dict[str, dict[str, Any]] | None = None
 ) -> dict[str, Any]:
     """Strip the arrays off a scored row, leaving what belongs in the record.
 
@@ -673,9 +675,7 @@ def _public(
     if isinstance(row["config"], TabularConfig):
         blocks, encoders, columns = cost(row["config"], manifest.axes)
         public |= {"n_blocks": blocks, "n_encoders_to_train": encoders, "n_columns": columns}
-    if labels and slug in labels:
-        public["label"] = labels[slug]
-    return public
+    return public | (annotations or {}).get(slug, {})
 
 
 def gated_config(manifest: Manifest) -> TabularConfig:

@@ -205,6 +205,10 @@ class Reference:
     ----------
     id : str
         The name it keeps, and the colour it holds across the figures.
+    title : str
+        What it is drawn as in a figure that carries it, rather than the one
+        that established it: "Best single ingredient" and not the blocks it
+        happens to be made of.
     reason : str
         Why this configuration is the one worth recognising.
     cell : str or None
@@ -218,6 +222,7 @@ class Reference:
 
     id: str
     reason: str
+    title: str = ""
     cell: str | None = None
     stage: str | None = None
     config: dict[str, Any] | None = None
@@ -464,6 +469,7 @@ def load(path: Path = MANIFEST_PATH, prior_summary: Path | None = None) -> Manif
             Reference(
                 id=entry["id"],
                 reason=entry.get("reason", ""),
+                title=entry.get("title", ""),
                 cell=entry.get("cell"),
                 stage=entry.get("stage"),
                 config=entry.get("config"),
@@ -653,6 +659,8 @@ def _problems(manifest: Manifest) -> Iterator[str]:
         seen_references.add(reference.id)
         if not reference.reason.strip():
             yield f"reference {reference.id!r} has no reason; it is its only defence"
+        if not reference.title.strip():
+            yield f"reference {reference.id!r} has no title to be drawn under"
         if bool(reference.cell) == bool(reference.config):
             yield f"reference {reference.id!r} must name either a cell or a config, not both"
         if reference.cell and reference.cell not in cell_ids:
