@@ -585,7 +585,9 @@ def _visible(label: str) -> str:
     return label.replace("<br>", " ")
 
 
-def gnn_label(config: dict[str, Any], *, frozen_at: int = 30, freeze: bool = True) -> str:
+def gnn_label(
+    config: dict[str, Any], *, frozen_at: int = 30, freeze: bool = False, width: bool = False
+) -> str:
     """Return a short name for one graph-network cell.
 
     The cells are enumerated rather than crossed, so they share no single
@@ -603,8 +605,12 @@ def gnn_label(config: dict[str, Any], *, frozen_at: int = 30, freeze: bool = Tru
         which is what "frozen" means here rather than a number of epochs.
     freeze : bool, optional
         Whether the number of warmup epochs belongs in the name. It does not
-        once a figure reports the best over that axis, though never releasing
-        the body is a different thing and is always named.
+        where a figure holds the warmup fixed, though never releasing the body
+        is a different thing and is always named.
+    width : bool, optional
+        Whether the predictor head's width belongs in the name. It does not
+        where a figure holds it fixed, and an integer in a label that never
+        varies reads as though it did.
 
     Returns
     -------
@@ -630,7 +636,9 @@ def gnn_label(config: dict[str, Any], *, frozen_at: int = 30, freeze: bool = Tru
 
     # the head's width is a property of the predictor rather than something
     # added to the inputs, so it follows them behind a comma
-    parts = [name, f"FFN {config['ffn_hidden_dim']}"]
+    parts = [name]
+    if width:
+        parts.append(f"FFN {config['ffn_hidden_dim']}")
     if held:
         parts.append("frozen")
     elif freeze:

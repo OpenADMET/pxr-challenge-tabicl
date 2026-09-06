@@ -638,10 +638,32 @@ figures:
   - id: fig1
     title: Graph-network baselines
     question: Where does a fine-tuned message-passing network land on the challenge split?
-    note: >
-      The freeze axis is reported at its best rather than cell by cell: how
-      long the body is held is a training setting, not a question this figure
-      asks, and six of the cells are that axis crossed with the head width.
+    # Two settings this figure holds rather than shows. Both were swept in the
+    # concat stage and neither is a question the figure asks, so every row
+    # carries the level named here and the rest are left out. A level held is
+    # a decision like a gate's: declared with its reason, checked against the
+    # runs, and never read off them.
+    #
+    # freeze_epochs is the warmup, the epochs the body stays frozen before it
+    # is released. It is held at 2. The best of the three is 0, which the
+    # paired test does not separate from 2 at p = 0.52, and 1 is separated from
+    # both. Holding at 2 rather than at the nominal best is what makes the rest
+    # of the table comparable: every named cell runs at 2, including the three
+    # that decompose the auxiliary arm, so a difference between them is the
+    # thing they differ in rather than a warmup as well.
+    #
+    # A body held at or above the epoch budget is never released, which is a
+    # different question from how long a warmup runs, and those cells stay.
+    #
+    # ffn_hidden_dim is the predictor head's width. It is held at 512, which
+    # beat 1024 at every warmup and is separated from it at p = 0.001 to 0.006.
+    # The width was probed once, inside the concat architecture, and lost;
+    # nothing crossed it with the questions the named cells ask, so a single
+    # 1024 row among eight at 512 would read as a gap in a grid rather than as
+    # a probe that was answered.
+    hold:
+      freeze_epochs: 2
+      ffn_hidden_dim: 512
 
   - id: fig2
     title: How far the feature blocks reduce

@@ -161,42 +161,114 @@ def annotations(
     return named
 
 
-def best_over_freeze(manifest: Manifest, *, results_dir: Path = aggregate.RESULTS_DIR) -> list[Any]:
-    """Return the graph-network cells, reporting the best over the freeze axis.
+def held(
+    manifest: Manifest, figure_id: str = "fig1", *, frozen_at: int = FROZEN_AT
+) -> tuple[list[Any], dict[str, Any]]:
+    """Return the graph-network cells a figure shows, and what it holds fixed.
 
-    How many epochs the body is held before it is released is a training
-    setting rather than a question figure 1 asks, in the same class as the
-    gradient clip. Six of the cells are that axis crossed with the head width,
-    and showing all six spends most of the figure on it. So the axis is
-    maximised over: cells that differ in nothing else are collapsed to their
-    best, and the label stops naming a level that no longer varies.
+    A figure holds a setting rather than showing it when the setting was swept
+    but is not what the figure asks. The levels are declared in the manifest
+    and read here, never chosen from the runs: which warmup to standardise on
+    is a judgement, and one the numbers alone would decide differently from the
+    way the rest of the table needs it decided.
 
-    Never releasing the body is a different thing and is not collapsed, since
-    it is a question about whether the body needs to adapt at all.
+    A body held at or above the epoch budget is never released, which is a
+    different question from how long a warmup runs even though the two share a
+    field. Those cells are kept whatever the warmup is held at.
 
-    Taking a maximum over three flatters the cells it applies to, by about what
-    picking the best of three seeds would. The comparison it feeds is against
-    the tabular models, which the graph networks lose, so the bias runs against
-    the conclusion rather than towards it.
+    Returns
+    -------
+    cells : list
+        The cells that carry every held level.
+    hold : dict
+        Axis mapped to the level held, for the check and for the record.
+
+    Raises
+    ------
+    PanelError
+        If holding the declared levels leaves nothing to draw.
     """
-    rows = gates.scores(list(manifest.gnn_cells), manifest, results_dir=results_dir)
-    scored = {row["slug"]: row["mae"] for row in rows}
-    groups: dict[tuple, Any] = {}
+    hold = dict(declaration(manifest, figure_id).get("hold") or {})
+    kept = []
     for cell in manifest.gnn_cells:
-        flat = cell.as_dict()
-        if int(flat["freeze_epochs"]) >= FROZEN_AT:
-            groups[(cell.id,)] = cell
-            continue
-        key = tuple(
-            sorted((axis, str(value)) for axis, value in flat.items() if axis != "freeze_epochs")
-        )
-        if key not in groups or scored[cell.slug] < scored[groups[key].slug]:
-            groups[key] = cell
-    kept = [cell for cell in manifest.gnn_cells if cell in groups.values()]
+        axes = cell.as_dict()
+        frozen = int(axes["freeze_epochs"]) >= frozen_at
+        if all(
+            frozen and axis == "freeze_epochs" or str(axes.get(axis)) == str(level)
+            for axis, level in hold.items()
+        ):
+            kept.append(cell)
+    if not kept:
+        raise PanelError(f"{figure_id}: holding {hold} leaves no graph-network cell to draw")
     dropped = len(list(manifest.gnn_cells)) - len(kept)
     if dropped:
-        logger.info("figure 1 reports the best over the freeze axis, collapsing %d cells", dropped)
-    return kept
+        logger.info("%s holds %s, leaving out %d cells", figure_id, hold, dropped)
+    return kept, hold
+
+
+def check_held(
+    manifest: Manifest,
+    hold: dict[str, Any],
+    *,
+    results_dir: Path = aggregate.RESULTS_DIR,
+    n_resamples: int = DEFAULT_RESAMPLES,
+    frozen_at: int = FROZEN_AT,
+) -> None:
+    """Warn when a level held is one the runs separate from the best of its axis.
+
+    Held is not the same as best, and does not have to be: standardising on a
+    level the whole table shares is worth more than a difference the test
+    cannot see. It is worth seeing when the level held is one the runs can tell
+    apart from the best, though, which is a judgement for whoever reads the log
+    rather than something to override here.
+
+    The comparison is made among cells that differ in nothing but the axis
+    under test, which is the only place a level of it can be judged. Cells that
+    merely share the other held levels differ in what the figure is about, so
+    the best of those says nothing about the setting.
+    """
+    for axis, level in hold.items():
+        candidates = [
+            cell
+            for cell in manifest.gnn_cells
+            if int(cell.as_dict()["freeze_epochs"]) < frozen_at
+            and all(
+                str(cell.as_dict().get(name)) == str(value)
+                for name, value in hold.items()
+                if name != axis
+            )
+        ]
+        groups: dict[tuple, list[Any]] = {}
+        for cell in candidates:
+            rest = tuple(sorted((k, str(v)) for k, v in cell.as_dict().items() if k != axis))
+            groups.setdefault(rest, []).append(cell)
+
+        for family in groups.values():
+            if len({str(cell.as_dict()[axis]) for cell in family}) < 2:
+                continue
+            measured = gates.measure(
+                family, manifest, results_dir=results_dir, n_resamples=n_resamples
+            )
+            chosen = next(
+                (cell for cell in family if str(cell.as_dict()[axis]) == str(level)), None
+            )
+            if chosen is None or chosen.slug == measured["leader_slug"]:
+                continue
+            if chosen.slug in measured["indistinguishable_from_leader"]:
+                logger.info(
+                    "figure 1 holds %s at %s, which is not the best of its axis and is not "
+                    "separated from it either",
+                    axis,
+                    level,
+                )
+                continue
+            logger.warning(
+                "figure 1 holds %s at %s, which the runs separate from %s; the level held may "
+                "no longer be defensible",
+                axis,
+                level,
+                measured["leader_slug"],
+            )
 
 
 def gnn_panel(
@@ -209,11 +281,13 @@ def gnn_panel(
     """Figure 1: where a fine-tuned message-passing network lands.
 
     The cells are enumerated rather than crossed and no gate reads them, so
-    this family has no decision attached to it. Two of its rows are declared
-    references and are named here, which is checked against what the runs say
-    rather than read off them.
+    this family has no decision attached to it. Two settings are held rather
+    than shown, and two of the rows are declared references; all four are
+    declared in the manifest and checked against the runs here rather than read
+    off them.
     """
-    cells = best_over_freeze(manifest, results_dir=results_dir)
+    cells, hold = held(manifest)
+    check_held(manifest, hold, results_dir=results_dir, n_resamples=n_resamples)
     evidence = gates.measure(
         cells,
         manifest,
