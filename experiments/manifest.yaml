@@ -240,7 +240,7 @@ tabular:
   # which is not the order the figures tell the story in.
   stages:
     - id: descriptor_width
-      figures: [fig5]
+      figures: [fig2]
       sweeps: [descriptors, descriptor_pca]
       fixed:
         embedding: none
@@ -305,7 +305,7 @@ tabular:
           than it should be.
 
     - id: embedding_width
-      figures: [fig5b]
+      figures: [fig2]
       sweeps: [embedding_pca]
       fixed:
         embedding: chemeleon
@@ -333,7 +333,7 @@ tabular:
           with the reason recorded.
 
     - id: ingredients
-      figures: [fig2, fig3]
+      figures: [fig3, fig4]
       sweeps: [embedding, readout]
       fixed:
         regressor: tabpfn-v3
@@ -370,7 +370,7 @@ tabular:
           settled, if an embedding on its own is what wins.
 
     - id: regressor
-      figures: [fig4]
+      figures: [fig5]
       sweeps: [regressor]
       fixed:
         calibration: none
@@ -408,7 +408,7 @@ tabular:
         question: Which regressor, on the featureset the stage before settled.
 
     - id: uncertainty
-      figures: [fig7]
+      figures: [fig6]
       sweeps: []
       fixed_from:
         [canonical_descriptors, embedding_reduction, best_featureset, best_regressor]
@@ -621,94 +621,63 @@ references:
       decision name two members of one tie.
 
 # ---------------------------------------------------------------------------
-# Figures are slices of the completed table. Their order is the order the story
-# is told in, which is not the order the stages run in: the width probes run
-# first and are reported late. A select may say "@gate" for an axis, meaning
-# whatever value the resolved gates chose, so a figure never restates a winner
-# the gate files already hold.
+# The figures, in the order the story is told, which is not the order the
+# stages run in: the width probes run first and are reported second. Each is
+# declared here with the question it answers, and src/panels.py builds exactly
+# these: what a figure shows is a judgement about the story, so it is written
+# down where it can be read, and a figure the manifest does not declare cannot
+# be drawn.
+#
+# A figure is not a slice of a table. Each is measured as its own family, by
+# the same all-pairwise paired bootstrap under Benjamini-Hochberg that decides
+# a gate, so the verdicts in a figure and the decision recorded beside it come
+# from one computation.
 # ---------------------------------------------------------------------------
+
 figures:
   - id: fig1
-    title: CheMeleon baselines
+    title: Graph-network baselines
     question: Where does a fine-tuned message-passing network land on the challenge split?
-    select: {kind: gnn}
+    note: >
+      The freeze axis is reported at its best rather than cell by cell: how
+      long the body is held is a training setting, not a question this figure
+      asks, and six of the cells are that axis crossed with the head width.
 
   - id: fig2
-    title: Single-ingredient tabular features
-    # every bar is TabPFN v3: the ingredient stage holds the regressor fixed,
-    # and figure 4 asks the regressor question separately
-    question: How far does each feature block get on its own?
-    # 0 is the width of a block that is absent or unreduced, so this keeps the
-    # embedding-only and readout-only rows alongside the settled descriptor ones
-    select:
-      kind: tabular
-      n_blocks: 1
-      descriptors: [none, "@gate"]
-      descriptor_pca: [0, "@gate"]
-      embedding_pca: [0, "@gate"]
-      calibration: none
+    title: How far the feature blocks reduce
+    question: Which descriptor block wins, and what does reducing either block cost?
+    note: >
+      Two panels on one page, the descriptors and the embedding, which ask one
+      question of two blocks and are read against each other. Each keeps its
+      own family and so its own correction; only the axis is shared. These are
+      the figures where a width belongs in a label.
 
   - id: fig3
-    title: Featureset combinations
-    question: Which combination of blocks wins?
-    # a combination is two blocks or three; the single-block rows are figure 2's
-    select:
-      kind: tabular
-      n_blocks: [2, 3]
-      descriptors: [none, "@gate"]
-      descriptor_pca: [0, "@gate"]
-      embedding_pca: [0, "@gate"]
-      calibration: none
+    title: Single-ingredient tabular features
+    question: How far does each feature block get on its own?
+    note: >
+      Corrected over the single-block rows alone, which is the family the
+      question is about. Every row carries the same regressor: the ingredients
+      stage holds it fixed and figure 5 asks that question separately.
 
   - id: fig4
-    title: Regressor comparison
-    # the regressors are compared on one featureset, the one the stage before
-    # settled, so this cannot say whether the ranking depends on the featureset
-    question: Which regressor wins on the featureset this split chose?
-    select:
-      kind: tabular
-      embedding: "@gate"
-      readout: "@gate"
-      descriptors: "@gate"
-      descriptor_pca: [0, "@gate"]
-      embedding_pca: [0, "@gate"]
-      calibration: none
-    facet: regressor
+    title: Featureset combinations
+    question: Which combination of blocks wins?
+    note: >
+      The whole ingredients stage, singles included, so the figure showing the
+      featureset decision is drawn on the family that decision was made on.
 
   - id: fig5
-    title: Descriptor blocks and how far they reduce
-    # this figure, not figure 2, is where RDKit, Mordred and the two together
-    # are compared. Figures 2 to 4 carry only the block this probe settled, so
-    # that every bar in them stands on the same seven regressors; the losing
-    # blocks were run under one regressor and belong beside it, here
-    question: Which descriptor block wins, and how much does reducing it cost?
-    select: {kind: tabular, embedding: none, has_descriptors: true, calibration: none}
-    facet: descriptor_pca
-
-  - id: fig5b
-    title: Embedding PCA width
-    question: How much does reducing the CheMeleon embedding cost?
-    select:
-      kind: tabular
-      has_embedding: true
-      descriptors: none
-      readout: none
-      calibration: none
-    facet: embedding_pca
+    title: Regressor comparison
+    question: Which regressor wins on the featureset this split chose?
+    note: >
+      Every row of the family carries the same columns, so this cannot say
+      whether the ranking would survive a different featureset.
 
   - id: fig6
-    title: Post-hoc calibration
-    # drawn from results/calibration/, not from the run table, because
-    # calibration is post-hoc and the runs it applies to all carry cal-none.
-    # A positive slope cannot move a ranking metric, so this figure is drawn on
-    # error and bias and would be empty of content on Spearman
-    question: Does the report's density-ratio affine map help on the challenge split?
-    source: calibration
-
-  - id: fig7
     title: Predicted uncertainty against actual error
-    question: Do the winning models' uncertainty estimates track their errors?
-    # every uncertainty-reporting run qualifies, so the renderer plots the
-    # leading configuration per regressor rather than every configuration at
-    # once, and never pools the two kinds of spread
-    select: {kind: tabular, calibration: none, has_uncertainty: true}
+    question: Do the winning model's uncertainty estimates track its errors?
+    note: >
+      Drawn from the uncertainty stage's artifacts rather than from the run
+      table, since the quantities are per compound and per nominal level
+      rather than one score per configuration.
