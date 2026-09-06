@@ -47,6 +47,28 @@ PAIRED = ("fig2a", "fig2b")
 # an epoch budget: a body held this long is never released
 FROZEN_AT = 30
 
+# The embedding width is settled in figure 2 and never named in a label again,
+# so its colour is not carried past the figure that decided it. A colour marks
+# a row for a question, and figures 3 and 4 do not ask how wide the embedding
+# is: carrying it there marks a row for a question those figures have left
+# behind, and puts a second blue-green next to the graph networks.
+SETTLED_IN_PLACE = ("embedding_reduction",)
+
+# Where a reader last met each identity. Colour says they have seen a row
+# before; this says where, which is the whole of what carrying a colour forward
+# is for. The anchor is absent on purpose: it was established in the report
+# rather than in any figure, and its tooltip says so at length.
+ESTABLISHED_IN = {
+    "best_gnn": "established in figure 1",
+    "chemeleon_baseline": "the baseline, from figure 1",
+    "canonical_descriptors": "chosen in figure 2",
+    "embedding_reduction": "chosen in figure 2",
+    "best_single": "established in figure 3",
+    "best_featureset": "chosen in figure 4",
+    "best_regressor": "chosen in figure 5",
+}
+
+
 # how many compound resamples every panel's bootstrap draws
 DEFAULT_RESAMPLES = 10000
 
@@ -74,15 +96,22 @@ class Panel:
     references: list[dict[str, Any]] = field(default_factory=list)
     named: dict[str, str] = field(default_factory=dict)
     home: str | None = None
+    # family members this figure did not sweep, which are drawn as carried
+    carried: set[str] = field(default_factory=set)
+    # identities settled elsewhere that this figure does not carry forward
+    hidden: tuple[str, ...] = ()
 
     def frame(self, winners: dict[str, dict[str, Any]] | None = None) -> pd.DataFrame:
         """Turn what this panel measured into rows ready to draw."""
+        resolved = plots.gate_winners() if winners is None else winners
         return plots.comparison_frame(
             self.evidence,
-            plots.gate_winners() if winners is None else winners,
-            self.named,
+            {gate: axes for gate, axes in resolved.items() if gate not in self.hidden},
+            {slug: name for slug, name in self.named.items() if name not in self.hidden},
             self.references,
             self.home,
+            self.carried,
+            ESTABLISHED_IN,
         )
 
 
@@ -119,6 +148,7 @@ def annotations(
                 widths=widths,
                 width_separator=width_separator,
             )
+            label = plots.wrap_label(label)
             detail = tabular_detail(flat, dims)
         else:
             label, detail = plots.gnn_label(flat, freeze=freeze), gnn_detail(flat, dims)
@@ -198,10 +228,11 @@ def gnn_panel(
         if _declared(manifest, name)
     }
     _check_leader(manifest, evidence, "best_gnn")
+    said = declaration(manifest, "fig1")
     return Panel(
         id="fig1",
-        title="Graph-network baselines",
-        question="Where does a fine-tuned message-passing network land on the challenge split?",
+        title=said["title"],
+        question=said["question"],
         evidence=evidence,
         named=named,
         home="best_gnn",
@@ -228,21 +259,10 @@ def width_panels(
     # the descriptor panel varies which blocks as well as how wide, so its
     # names read as one phrase; the embedding panel varies only the width,
     # which then sits under a block name repeated down the column
-    for stage_id, axes, separator, title, question in (
-        (
-            "descriptor_width",
-            ("descriptors", "descriptor_pca"),
-            " ",
-            "Descriptor blocks and how far they reduce",
-            "Which descriptor block wins, and how much does reducing it cost?",
-        ),
-        (
-            "embedding_width",
-            ("embedding", "embedding_pca"),
-            "<br>",
-            "Embedding PCA width",
-            "How much does reducing the CheMeleon embedding cost?",
-        ),
+    said = declaration(manifest, "fig2")
+    for stage_id, axes, separator in (
+        ("descriptor_width", ("descriptors", "descriptor_pca"), " "),
+        ("embedding_width", ("embedding", "embedding_pca"), "<br>"),
     ):
         evidence = gates.evidence(manifest, stage_id, **common)
         configs = manifest.expand(stage_id, gates.settled(manifest, stage_id, gates_dir))
@@ -257,7 +277,12 @@ def width_panels(
             ),
         )
         panels.append(
-            Panel(id=f"fig2{'ab'[len(panels)]}", title=title, question=question, evidence=evidence)
+            Panel(
+                id=f"fig2{'ab'[len(panels)]}",
+                title=said["title"],
+                question=said["question"],
+                evidence=evidence,
+            )
         )
     return panels[0], panels[1]
 
@@ -317,23 +342,28 @@ def ingredient_panels(
 
     _check_leader(manifest, alone, "best_single", gates_dir=gates_dir)
     named = _identities(manifest, gates_dir)
+    carried_slugs = {config.slug for config in carried_configs}
     return (
         Panel(
             id="fig3",
-            title="Single-ingredient tabular features",
-            question="How far does each feature block get on its own?",
+            title=declaration(manifest, "fig3")["title"],
+            question=declaration(manifest, "fig3")["question"],
             evidence=alone,
             references=references,
             named=named,
             home="best_single",
+            carried=carried_slugs,
+            hidden=SETTLED_IN_PLACE,
         ),
         Panel(
             id="fig4",
-            title="Featureset combinations",
-            question="Which combination of blocks wins?",
+            title=declaration(manifest, "fig4")["title"],
+            question=declaration(manifest, "fig4")["question"],
             evidence=whole,
             references=references,
             named=named,
+            carried=carried_slugs,
+            hidden=SETTLED_IN_PLACE,
         ),
     )
 
@@ -366,13 +396,16 @@ def regressor_panel(
         annotations=named_rows,
     )
     evidence["gate"] = manifest.stage("regressor").gate.id
+    said = declaration(manifest, "fig5")
     return Panel(
         id="fig5",
-        title="Regressor comparison",
-        question="Which regressor wins on the featureset this split chose?",
+        title=said["title"],
+        question=said["question"],
         evidence=evidence,
         references=references,
         named=_identities(manifest, gates_dir),
+        carried={config.slug for config in carried_configs},
+        hidden=SETTLED_IN_PLACE,
     )
 
 
@@ -503,14 +536,13 @@ def anchor(manifest: Manifest) -> dict[str, Any]:
         # figure's label column, so the row is named by who it was and the
         # detail says what it is
         "label": published["name"].split(",")[0],
-        "detail": (
-            f"{published['name']}<br>{published['n']} compounds, nine-model ensemble"
-            f"<br>no per-compound predictions published, so it cannot be tested against"
-        ),
+        # what it is; that it cannot be tested is the verdict line's job
+        "detail": f"{published['name']}<br>{published['n']} compounds, nine-model ensemble",
         "mae": float(published["mae_ensemble"]),
         "seed_spread": float("nan"),
         "ensemble": {"mae": float(published["mae_ensemble"])},
         "identity": "anchor",
+        "verdict": "no per-compound predictions, so not tested",
     }
 
 
@@ -667,14 +699,25 @@ def tabular_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> 
         if width > 0:
             lines.append(f"{prefix}PCA {native or '?'} \u2192 {width}")
             total += width
-        else:
-            lines.append(f"{prefix}{native or '?'}")
+        elif axis == "readout":
+            # a readout is a network's predictions, not a compressed block, so
+            # there is no reduction to report and the columns mean something
+            lines.append(f"{prefix}{native or '?'} predicted columns")
             total += native or 0
             known = known and native is not None
-    if config.get("regressor"):
-        lines.append(f"regressor: {plots.PRETTY.get(config['regressor'], config['regressor'])}")
+        else:
+            lines.append(f"{prefix}PCA none ({native or '?'})")
+            total += native or 0
+            known = known and native is not None
     if known:
-        lines.append(f"ndims into the regressor: {total}")
+        lines.append(f"ndims: {total}")
+
+    # the model comes first, as it does for a graph network, so a reader
+    # meeting a tooltip in any figure finds the same thing on the same line
+    regressor = config.get("regressor")
+    if regressor:
+        model = f"model: {plots.PRETTY.get(regressor, regressor)}"
+        lines.insert(0, model)
     return "<br>".join(lines)
 
 
@@ -715,6 +758,27 @@ def gnn_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> str:
     else:
         lines.append("auxiliary encoder: none")
     return "<br>".join(lines)
+
+
+def declaration(manifest: Manifest, figure_id: str) -> dict[str, Any]:
+    """Return what the manifest says a figure is.
+
+    The title and the question are declared beside the stages rather than
+    written here, so what a figure claims to answer and what it draws cannot
+    drift apart, and a figure nothing declares cannot be built.
+
+    Raises
+    ------
+    PanelError
+        If the manifest declares no such figure.
+    """
+    for figure in manifest.figures:
+        if figure["id"] == figure_id:
+            return figure
+    raise PanelError(
+        f"the manifest declares no figure {figure_id!r}; "
+        f"it has {[figure['id'] for figure in manifest.figures]}"
+    )
 
 
 def _declared(manifest: Manifest, name: str) -> Reference | None:

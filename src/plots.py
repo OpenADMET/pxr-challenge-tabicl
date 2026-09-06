@@ -29,9 +29,9 @@ does not separate from the best and grey for one it does, or an identity: a
 gate's winner keeps one colour wherever it appears again. An identity colour
 says which configuration a row is, not how it stands, so a row carried into a
 figure for recognition is not making a significance claim it was not tested
-for. Shape separates the two readings: the configuration this figure's gate
-chose is a star, a winner carried in from another gate is a diamond, and
-everything else is a circle.
+for. Shape answers a third question, which is where the row came from: the
+configuration this figure establishes is a star, one carried in from another
+family is a diamond, and one this figure's own sweep produced is a circle.
 """
 
 from __future__ import annotations
@@ -51,8 +51,8 @@ logger = logging.getLogger(__name__)
 # a row is either indistinguishable from the best configuration or set apart
 # from it. The best is the top row rather than a colour of its own, since the
 # figure is sorted and position already says it
-TIED = "not separated from best"
-SEPARATED = "separated from best"
+TIED = "not separated from the leader"
+SEPARATED = "separated from the leader"
 VERDICT_COLOUR = {TIED: "#0969da", SEPARATED: "#9aa4ae"}
 
 # Each gate's winner takes one colour and keeps it wherever that configuration
@@ -98,11 +98,13 @@ X_RANGE = (0.30, 0.75)
 BOLD = {"weight": "bold"}
 METRIC_LABEL = "MAE"
 
-# shape says how a row got here, colour says what it is. A gate's own choice is
-# marked in the figure that decided it; the same configuration reappearing
-# later is carried for recognition and is not being retested against that
-# figure's family
-CHOSEN, CARRIED, SCORED = "chosen here", "carried", "scored"
+# Shape says how a row got into the figure, colour says what it is. A row this
+# figure's own sweep produced is a circle whatever it is called elsewhere; a
+# row carried in from another family is a diamond; the configuration the figure
+# establishes is a star. Shape and colour answer different questions, so a
+# carried row keeps its identity colour and a swept one keeps its circle even
+# when it is somebody's winner.
+CHOSEN, CARRIED, SCORED = "established here", "carried", "scored"
 SYMBOL = {CHOSEN: "star", CARRIED: "diamond", SCORED: "circle"}
 SIZE = {CHOSEN: 15, CARRIED: 11, SCORED: 9}
 
@@ -142,6 +144,8 @@ def comparison_frame(
     named: dict[str, str] | None = None,
     references: list[dict[str, Any]] | None = None,
     home: str | None = None,
+    carried: set[str] | None = None,
+    origins: dict[str, str] | None = None,
 ) -> pd.DataFrame:
     """Turn a gate's evidence into one row per configuration, ready to plot.
 
@@ -180,6 +184,15 @@ def comparison_frame(
     home : str, optional
         The identity this figure establishes, drawn as the chosen one.
         Defaults to the gate the evidence came from.
+    carried : set of str, optional
+        Slugs of family members this figure did not sweep, drawn as carried.
+        A row the figure's own stage ran is drawn as swept however it is named
+        elsewhere, since shape reports where a row came from and not what it
+        is called.
+    origins : dict, optional
+        Identity mapped to where it was established, which the tooltip says on
+        every row carrying an identity from elsewhere. Colour tells a reader
+        they have met a row before; this tells them where.
 
     Returns
     -------
@@ -213,6 +226,8 @@ def comparison_frame(
     best = min(row["mae"] for row in ranking)
     this_gate = home or evidence.get("gate")
     named = named or {}
+    carried = carried or set()
+    origins = origins or {}
 
     # a family may mix kinds, and rows of different kinds share no axes to be
     # compared on. The axes are read off the largest group that shares a shape,
@@ -255,9 +270,10 @@ def comparison_frame(
                 # coloured, so an identity keeps its colour and still reads as
                 # separated
                 "whisker": VERDICT_COLOUR[SEPARATED] if is_separated else colour,
-                "role": CHOSEN if gate == this_gate else (CARRIED if gate else SCORED),
+                "role": (CHOSEN if gate == this_gate else (CARRIED if slug in carried else SCORED)),
                 "p_value": p_values.get(slug),
                 "detail": row.get("detail", ""),
+                "origin": "" if gate == this_gate else origins.get(gate or "", ""),
                 # the leader has nothing to be compared against and is the top
                 # row, which says it without a line of its own
                 "verdict": (
@@ -287,7 +303,8 @@ def comparison_frame(
                 "role": CHOSEN if identity == this_gate else CARRIED,
                 "p_value": None,
                 "detail": reference.get("detail", ""),
-                "verdict": "shown for reference, not tested here",
+                "origin": "" if identity == this_gate else origins.get(identity, ""),
+                "verdict": reference.get("verdict", "not tested here"),
             }
         )
 
@@ -307,7 +324,10 @@ def _hover(row: pd.Series) -> str:
     hovertemplate is not parsed as markup beyond its tags, so an entity would
     be shown as it was typed.
     """
-    lines = [f"<b>{row['label']}</b>", f"MAE {row['mae']:.4f}"]
+    lines = [f"<b>{_visible(row['label'])}</b>"]
+    if row["origin"]:
+        lines.append(f"<i>{row['origin']}</i>")
+    lines.append(f"MAE {row['mae']:.4f}")
     if pd.notna(row["seed_spread"]):
         lines[-1] += f" \u00b1 {row['seed_spread']:.4f} over seeds"
     if pd.notna(row["ensemble"]) and row["ensemble"] != row["mae"]:
@@ -486,6 +506,49 @@ def label_for(
 # this project's own checkpoint pretrained on log2FC, which is what a network
 # was trained to predict and never a body of its own
 BODY = {"chemeleon": "CheMeleon", "log2fc_checkpoint": f"Chemprop {LOG2FC}"}
+
+
+def wrap_label(label: str, width: int = 34) -> str:
+    """Break a long name over two lines, at a join rather than mid-phrase.
+
+    A figure of combinations has rows naming three blocks, and a label column
+    wide enough for them leaves little of the axis. The break goes at a ``+``,
+    so each line is a whole ingredient and the plus stays with the line it
+    joins from.
+
+    Parameters
+    ----------
+    label : str
+        A name built by :func:`label_for`.
+    width : int, optional
+        Characters above which a name is worth breaking.
+
+    Returns
+    -------
+    str
+        The name, with at most one line break.
+    """
+    if len(_visible(label)) <= width or " + " not in label:
+        return label
+
+    # split where the two lines come closest to even, so neither is a stub
+    parts = label.split(" + ")
+    joins = [len(_visible(" + ".join(parts[: i + 1]))) for i in range(len(parts) - 1)]
+    target = len(_visible(label)) / 2
+    at = min(range(len(joins)), key=lambda i: abs(joins[i] - target))
+    head, tail = " + ".join(parts[: at + 1]), " + ".join(parts[at + 1 :])
+    return f"{head} +<br>{tail}"
+
+
+def _visible(label: str) -> str:
+    """Return a label as it reads on one line, without its markup.
+
+    A line break stands for the space it replaced, so a wrapped name read back
+    as a tooltip's title does not run two words together.
+    """
+    for tag in ("<sub>", "</sub>", "<b>", "</b>"):
+        label = label.replace(tag, "")
+    return label.replace("<br>", " ")
 
 
 def gnn_label(config: dict[str, Any], *, frozen_at: int = 30, freeze: bool = True) -> str:
@@ -737,7 +800,7 @@ def _legend(frame: pd.DataFrame) -> list[go.Scatter]:
         if colour in colours:
             entries.append((verdict, colour, "circle"))
     roles = set(frame["role"])
-    for role, label in ((CHOSEN, "chosen here"), (CARRIED, "reference point")):
+    for role, label in ((CHOSEN, "established here"), (CARRIED, "carried in")):
         if role in roles:
             entries.append((label, _LEGEND_NEUTRAL, SYMBOL[role]))
 
