@@ -159,3 +159,108 @@ def test_calibration_rescales_the_spread_with_the_mean():
 def test_coverage_is_undefined_when_every_spread_is_zero():
     with pytest.raises(uncertainty.UncertaintyError, match="undefined"):
         uncertainty.coverage_curve(np.arange(5.0), np.arange(5.0), np.zeros(5))
+
+
+def test_the_scale_factor_recovers_a_known_shrinkage():
+    rng = np.random.default_rng(0)
+    truth = rng.normal(5.0, 1.5, size=400)
+    # shrunk toward zero with no offset, which is the distortion a scale
+    # factor is the right shape for
+    predicted = 0.6 * truth
+
+    assert calibration.fit_scale(predicted, truth) == pytest.approx(1 / 0.6, rel=1e-6)
+
+
+def test_the_scale_factor_leaves_an_unbiased_model_unbiased():
+    rng = np.random.default_rng(1)
+    truth = rng.normal(5.0, 1.5, size=400)
+    predicted = truth + rng.normal(0.0, 0.2, size=400)
+
+    factor = calibration.fit_scale(predicted, truth)
+    residual = np.mean(factor * predicted - truth)
+
+    # an intercept could absorb noise into a shift; a factor through the
+    # origin has nowhere to put one
+    assert residual == pytest.approx(0.0, abs=0.02)
+
+
+def test_the_isotonic_map_recovers_a_monotone_distortion_the_affine_cannot():
+    rng = np.random.default_rng(2)
+    truth = rng.uniform(0.0, 4.0, size=800)
+    # a curve, so no straight line can undo it
+    predicted = np.sqrt(truth)
+
+    knots_x, knots_y = calibration.fit_isotonic(predicted, truth)
+    fitted = calibration.IsotonicCalibration(
+        knots_x=knots_x, knots_y=knots_y, n_fit=truth.size, weight_summary={}, classifier_auc=0.5
+    )
+    slope, intercept = calibration.fit_affine(predicted, truth)
+
+    isotonic_error = np.mean(np.abs(fitted.apply(predicted) - truth))
+    affine_error = np.mean(np.abs(slope * predicted + intercept - truth))
+    assert isotonic_error < affine_error
+
+
+def test_the_isotonic_map_never_decreases():
+    rng = np.random.default_rng(3)
+    predicted = rng.normal(0.0, 1.0, size=300)
+    truth = predicted + rng.normal(0.0, 1.0, size=300)
+
+    _, knots_y = calibration.fit_isotonic(predicted, truth)
+
+    assert np.all(np.diff(np.asarray(knots_y)) >= 0)
+
+
+def test_the_isotonic_map_clips_rather_than_extrapolating():
+    knots_x, knots_y = (1.0, 2.0, 3.0), (10.0, 20.0, 30.0)
+    fitted = calibration.IsotonicCalibration(
+        knots_x=knots_x, knots_y=knots_y, n_fit=3, weight_summary={}, classifier_auc=0.5
+    )
+
+    # a compound predicted beyond anything the map was fitted on is pinned to
+    # the end rather than given an invented value
+    assert fitted.apply(np.array([-5.0, 99.0])).tolist() == [10.0, 30.0]
+
+
+def test_a_flat_step_implies_no_spread_at_all():
+    # where the map is flat it sends a stretch of the range to one value, so
+    # the spread it implies there is zero rather than merely small
+    fitted = calibration.IsotonicCalibration(
+        knots_x=(0.0, 1.0, 2.0),
+        knots_y=(5.0, 5.0, 9.0),
+        n_fit=3,
+        weight_summary={},
+        classifier_auc=0.5,
+    )
+
+    factors = fitted.sigma_factor(np.array([0.5, 1.5]))
+
+    assert factors[0] == 0.0
+    assert factors[1] == pytest.approx(4.0)
+
+
+def test_an_affine_map_scales_every_spread_by_its_slope():
+    fitted = calibration.AffineCalibration(
+        slope=-2.0, intercept=1.0, n_fit=3, weight_summary={}, classifier_auc=0.5
+    )
+
+    assert fitted.sigma_factor(np.zeros(3)).tolist() == [2.0, 2.0, 2.0]
+
+
+def test_a_scale_calibration_records_itself_as_one():
+    rng = np.random.default_rng(4)
+    truth = rng.normal(5.0, 1.0, size=50)
+
+    fitted = calibration.calibrate(
+        0.5 * truth, truth, ["C"] * 50, ["CC"] * 10, method="scale", weighted=False
+    )
+
+    assert fitted.as_dict()["method"] == "scale"
+    assert fitted.intercept == 0.0
+
+
+def test_an_unknown_method_is_refused_by_name():
+    with pytest.raises(calibration.CalibrationError, match="unknown calibration method"):
+        calibration.calibrate(
+            np.zeros(4), np.zeros(4), ["C"] * 4, ["CC"] * 2, method="platt", weighted=False
+        )

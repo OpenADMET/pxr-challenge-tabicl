@@ -162,6 +162,19 @@ def main() -> None:
 
     calibrated_block: dict[str, Any] | None = None
     fitted = None if args.no_calibrated else _load_calibration(label)
+    if fitted is not None and "slope" not in fitted:
+        # a monotone map is affine only locally, and where it is flat the
+        # spread it implies is zero. Coverage under a spread of zero is a
+        # statement about the map rather than about the model, so it is not
+        # drawn here: the affine calibrations are the ones with a spread to
+        # rescale
+        logger.warning(
+            "%s: calibration is %s, which implies no single factor on the spread; "
+            "reporting the raw diagnostics only",
+            label,
+            fitted.get("method", "not affine"),
+        )
+        fitted = None
     if fitted is not None:
         slope, intercept = float(fitted["slope"]), float(fitted["intercept"])
         cal_pred = slope * predicted + intercept

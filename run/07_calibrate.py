@@ -93,6 +93,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--bits", type=int, default=calibration.MORGAN_BITS, help="Morgan fingerprint length"
     )
     parser.add_argument(
+        "--method",
+        default="affine",
+        choices=list(calibration.METHODS),
+        help="which map to fit: the report's affine map, a scale factor through "
+        "the origin, or a non-decreasing isotonic map",
+    )
+    parser.add_argument(
         "--unweighted",
         action="store_true",
         help="fit the map without the density ratio, the ablation that says what it bought",
@@ -193,7 +200,13 @@ def main() -> None:
     config = gates.resolve_target(spec, args.slug)
     clip = (float(args.clip[0]), float(args.clip[1]))
 
+    # the report's map keeps the configuration's own directory, since it is
+    # what the uncertainty stage reads and what the figures were drawn from.
+    # Another method writes beside it rather than over it, so the three can be
+    # compared without one of them silently replacing the others
     out_dir = CALIBRATION_DIR / config.slug
+    if args.method != "affine":
+        out_dir = CALIBRATION_DIR / f"{config.slug}__{args.method}"
     record_path = out_dir / "calibration.json"
     if record_path.exists() and not args.force:
         logger.info("%s: already calibrated", config.slug)
@@ -226,6 +239,7 @@ def main() -> None:
         radius=args.radius,
         n_bits=args.bits,
         clip=clip,
+        method=args.method,
         weighted=not args.unweighted,
     )
     calibrated = fitted.apply(raw)
@@ -239,6 +253,7 @@ def main() -> None:
         "from_gates": args.slug is None,
         "calibration": fitted.as_dict(),
         "settings": {
+            "method": args.method,
             "n_folds": args.folds,
             "oof_seeds": args.oof_seeds,
             "morgan_radius": args.radius,

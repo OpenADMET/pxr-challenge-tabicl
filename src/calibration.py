@@ -17,10 +17,30 @@ distribution it will be applied to. The report calls clipping essential, "too
 strong a classifier lets a handful of test-like compounds pull the fit", and
 clips to [1/3, 3]; that bound is the default here.
 
-An affine map. ``calibrated = slope * raw + intercept``, fitted by weighted
-least squares. It is affine rather than monotone-but-arbitrary because the
-quantity being corrected is scale and offset, and because a positive slope
-leaves every ranking metric untouched: only the error metrics can move.
+A map from raw predictions to calibrated ones, fitted by weighted least
+squares on those out-of-fold predictions. Three are offered, and they differ
+only in how much freedom the map has:
+
+``affine``, ``calibrated = slope * raw + intercept``, which is the report's.
+The quantity it corrects is scale and offset together.
+
+``scale``, ``calibrated = factor * raw``, the same map through the origin. It
+answers whether an offset was doing the work, and cannot introduce a bias of
+its own: a model already unbiased in the mean stays unbiased.
+
+``isotonic``, any non-decreasing map, fitted on the same weighted points. It
+can correct a curve the affine map cannot reach, and it is the one that can
+overfit: it interpolates between the knots it saw and clips outside their
+range, so a test compound predicted beyond anything in the fit set is pinned
+to the end of the map.
+
+The two affine maps are strictly increasing wherever their slope is positive,
+so neither can move a ranking metric and only the error metrics can respond to
+them. Isotonic is not strictly increasing: it is flat wherever the fit points
+were out of order, so it maps a stretch of the range to one value and creates
+ties that a rank metric can see. It is a quantisation as much as a correction,
+and how coarse a one is a property of the data rather than of the method,
+worth reading off a fit before trusting it.
 
 Nothing here reads a test label. The test compounds enter through their
 structures alone, as the classifier's positive class, which is what makes the
@@ -71,8 +91,15 @@ class CalibrationError(ValueError):
 class AffineCalibration:
     """A fitted affine map and the evidence behind it.
 
+    A pure scale factor is this map with a zero intercept, and is recorded as
+    one rather than as a type of its own: everything reading a calibration
+    wants a slope and an intercept, and a scale that had to be special-cased
+    downstream would be a second thing to keep in step.
+
     Attributes
     ----------
+    method : str
+        Which map was fitted, ``affine`` or ``scale``.
     slope, intercept : float
         ``calibrated = slope * raw + intercept``.
     n_fit : int
@@ -95,6 +122,7 @@ class AffineCalibration:
     n_fit: int
     weight_summary: dict[str, float]
     classifier_auc: float
+    method: str = "affine"
 
     def apply(self, predictions: NDArray[np.float64]) -> NDArray[np.float64]:
         """Return the calibrated predictions.
@@ -111,15 +139,104 @@ class AffineCalibration:
         """
         return self.slope * np.asarray(predictions, dtype=np.float64) + self.intercept
 
+    def sigma_factor(self, predictions: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Return what this map does to a predictive spread, per prediction.
+
+        An affine map moves the whole distribution, so its standard deviation
+        scales by the absolute slope everywhere.
+        """
+        return np.full(np.shape(predictions), abs(self.slope), dtype=np.float64)
+
     def as_dict(self) -> dict[str, Any]:
         """Return the map and its evidence as plain data for a record."""
         return {
+            "method": self.method,
             "slope": self.slope,
             "intercept": self.intercept,
             "n_fit": self.n_fit,
             "weights": self.weight_summary,
             "classifier_auc": self.classifier_auc,
         }
+
+
+@dataclass(frozen=True)
+class IsotonicCalibration:
+    """A fitted non-decreasing map and the evidence behind it.
+
+    Stored as the knots the fit produced rather than as an estimator, so a
+    record holds the map itself and applying it later needs nothing but
+    interpolation. Outside the knots the map is constant, which is what
+    ``out_of_bounds="clip"`` means: a test compound predicted beyond anything
+    in the fit set is pinned to the nearest end, and no extrapolation is
+    invented for it.
+
+    Attributes
+    ----------
+    method : str
+        Always ``isotonic``. Carried so a record says which map it holds.
+    knots_x, knots_y : tuple of float
+        The fitted step function, x increasing.
+    n_fit : int
+        Out-of-fold predictions the map was fitted on.
+    n_clipped : int
+        Fit points outside the knots, which is zero by construction and is
+        recomputed for the test set when the map is applied.
+    weight_summary : dict
+        The density-ratio weight distribution, as for the affine map.
+    classifier_auc : float
+        Out-of-fold ROC AUC of the train-versus-test separator.
+    """
+
+    knots_x: tuple[float, ...]
+    knots_y: tuple[float, ...]
+    n_fit: int
+    weight_summary: dict[str, float]
+    classifier_auc: float
+    method: str = "isotonic"
+
+    def apply(self, predictions: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Return the calibrated predictions, clipped to the fitted range."""
+        raw = np.asarray(predictions, dtype=np.float64)
+        return np.interp(raw, np.asarray(self.knots_x), np.asarray(self.knots_y))
+
+    def sigma_factor(self, predictions: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Return what this map does to a predictive spread, per prediction.
+
+        A monotone map is affine only locally, so the spread scales by the
+        slope of the segment each prediction lands on. Where the map is flat
+        the factor is zero, which is the map saying that stretch of the range
+        carries no information: a spread there has been mapped to a point.
+        """
+        raw = np.asarray(predictions, dtype=np.float64)
+        x = np.asarray(self.knots_x, dtype=np.float64)
+        y = np.asarray(self.knots_y, dtype=np.float64)
+        if x.size < 2:
+            return np.zeros_like(raw)
+        slopes = np.diff(y) / np.diff(x)
+        # a prediction outside the knots sits on the clipped end, where the map
+        # is constant and the spread it implies is zero
+        index = np.clip(np.searchsorted(x, raw, side="right") - 1, 0, slopes.size - 1)
+        factor = np.where((raw < x[0]) | (raw > x[-1]), 0.0, slopes[index])
+        return np.abs(factor)
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the map and its evidence as plain data for a record."""
+        return {
+            "method": self.method,
+            "knots_x": list(self.knots_x),
+            "knots_y": list(self.knots_y),
+            "n_knots": len(self.knots_x),
+            "n_fit": self.n_fit,
+            "weights": self.weight_summary,
+            "classifier_auc": self.classifier_auc,
+        }
+
+
+# every fitted map, whichever method produced it
+Calibration = AffineCalibration | IsotonicCalibration
+
+# the maps this module can fit, in order of how much freedom they have
+METHODS = ("affine", "scale", "isotonic")
 
 
 def morgan_matrix(
@@ -271,23 +388,122 @@ def fit_affine(
         If the inputs disagree in length, hold fewer than two points, or the
         predictions are constant, which leaves the slope undetermined.
     """
-    pred = np.asarray(out_of_fold, dtype=np.float64)
-    truth = np.asarray(observed, dtype=np.float64)
-    if pred.shape != truth.shape:
-        raise CalibrationError(f"shape mismatch: {pred.shape} predictions, {truth.shape} labels")
+    pred, truth, w = _aligned(out_of_fold, observed, weights)
     if pred.size < 2:
         raise CalibrationError("an affine map needs at least two points")
     if np.allclose(pred, pred[0]):
         raise CalibrationError("predictions are constant, so the slope is undetermined")
 
-    w = np.ones_like(pred) if weights is None else np.asarray(weights, dtype=np.float64)
-    if w.shape != pred.shape:
-        raise CalibrationError(f"shape mismatch: {w.shape} weights, {pred.shape} predictions")
-
     design = np.column_stack([pred, np.ones_like(pred)])
     root = np.sqrt(w)
     solution, *_ = np.linalg.lstsq(design * root[:, None], truth * root, rcond=None)
     return float(solution[0]), float(solution[1])
+
+
+def fit_scale(
+    out_of_fold: NDArray[np.float64],
+    observed: NDArray[np.float64],
+    weights: NDArray[np.float64] | None = None,
+) -> float:
+    """Fit ``observed ~ factor * out_of_fold`` by weighted least squares.
+
+    The affine map through the origin. Fitting the factor alone answers
+    whether the offset was doing the work, and cannot introduce a bias of its
+    own the way an intercept can: a model already unbiased in the mean is left
+    unbiased by it.
+
+    Parameters
+    ----------
+    out_of_fold : ndarray
+        Predictions made by a model that did not train on the compound.
+    observed : ndarray
+        True labels, aligned with them.
+    weights : ndarray or None, optional
+        Per-compound weights. None fits unweighted.
+
+    Returns
+    -------
+    float
+        The factor.
+
+    Raises
+    ------
+    CalibrationError
+        If the inputs disagree in length, hold no points, or the predictions
+        are all zero, which leaves the factor undetermined.
+    """
+    pred, truth, w = _aligned(out_of_fold, observed, weights)
+    denominator = float(np.sum(w * pred * pred))
+    if denominator == 0.0:
+        raise CalibrationError("predictions are all zero, so the scale factor is undetermined")
+    return float(np.sum(w * pred * truth) / denominator)
+
+
+def fit_isotonic(
+    out_of_fold: NDArray[np.float64],
+    observed: NDArray[np.float64],
+    weights: NDArray[np.float64] | None = None,
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    """Fit a non-decreasing map by weighted isotonic regression.
+
+    The most freedom any of these maps has, and the only one that can correct
+    a curve. What it buys over the affine map is a question about this split
+    rather than a general one: with a few thousand fit points the map is well
+    determined in the middle of the range and thin at the ends, where it is
+    fitted on the handful of compounds the model scores most extremely.
+
+    Parameters
+    ----------
+    out_of_fold : ndarray
+        Predictions made by a model that did not train on the compound.
+    observed : ndarray
+        True labels, aligned with them.
+    weights : ndarray or None, optional
+        Per-compound weights. None fits unweighted.
+
+    Returns
+    -------
+    knots_x, knots_y : tuple of float
+        The fitted step function, x increasing and y non-decreasing.
+
+    Raises
+    ------
+    CalibrationError
+        If the inputs disagree in length or hold fewer than two points.
+    """
+    from sklearn.isotonic import IsotonicRegression
+
+    pred, truth, w = _aligned(out_of_fold, observed, weights)
+    if pred.size < 2:
+        raise CalibrationError("an isotonic map needs at least two points")
+
+    fitted = IsotonicRegression(increasing=True, out_of_bounds="clip")
+    fitted.fit(pred, truth, sample_weight=w)
+
+    # the estimator keeps the knots it needs and nothing more, so the map is
+    # recorded as those rather than as a value per fit compound
+    x = np.asarray(fitted.X_thresholds_, dtype=np.float64)
+    y = np.asarray(fitted.y_thresholds_, dtype=np.float64)
+    return tuple(float(value) for value in x), tuple(float(value) for value in y)
+
+
+def _aligned(
+    out_of_fold: NDArray[np.float64],
+    observed: NDArray[np.float64],
+    weights: NDArray[np.float64] | None,
+) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+    """Return the three arrays a fit needs, checked against each other."""
+    pred = np.asarray(out_of_fold, dtype=np.float64)
+    truth = np.asarray(observed, dtype=np.float64)
+    if pred.shape != truth.shape:
+        raise CalibrationError(f"shape mismatch: {pred.shape} predictions, {truth.shape} labels")
+    if pred.size == 0:
+        raise CalibrationError("a calibration needs at least one point")
+
+    w = np.ones_like(pred) if weights is None else np.asarray(weights, dtype=np.float64)
+    if w.shape != pred.shape:
+        raise CalibrationError(f"shape mismatch: {w.shape} weights, {pred.shape} predictions")
+    return pred, truth, w
 
 
 def summarize_weights(weights: NDArray[np.float64], clip: tuple[float, float]) -> dict[str, float]:
@@ -309,13 +525,19 @@ def calibrate(
     fit_smiles: list[str],
     test_smiles: list[str],
     *,
+    method: str = "affine",
     radius: int = MORGAN_RADIUS,
     n_bits: int = MORGAN_BITS,
     clip: tuple[float, float] = WEIGHT_CLIP,
     weighted: bool = True,
     seed: int = 0,
-) -> AffineCalibration:
-    """Fit the report's affine map from out-of-fold predictions.
+) -> Calibration:
+    """Fit a calibration from out-of-fold predictions, under the density ratio.
+
+    The weighting is the report's and is the same whichever map is fitted, so
+    the three methods differ in one thing only: how much freedom the map has.
+    That is what makes them comparable, and what makes a flat result across all
+    three an answer about this split rather than about a choice of map.
 
     Parameters
     ----------
@@ -325,6 +547,9 @@ def calibrate(
         True labels for the fit compounds.
     fit_smiles, test_smiles : list of str
         Canonical SMILES for both sets, the fit list aligned with the arrays.
+    method : str, optional
+        Which map to fit, one of :data:`METHODS`. Defaults to the report's
+        affine map.
     radius, n_bits, clip, seed : optional
         Passed to :func:`density_ratio_weights`.
     weighted : bool, optional
@@ -333,9 +558,17 @@ def calibrate(
 
     Returns
     -------
-    AffineCalibration
+    AffineCalibration or IsotonicCalibration
         The map, and the evidence behind it.
+
+    Raises
+    ------
+    CalibrationError
+        If the method is not one this module fits.
     """
+    if method not in METHODS:
+        raise CalibrationError(f"unknown calibration method {method!r}; known: {list(METHODS)}")
+
     if weighted:
         weights, auc = density_ratio_weights(
             fit_smiles, test_smiles, radius=radius, n_bits=n_bits, clip=clip, seed=seed
@@ -343,20 +576,36 @@ def calibrate(
     else:
         weights, auc = np.ones(len(fit_smiles)), float("nan")
 
-    slope, intercept = fit_affine(out_of_fold, observed, weights)
+    summary = summarize_weights(weights, clip)
+    evidence = {
+        "n_fit": int(np.size(out_of_fold)),
+        "weight_summary": summary,
+        "classifier_auc": auc,
+    }
+
+    if method == "isotonic":
+        knots_x, knots_y = fit_isotonic(out_of_fold, observed, weights)
+        logger.info(
+            "isotonic calibration: %d knots over [%.3f, %.3f], separator AUC %.3f",
+            len(knots_x),
+            knots_x[0],
+            knots_x[-1],
+            auc,
+        )
+        return IsotonicCalibration(knots_x=knots_x, knots_y=knots_y, **evidence)
+
+    if method == "scale":
+        slope, intercept = fit_scale(out_of_fold, observed, weights), 0.0
+    else:
+        slope, intercept = fit_affine(out_of_fold, observed, weights)
     logger.info(
-        "affine calibration: slope %.4f, intercept %.4f, separator AUC %.3f",
+        "%s calibration: slope %.4f, intercept %.4f, separator AUC %.3f",
+        method,
         slope,
         intercept,
         auc,
     )
-    return AffineCalibration(
-        slope=slope,
-        intercept=intercept,
-        n_fit=int(np.size(out_of_fold)),
-        weight_summary=summarize_weights(weights, clip),
-        classifier_auc=auc,
-    )
+    return AffineCalibration(slope=slope, intercept=intercept, method=method, **evidence)
 
 
 def fold_indices(n: int, *, n_folds: int = N_FOLDS, seed: int = 0) -> list[tuple[Any, Any]]:
