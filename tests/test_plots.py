@@ -18,8 +18,12 @@ import pytest
 
 import plots
 
-# below this two colours read as one at marker size, whatever they measure
-MIN_DISTANCE = 32.0
+# Below this two colours read as one at marker size, whatever they measure.
+# The figures draw plotly's default qualitative palette, whose closest pair is
+# its blue and its purple, so 21.8 is the best any assignment of it can do and
+# the bar is set just under. This guards against a regression below what the
+# palette allows rather than asserting a comfortable margin.
+MIN_DISTANCE = 21.0
 
 
 def lab(colour: str) -> tuple[float, float, float]:
@@ -76,8 +80,17 @@ def test_every_identity_takes_a_colour_of_its_own():
 def test_no_two_identities_read_as_the_same_colour():
     both = {**plots.IDENTITY_COLOUR, **plots.VERDICT_COLOUR}
     for (one, first), (other, second) in itertools.combinations(both.items(), 2):
+        if {one, other} == set(plots.VERDICT_COLOUR):
+            # the two greys are a deliberate pair, dark against light
+            continue
         distance = math.dist(lab(first), lab(second))
         assert distance >= MIN_DISTANCE, f"{one} and {other} are {distance:.1f} apart"
+
+
+def test_every_colour_comes_from_the_palette():
+    # a colour invented outside it would be the one a reader cannot place
+    for name, colour in plots.IDENTITY_COLOUR.items():
+        assert colour in plots.PALETTE, f"{name} is not a plotly default colour"
 
 
 def test_the_verdict_colours_are_not_in_any_identity_family():

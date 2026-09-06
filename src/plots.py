@@ -43,6 +43,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -60,18 +61,27 @@ SEPARATED = "separated from the leader"
 # with no hue has earned no name rather than having been assigned a reading.
 VERDICT_COLOUR = {TIED: "#57606a", SEPARATED: "#c6cbd1"}
 
+# Plotly's default qualitative palette, named by position so the source of a
+# colour is legible and nothing is invented. Ten colours, of which eight are
+# spent: the assignment below is the one that leaves the closest pair inside
+# any single panel as far apart as this palette allows, which is 21.8 in
+# CIELAB, between its blue and its purple in figure 4. Those two are the
+# palette's own nearest neighbours, and no assignment separates them: pinning
+# them to identities that never share a panel leaves the remaining five to be
+# drawn from four hue families.
+PALETTE = px.colors.qualitative.Plotly
+
 # Each gate's winner takes one colour and keeps it wherever that configuration
 # appears again, so a reader can follow it across the figures and read its
-# neighbours: blue around it means it was among the best where it reappears,
-# grey means it was not. Matched on the axes the gate settled rather than on a
-# slug, because a slug also names the axes a figure holds fixed and those
-# differ from stage to stage.
+# neighbours: a grey neighbourhood means it was not among the best where it
+# reappears. Matched on the axes the gate settled rather than on a slug,
+# because a slug also names the axes a figure holds fixed and those differ
+# from stage to stage.
 GATE_COLOUR = {
-    "canonical_descriptors": "#ff6ac1",
-    # blue, which the verdicts no longer need
-    "embedding_reduction": "#0969da",
-    "best_featureset": "#b967ff",
-    "best_regressor": "#ff9e64",
+    "canonical_descriptors": PALETTE[0],
+    "embedding_reduction": PALETTE[4],
+    "best_featureset": PALETTE[3],
+    "best_regressor": PALETTE[9],
 }
 
 # Not every configuration worth following is a gate's winner. The GNN sweep
@@ -85,15 +95,10 @@ GATE_COLOUR = {
 NAMED_COLOUR = {
     # the published leaderboard score, which is a landmark rather than a
     # competitor: it has no per-compound predictions here to test against
-    "anchor": "#ff2e63",
-    "best_gnn": "#00b37e",
-    # deep plum, which is the furthest any candidate sits from everything the
-    # baseline shares a panel with. The pair to watch is this one and the best
-    # graph network, which figure 1 introduces together: two greens read as
-    # related however far apart they measure, so the two graph networks are
-    # deliberately in different hue families rather than in one
-    "chemeleon_baseline": "#6a1b4d",
-    "best_single": "#f5d300",
+    "anchor": PALETTE[1],
+    "best_gnn": PALETTE[8],
+    "chemeleon_baseline": PALETTE[5],
+    "best_single": PALETTE[7],
 }
 
 IDENTITY_COLOUR = {**GATE_COLOUR, **NAMED_COLOUR}
