@@ -180,7 +180,7 @@ def test_a_tooltip_opens_with_the_name_and_the_score():
     assert lines[1].startswith("MAE 0.5000 ")
     assert "over seeds" in lines[1]
     assert lines[2].startswith("seed ensemble MAE:")
-    assert lines[3] == "leader-separated: p=0.0100"
+    assert lines[3] == f"{plots.SEPARATED}: p=0.0100"
 
 
 def test_a_carried_row_says_where_it_came_from():

@@ -53,8 +53,8 @@ logger = logging.getLogger(__name__)
 # a row is either indistinguishable from the best configuration or set apart
 # from it. The best is the top row rather than a colour of its own, since the
 # figure is sorted and position already says it
-TIED = "not separated from the leader"
-SEPARATED = "separated from the leader"
+TIED = "tied with best"
+SEPARATED = "worse than best"
 
 # A verdict is drawn in grey, dark for a row the procedure does not separate
 # from the leader and light for one it does. Colour is then spent entirely on
@@ -303,8 +303,7 @@ def comparison_frame(
                 "verdict": (
                     ""
                     if slug == leader
-                    else f"{'' if is_separated else 'not '}leader-separated: "
-                    f"p={p_values.get(slug, 0):.4f}"
+                    else f"{SEPARATED if is_separated else TIED}: p={p_values.get(slug, 0):.4f}"
                 ),
             }
         )
@@ -878,14 +877,18 @@ def _legend(frame: pd.DataFrame) -> list[go.Scatter]:
     Each entry names the group its rows are drawn in, which is what lets
     clicking it hide them.
     """
-    entries: list[tuple[str, str, str, str]] = []
-    for verdict, colour in VERDICT_COLOUR.items():
-        entries.append((verdict, colour, "circle", verdict))
+    # in the order a reader meets them: which row the panel is measured
+    # against, which one it settled on, then how the rest stand, then what was
+    # brought in from elsewhere
     roles = set(frame["role"])
-    for role, label in ((CHOSEN, "chosen here"), (CARRIED, "carried in")):
-        if role in roles:
-            entries.append((label, _LEGEND_NEUTRAL, SYMBOL[role], role))
-    entries.append(("* leader", _LEGEND_NEUTRAL, "asterisk-open", "leader"))
+    entries: list[tuple[str, str, str, str]] = [
+        ("best", _LEGEND_NEUTRAL, "asterisk-open", "leader")
+    ]
+    if CHOSEN in roles:
+        entries.append(("chosen here", _LEGEND_NEUTRAL, SYMBOL[CHOSEN], CHOSEN))
+    entries += [(verdict, colour, "circle", verdict) for verdict, colour in VERDICT_COLOUR.items()]
+    if CARRIED in roles:
+        entries.append(("carried in", _LEGEND_NEUTRAL, SYMBOL[CARRIED], CARRIED))
 
     return [
         go.Scatter(
