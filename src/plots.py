@@ -123,7 +123,14 @@ SYMBOL = {CHOSEN: "star", CARRIED: "diamond", SCORED: "circle"}
 # leader, and it is a statistical role rather than a choice, so it is marked on
 # the name rather than spending a shape or a colour on it.
 LEADER_MARK = " *"
-SIZE = {CHOSEN: 11, CARRIED: 10, SCORED: 9}
+# One size for every symbol. Plotly sizes a marker by its bounding box rather
+# than by its ink, and the three glyphs fill that box very differently: a
+# circle covers it, a diamond half of it, a five-pointed star about a third.
+# Equal extent is the closest thing to equal apparent size, and any step in the
+# other direction gave the marked rows more extent and less ink than the plain
+# ones, which is backwards. The shapes carry the distinction; none of them
+# needs to be larger to do it.
+SIZE = dict.fromkeys((CHOSEN, CARRIED, SCORED), 10)
 
 # names that read as prose rather than as identifiers
 # Names as prose. The subscripts are markup rather than unicode because plotly
