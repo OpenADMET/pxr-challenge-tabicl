@@ -568,6 +568,53 @@ gnn:
       prior: pxr_baseline_chemeleon_pec50
 
 # ---------------------------------------------------------------------------
+# Reference points are configurations the figures carry for recognition. They
+# settle no axis and gate nothing, so they are not gates; what they have in
+# common with a gate is that naming one is a judgement, and a judgement is
+# declared here with its reason rather than computed from the runs. A figure
+# scores a reference on the same compounds as everything else and leaves it
+# out of the family the correction is computed over, so carrying one cannot
+# move a verdict, and draws it without an interval to say so.
+#
+# Each names a cell, for the graph networks, or the axis levels that pick out
+# one configuration of a stage. The panel that measured the family a reference
+# came from warns if the runs have moved and it is no longer that family's
+# leader, which is a judgement for whoever reads the log rather than something
+# to override silently.
+# ---------------------------------------------------------------------------
+
+references:
+  - id: best_gnn
+    cell: e4_finetune
+    reason: >
+      The graph network the tabular figures are read against. It leads its
+      stage, and eight of the twelve cells behind it are not separated from
+      it, so this is a choice among ties rather than a finding. Taking the
+      leader is the conservative comparison: the tabular work is then read
+      against the most favourable graph network available, where a middling
+      cell would flatter it.
+
+  - id: chemeleon_baseline
+    cell: chemeleon_pec50
+    reason: >
+      CheMeleon fine-tuned on pEC50 with nothing else attached, which is where
+      this project started and what the rest of it is read against. It is
+      carried for recognition rather than for having won anything: it comes
+      second in its stage and is not separated from the leader, at p = 0.53.
+
+  - id: best_single
+    stage: ingredients
+    config: {embedding: chemeleon_log2fc, embedding_pca: 256, readout: none, descriptors: none}
+    reason: >
+      The furthest a single feature block gets on its own, carried into the
+      combination figures so that what joining blocks buys can be read off
+      directly. CheMeleon log2FC at 256 leads the single-block rows, with
+      plain CheMeleon 256, CheMeleon pEC50 256 and native ChemProp log2FC not
+      separated from it. The featureset gate later took the plain off-the-shelf
+      embedding out of that same tied group on cost, so this reference and that
+      decision name two members of one tie.
+
+# ---------------------------------------------------------------------------
 # Figures are slices of the completed table. Their order is the order the story
 # is told in, which is not the order the stages run in: the width probes run
 # first and are reported late. A select may say "@gate" for an axis, meaning

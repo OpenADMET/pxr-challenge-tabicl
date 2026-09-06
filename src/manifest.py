@@ -192,6 +192,38 @@ class Gate:
 
 
 @dataclass(frozen=True)
+class Reference:
+    """A configuration the figures carry for recognition.
+
+    A reference settles nothing and gates nothing. What it shares with a gate
+    is that naming one is a judgement, so it is declared here with its reason
+    instead of being read off whichever family happens to lead. A figure scores
+    it on the same compounds as everything else, leaves it out of the family
+    the correction is computed over, and draws it without an interval.
+
+    Attributes
+    ----------
+    id : str
+        The name it keeps, and the colour it holds across the figures.
+    reason : str
+        Why this configuration is the one worth recognising.
+    cell : str or None
+        A graph-network cell id.
+    stage : str or None
+        The stage whose configurations ``config`` picks from.
+    config : dict or None
+        Axis levels picking out one configuration of that stage. Partial: only
+        the axes that identify it need naming.
+    """
+
+    id: str
+    reason: str
+    cell: str | None = None
+    stage: str | None = None
+    config: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
 class Stage:
     """One sweep: the axes it varies, and what it holds fixed while doing so."""
 
@@ -237,6 +269,7 @@ class Manifest:
     stages: tuple[Stage, ...]
     gnn_cells: tuple[GnnCell, ...]
     figures: tuple[dict, ...]
+    references: tuple[Reference, ...] = ()
     # axis levels this vocabulary names and deliberately does not run, each
     # mapped to what was measured. Distinct from a level that is simply absent,
     # which is an oversight
@@ -427,6 +460,16 @@ def load(path: Path = MANIFEST_PATH, prior_summary: Path | None = None) -> Manif
         stages=stages,
         gnn_cells=gnn_cells,
         figures=tuple(raw["figures"]),
+        references=tuple(
+            Reference(
+                id=entry["id"],
+                reason=entry.get("reason", ""),
+                cell=entry.get("cell"),
+                stage=entry.get("stage"),
+                config=entry.get("config"),
+            )
+            for entry in raw.get("references", [])
+        ),
         excluded=raw["tabular"].get("excluded", {}),
         prior=prior,
     )
@@ -598,6 +641,31 @@ def _problems(manifest: Manifest) -> Iterator[str]:
     """Yield every structural problem in the manifest."""
     gate_ids = {stage.gate.id for stage in manifest.stages if stage.gate}
     figures = {figure["id"] for figure in manifest.figures}
+    stage_ids = {stage.id for stage in manifest.stages}
+    cell_ids = {cell.id for cell in manifest.gnn_cells}
+
+    # a reference names one configuration, one way, with a reason. Naming it
+    # two ways or none leaves what it points at to whoever reads it
+    seen_references: set[str] = set()
+    for reference in manifest.references:
+        if reference.id in seen_references:
+            yield f"reference {reference.id!r} is declared twice"
+        seen_references.add(reference.id)
+        if not reference.reason.strip():
+            yield f"reference {reference.id!r} has no reason; it is its only defence"
+        if bool(reference.cell) == bool(reference.config):
+            yield f"reference {reference.id!r} must name either a cell or a config, not both"
+        if reference.cell and reference.cell not in cell_ids:
+            yield f"reference {reference.id!r} names cell {reference.cell!r}, which is not run"
+        if reference.config is not None:
+            if reference.stage not in stage_ids:
+                yield (
+                    f"reference {reference.id!r} names stage {reference.stage!r}, "
+                    f"which does not exist"
+                )
+            for axis in reference.config:
+                if axis not in TABULAR_AXES:
+                    yield f"reference {reference.id!r}: unknown axis {axis!r}"
 
     # a stage may only inherit from a gate declared before it, so the chain
     # cannot close on itself or read a decision that does not exist yet
