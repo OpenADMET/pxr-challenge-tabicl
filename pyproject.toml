@@ -13,7 +13,6 @@ dependencies = [
     "pyarrow>=15",
     "huggingface-hub>=0.24",
     "pyyaml>=6",
-    "matplotlib>=3.9",
     # pinned like the modelling stack: the lock should describe an environment
     # that has been run, and 7.0 has not been
     "plotly==6.5.2",

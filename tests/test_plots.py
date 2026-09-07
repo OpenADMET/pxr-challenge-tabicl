@@ -14,8 +14,6 @@ import colorsys
 import itertools
 import math
 
-import pytest
-
 import plots
 
 # Below this two colours read as one at marker size, whatever they measure.
@@ -102,30 +100,6 @@ def test_the_verdict_colours_are_not_in_any_identity_family():
     assert reserved == {"grey"}
     for name, colour in plots.IDENTITY_COLOUR.items():
         assert family(colour) not in reserved, f"{name} reads as a verdict colour"
-
-
-@pytest.mark.parametrize("label", ["CheMeleon embedding", "RDKit + Mordred 256"])
-def test_a_short_name_is_left_on_one_line(label):
-    assert plots.wrap_label(label) == label
-
-
-def test_a_long_name_breaks_at_a_join():
-    label = "CheMeleon log2FC embedding + Chemprop log2FC readout + RDKit 128"
-
-    wrapped = plots.wrap_label(label)
-
-    assert wrapped.count("<br>") == 1
-    # the break falls after a plus, so each line is a whole ingredient
-    head, tail = wrapped.split("<br>")
-    assert head.endswith("+")
-    assert " + " not in tail or tail.count(" + ") <= 1
-
-
-def test_a_wrapped_name_reads_back_as_one_line():
-    wrapped = plots.wrap_label("CheMeleon log2FC embedding + Chemprop log2FC readout + RDKit 128")
-
-    # the tooltip's title is the same name unwrapped, not two words run together
-    assert "+Chemprop" not in plots._visible(wrapped)
 
 
 def _frame():

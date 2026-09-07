@@ -48,13 +48,6 @@ PAIRED = ("fig2a", "fig2b")
 # an epoch budget: a body held this long is never released
 FROZEN_AT = 30
 
-# The embedding width is settled in figure 2 and never named in a label again,
-# so its colour is not carried past the figure that decided it. A colour marks
-# a row for a question, and figures 3 and 4 do not ask how wide the embedding
-# is: carrying it there marks a row for a question those figures have left
-# behind, and puts a second blue-green next to the graph networks.
-SETTLED_IN_PLACE = ("embedding_reduction",)
-
 # Where a reader last met each identity. Colour says they have seen a row
 # before; this says where, which is the whole of what carrying a colour forward
 # is for. The anchor is absent on purpose: it was established in the report

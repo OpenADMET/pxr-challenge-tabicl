@@ -541,38 +541,6 @@ def label_for(
 BODY = {"chemeleon": "CheMeleon", "log2fc_checkpoint": f"Chemprop {LOG2FC}"}
 
 
-def wrap_label(label: str, width: int = 34) -> str:
-    """Break a long name over two lines, at a join rather than mid-phrase.
-
-    A figure of combinations has rows naming three blocks, and a label column
-    wide enough for them leaves little of the axis. The break goes at a ``+``,
-    so each line is a whole ingredient and the plus stays with the line it
-    joins from.
-
-    Parameters
-    ----------
-    label : str
-        A name built by :func:`label_for`.
-    width : int, optional
-        Characters above which a name is worth breaking.
-
-    Returns
-    -------
-    str
-        The name, with at most one line break.
-    """
-    if len(_visible(label)) <= width or " + " not in label:
-        return label
-
-    # split where the two lines come closest to even, so neither is a stub
-    parts = label.split(" + ")
-    joins = [len(_visible(" + ".join(parts[: i + 1]))) for i in range(len(parts) - 1)]
-    target = len(_visible(label)) / 2
-    at = min(range(len(joins)), key=lambda i: abs(joins[i] - target))
-    head, tail = " + ".join(parts[: at + 1]), " + ".join(parts[at + 1 :])
-    return f"{head} +<br>{tail}"
-
-
 def _visible(label: str) -> str:
     """Return a label as it reads on one line, without its markup.
 
