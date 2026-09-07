@@ -7,17 +7,18 @@ procedure calls for, and the arrangement is the one statsmodels draws for
 Tukey's HSD, a point per configuration with an interval and the comparisons
 marked against a reference.
 
-What differs is where the significance comes from. Tukey's assumes independent
-groups with equal variances and takes its replicates from the seeds, which
-here number five and are not the quantity of interest. This uses the project's
-own test: every pair compared by a paired bootstrap over the 260 evaluation
-compounds, resampled on one shared set of draws so each difference is paired,
-with the family corrected by Benjamini-Hochberg. A configuration is marked
-separated when that procedure separates it from the leader, and the interval
-drawn is the comparison half width the same resampling produced, so two
-intervals touch exactly when the pair is not separated. Interval and verdict
-therefore come from one computation, and a figure cannot contradict the
-decision recorded beside it.
+The significance is Tukey's too, computed in :mod:`tukey` and blocked on the
+seed. That is what lets overlap be the test rather than an approximation of
+it: the panel is balanced at five seeds, so one critical distance covers every
+pair and halves between the two intervals it joins. Interval and verdict come
+from one computation, so a figure cannot contradict itself.
+
+It can differ from the gate recorded beside it, and on some rows it does. A
+gate decides under Benjamini-Hochberg on a paired compound bootstrap, holding
+the fitted models fixed and asking whether another sample of molecules would
+reorder the table. A panel here holds the compounds fixed and asks whether
+another training seed would. Neither answers the other's question, and a
+caption showing one has to say which.
 
 Nothing here decides anything. A gate's chosen configuration is marked because
 it was chosen, not because the plot found it.

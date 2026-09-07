@@ -740,10 +740,12 @@ references:
 # down where it can be read, and a figure the manifest does not declare cannot
 # be drawn.
 #
-# A figure is not a slice of a table. Each is measured as its own family, by
-# the same all-pairwise paired bootstrap under Benjamini-Hochberg that decides
-# a gate, so the verdicts in a figure and the decision recorded beside it come
-# from one computation.
+# A figure is not a slice of a table. Each is measured as its own family, so
+# the correction covers what the figure shows rather than what its stage ran.
+# The verdicts drawn are Tukey HSD over the seeds, blocked on the seed, which
+# is not what a gate decides by: a gate resamples compounds under
+# Benjamini-Hochberg. The two disagree on some rows because they are answering
+# different questions, and a caption has to say which one is on the page.
 # ---------------------------------------------------------------------------
 
 figures:
