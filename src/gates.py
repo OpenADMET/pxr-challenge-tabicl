@@ -526,6 +526,10 @@ def _score(configs: list[Any], manifest: Manifest, results_dir: Path) -> list[di
                 "config": config,
                 "observed": observed,
                 "stacked": stacked,
+                # the metric at each seed, in manifest order, which is what a
+                # blocked comparison needs: the seeds are its replicates and
+                # seed s is the same validation carve-out for every row
+                "per_seed": [float(s[RANK_METRIC]) for s in per_seed],
                 # how far the metric moves when only the training seed changes
                 "seed_spread": float(np.std([s[RANK_METRIC] for s in per_seed], ddof=1))
                 if len(per_seed) > 1
@@ -674,6 +678,7 @@ def _public(
         "slug": slug,
         "config": row["config"].as_dict(),
         "n_seeds": int(row["n_seeds"]),
+        "per_seed": [float(value) for value in row["per_seed"]],
         "seed_spread": float(row["seed_spread"]),
         "ensemble": {k: float(v) for k, v in row["ensemble"].items()},
         **{name: float(row[name]) for name in evaluate.METRIC_NAMES if name in row},
