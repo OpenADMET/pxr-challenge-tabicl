@@ -542,13 +542,16 @@ BODY = {"chemeleon": "CheMeleon", "log2fc_checkpoint": f"Chemprop {LOG2FC}"}
 
 
 def _visible(label: str) -> str:
-    """Return a label as it reads on one line, without its markup.
+    """Return a label as it reads on one line, keeping what a reader sees.
 
-    A line break stands for the space it replaced, so a wrapped name read back
-    as a tooltip's title does not run two words together.
+    The colour a label carries and the emphasis a title adds belong to the
+    place they were written, so they come off. Subscripts do not: plotly reads
+    them in a tooltip as it does on an axis, and log2FC in a tooltip beside
+    log₂FC on the axis reads as a different thing. A line break stands for the
+    space it replaced.
     """
     label = re.sub(r"</?span[^>]*>", "", label)
-    for tag in ("<sub>", "</sub>", "<b>", "</b>"):
+    for tag in ("<b>", "</b>"):
         label = label.replace(tag, "")
     return label.replace("<br>", " ")
 

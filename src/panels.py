@@ -112,6 +112,7 @@ class Panel:
 def annotations(
     configs: list[Any],
     dims: dict[tuple[str, str], int],
+    manifest: Manifest,
     *,
     axes: tuple[str, ...] = (),
     widths: tuple[str, ...] = ("descriptors",),
@@ -142,7 +143,7 @@ def annotations(
                 widths=widths,
                 width_separator=width_separator,
             )
-            detail = tabular_detail(flat, dims)
+            detail = tabular_detail(flat, dims, manifest)
         else:
             label, detail = plots.gnn_label(flat, freeze=freeze), gnn_detail(flat, dims)
         title = (titles or {}).get(config.slug)
@@ -360,7 +361,7 @@ def gnn_panel(
         manifest,
         results_dir=results_dir,
         n_resamples=n_resamples,
-        annotations=annotations(cells, dims, titles=_titles(manifest, "best_gnn")),
+        annotations=annotations(cells, dims, manifest, titles=_titles(manifest, "best_gnn")),
     )
     named = {
         resolve(manifest, name).slug: name
@@ -411,6 +412,7 @@ def width_panels(
             annotations(
                 configs,
                 dims,
+                manifest,
                 axes=axes,
                 widths=(axes[0],),
                 width_separator=separator,
@@ -465,6 +467,7 @@ def ingredient_panels(
         annotations=annotations(
             [*singles, *carried_configs],
             dims,
+            manifest,
             titles=_titles(manifest, "best_single", gates_dir),
             **label,
         ),
@@ -474,7 +477,11 @@ def ingredient_panels(
         [*configs, *carried_configs],
         manifest,
         annotations=annotations(
-            [*configs, *carried_configs], dims, titles=_titles(manifest, None, gates_dir), **label
+            [*configs, *carried_configs],
+            dims,
+            manifest,
+            titles=_titles(manifest, None, gates_dir),
+            **label,
         ),
         **common,
     )
@@ -523,8 +530,8 @@ def regressor_panel(
     carried rows do not share that featureset and are named by their own blocks.
     """
     configs = manifest.expand("regressor", gates.settled(manifest, "regressor", gates_dir))
-    named_rows = annotations(configs, dims, axes=("regressor",)) | annotations(
-        carried_configs, dims, titles=_titles(manifest, None, gates_dir)
+    named_rows = annotations(configs, dims, manifest, axes=("regressor",)) | annotations(
+        carried_configs, dims, manifest, titles=_titles(manifest, None, gates_dir)
     )
     evidence = gates.measure(
         [*configs, *carried_configs],
@@ -807,7 +814,50 @@ def _columns(directory: Path) -> int | None:
     return len(pq.ParquetFile(written[0]).schema.names) - 1
 
 
-def tabular_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> str:
+def provenance(axis: str, level: str, manifest: Manifest) -> str:
+    """Say where a feature block came from, in one clause.
+
+    A block name says what a column is called and not what produced it, and
+    four of these blocks are outputs of networks this project trained. The
+    graph-network tooltips say which checkpoint a body started from and what it
+    was fine-tuned on; a tabular row carrying that same network's output should
+    say the same thing, since "CheMeleon log2FC" and "Chemprop log2FC" differ in
+    exactly that and in nothing a label shows.
+
+    Read from the encoder specifications rather than restated here, so a block
+    that changes what it trains cannot keep an old description.
+    """
+    spec = (manifest.axes.get(axis) or {}).get(level) or {}
+    blocks = spec.get("blocks") or ([spec["block"]] if spec.get("block") else [])
+    if not blocks:
+        return ""
+
+    # imported here rather than at module scope: the encoders pull in torch and
+    # chemprop, which a figure has no other use for
+    from encoders import BLOCK_SPECS
+
+    described = []
+    for block in blocks:
+        declared = BLOCK_SPECS.get(block)
+        if declared is None:
+            # a block nothing trains: descriptors, or the foundation embedding
+            # taken off the shelf
+            described.append(
+                "CheMeleon foundation checkpoint, used as published"
+                if block == "chemeleon"
+                else "computed from structure"
+            )
+            continue
+        target = plots.PRETTY.get(declared.target, declared.target)
+        start = declared.defaults.get("from_foundation")
+        began = "from the CheMeleon checkpoint" if start else "from scratch"
+        described.append(f"Chemprop D-MPNN {began}, trained on {target}")
+    return "; ".join(described)
+
+
+def tabular_detail(
+    config: dict[str, Any], dims: dict[tuple[str, str], int], manifest: Manifest
+) -> str:
     """Describe one tabular configuration: its blocks, their widths, its total.
 
     The labels carry only what varies in a figure, so everything a reader would
@@ -833,20 +883,32 @@ def tabular_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> 
         width = int(config.get(width_axis, 0)) if width_axis else 0
         name = plots.PRETTY.get(level, level)
         # a comma rather than a colon, since the line that follows carries one
-        prefix = f"{name} {axis}, " if present > 1 else ""
+        source = provenance(axis, level, manifest)
         if width > 0:
-            lines.append(f"{prefix}PCA: {native or '?'} \u2192 {width}")
+            width_clause = f"PCA: {native or '?'} \u2192 {width}"
             total += width
         elif axis == "readout":
             # a readout is a network's predictions, not a compressed block, so
             # there is no reduction to report and the columns mean something
-            lines.append(f"{prefix}{native or '?'} predicted columns")
+            width_clause = f"{native or '?'} predicted columns"
             total += native or 0
             known = known and native is not None
         else:
-            lines.append(f"{prefix}PCA: none ({native or '?'})")
+            width_clause = f"PCA: none ({native or '?'})"
             total += native or 0
             known = known and native is not None
+
+        if present > 1:
+            # one line a block, since a row joining three of them and saying
+            # each one's name twice is a paragraph rather than a tooltip
+            lines.append(
+                f"{name} {axis} ({source}), {width_clause}"
+                if source
+                else f"{name} {axis}, {width_clause}"
+            )
+        else:
+            lines += [source, width_clause] if source else [width_clause]
+
     if known:
         lines.append(f"ndims: {total}")
 
