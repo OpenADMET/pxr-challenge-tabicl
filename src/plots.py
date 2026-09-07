@@ -946,7 +946,7 @@ def comparison_figure(
 
     figure.update_layout(**_layout(max(len(frame) for frame in frames)))
     figure.update_xaxes(tickfont=BOLD, gridcolor=GRID)
-    figure.update_yaxes(showgrid=False)
+    figure.update_yaxes(gridcolor=GRID)
     figure.update_annotations(font={"size": 13})
     return figure
 
