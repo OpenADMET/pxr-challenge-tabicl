@@ -1,6 +1,6 @@
 """Summarize the prior (pre-rebuild) sweep into per-config evidence for the manifest.
 
-The prior sweep lives on the `main` branch as `reporting/results.parquet`, an
+The prior sweep lives on the `archive` branch as `reporting/results.parquet`, an
 aggregation of 423 run rows produced by `reporting/build_run_provenance.py`.
 It is read here straight out of git at a pinned commit so the extraction is
 reproducible from any worktree, and collapsed to one row per configuration.
@@ -25,7 +25,7 @@ unseeded row, that row is its single real result and is kept, flagged as such.
 Two axes the parquet does not record are reconstructed here. `encoder_target`
 is blank for the 113 concatenation-architecture rows and mixes semantics
 elsewhere, so `encoder_finetune_target` and `aux_encoder_target` are filled from
-the launch configs on `main`; `calibration` is read off the run-directory
+the launch configs on `archive`; `calibration` is read off the run-directory
 suffix. Every reconstruction names the file it came from in `axes_source`.
 
 The metrics are the prior sweep's own evaluation: phase 1 and phase 2 pooled,
@@ -83,10 +83,10 @@ RECORDED_AXES = (
 
 METRICS = ("mae", "rmse", "rae", "r2", "kendall_tau", "spearman_rho")
 
-# run-directory prefixes whose runs are the concatenation architecture: a main
+# run-directory prefixes whose runs are the concatenation architecture: an archive
 # A Chemprop model fine-tuned on pEC50 (`value_column: value`) alongside an
 # auxiliary encoder trained on log2FC, per configs/freeze*.yaml and
-# configs/feat_*.yaml on main
+# configs/feat_*.yaml on archive
 _CONCAT_PREFIXES = ("freeze", "feat_")
 
 # number of log2FC concentration tasks the auxiliary encoder was trained on;
@@ -214,7 +214,7 @@ def _reconstructed_axes(name: str, axes: dict[str, object]) -> dict[str, object]
     is_gnn = axes["regressor"] == "N/A"
 
     if is_concat:
-        source = "configs/freeze*.yaml, configs/feat_*.yaml @ main"
+        source = "configs/freeze*.yaml, configs/feat_*.yaml @ archive"
         return {
             "encoder_finetune_target": "pec50",
             "aux_encoder_target": "log2fc",
@@ -232,7 +232,7 @@ def _reconstructed_axes(name: str, axes: dict[str, object]) -> dict[str, object]
             "aux_encoder_target": "none",
             "aux_readout_tasks": pd.NA,
             "calibration": _calibration(name),
-            "axes_source": "configs/e4_*.yaml @ main",
+            "axes_source": "configs/e4_*.yaml @ archive",
         }
 
     # tabular runs: the recorded encoder_target is already the fine-tune target

@@ -43,7 +43,7 @@ anchor:
       carries it as the ensemble MAE; the nearest real value is 0.4059 above.
 
 prior:
-  source: "main:reporting/results.parquet @ 00be37e"
+  source: "archive:reporting/results.parquet @ 00be37e"
   summary: experiments/prior_summary.csv
   eval: phase1+phase2 pooled, n=513
   role: >
@@ -861,6 +861,14 @@ figures:
       Every row of the family carries the same columns, so this cannot say
       whether the ranking would survive a different featureset.
 
+  - id: fig6
+    title: Predicted uncertainty against actual error
+    question: Do the winning model's uncertainty estimates track its errors?
+    note: >
+      Drawn from the uncertainty stage's artifacts rather than from the run
+      table, since the quantities are per compound and per nominal level
+      rather than one score per configuration.
+
   - id: fig7
     title: Ensemble size
     question: How much of the tabular foundation model's advantage is ensembling?
@@ -876,11 +884,3 @@ figures:
       the winning model. At one member the spread is the bar-distribution
       criterion of a single model; at 128 it also absorbs the disagreement
       between members, so it may sharpen where the error has already flattened.
-
-  - id: fig6
-    title: Predicted uncertainty against actual error
-    question: Do the winning model's uncertainty estimates track its errors?
-    note: >
-      Drawn from the uncertainty stage's artifacts rather than from the run
-      table, since the quantities are per compound and per nominal level
-      rather than one score per configuration.

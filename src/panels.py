@@ -2,9 +2,9 @@
 
 The figures are not the stages. A stage is a sweep with a question and a gate;
 a figure is the order the result is told in, which runs from the graph networks
-through the feature blocks to the regressors and ends on what the winning
-model knows about its own errors. Two stages ran first and are reported late,
-and one stage is read twice, once for its single blocks and once whole.
+through the feature blocks to the regressors, then to what the winning model
+knows about its own errors and how much of it is ensembling. One stage is read
+twice, once for its single blocks and once whole.
 
 Each panel declares three things. Its family, which is the set of runs the
 all-pairwise correction is computed over and therefore what the verdicts in it
