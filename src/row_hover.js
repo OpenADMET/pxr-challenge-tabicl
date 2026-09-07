@@ -4,8 +4,15 @@
 // turned into a hover on the point that label names. The tooltip that opens is
 // the point's own, so a label and its marker say exactly the same thing.
 (function () {
+  // plotly wraps the content of a tag like <sub> in zero-width characters when
+  // it renders the label, so the tick's text and the trace's own value only
+  // agree once both are stripped of markup and of those
   function plain(text) {
-    return (text || "").replace(/<[^>]*>/g, "").trim();
+    return (text || "")
+      .replace(/<[^>]*>/g, "")
+      .replace(/[\u200b\u200c\u200d\ufeff]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   function subplotOfTrace(trace) {
@@ -40,13 +47,27 @@
   }
 
   function wire(gd) {
+    var count = 0;
     var byLabel = pointsByLabel(gd);
     var ticks = gd.querySelectorAll(
-      "g.yaxislayer-above text, g.yaxislayer-below text, g.ytick text, text.ytick"
+      [
+        "g.yaxislayer-above text",
+        "g.yaxislayer-below text",
+        "g.ytick text",
+        "text.ytick",
+        "g[class*='yaxislayer'] text"
+      ].join(", ")
     );
     Array.prototype.forEach.call(ticks, function (node) {
       if (node.dataset.rowHover) return;
       node.dataset.rowHover = "1";
+      // the axis layers do not take pointer events, which is why a tick has no
+      // hover of its own to begin with; the label and the group holding it
+      // both have to be opted back in before a listener on them can fire
+      node.style.pointerEvents = "all";
+      if (node.parentNode && node.parentNode.style) {
+        node.parentNode.style.pointerEvents = "all";
+      }
       node.style.cursor = "pointer";
       node.addEventListener("mouseenter", function () {
         var label = plain(node.textContent);
@@ -69,7 +90,9 @@
       node.addEventListener("mouseleave", function () {
         Plotly.Fx.unhover(gd);
       });
+      count += 1;
     });
+    return count;
   }
 
   // the ticks are redrawn on resize, so the wiring is redone after each plot
@@ -79,7 +102,12 @@
       window.setTimeout(start, 60);
       return;
     }
-    wire(gd);
+    var wired = wire(gd);
+    // says so in the console rather than failing silently, since the selectors
+    // depend on plotly's own markup
+    if (!wired) {
+      console.warn("row hover: no axis tick labels matched; labels stay inert");
+    }
     gd.on("plotly_afterplot", function () {
       wire(gd);
     });
