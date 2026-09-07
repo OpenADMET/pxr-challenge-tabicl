@@ -547,7 +547,11 @@ def label_for(
 # D-MPNNs: one starts from the CheMeleon foundation checkpoint, the other from
 # this project's own checkpoint pretrained on log2FC, which is what a network
 # was trained to predict and never a body of its own
-BODY = {"chemeleon": "CheMeleon", "log2fc_checkpoint": f"Chemprop {LOG2FC}"}
+BODY = {
+    "chemeleon": "CheMeleon",
+    "log2fc_checkpoint": f"Chemprop {LOG2FC}",
+    "scratch": "Chemprop",
+}
 
 
 def spelled(label: str) -> str:

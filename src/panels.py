@@ -944,15 +944,24 @@ def gnn_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> str:
     sits on.
     """
     frozen = int(config["freeze_epochs"]) >= FROZEN_AT
-    chemeleon = str(config["encoder_init"]) == "chemeleon"
+    init = str(config["encoder_init"])
     finetune = str(config["finetune_target"])
 
     # the body's own width, read off the block that same network writes rather
-    # than restated here
-    level = "chemeleon" if chemeleon else "chemprop_log2fc"
-    width = dims.get(("embedding", level))
+    # than restated here. A body with no checkpoint behind it writes no block
+    # and carries its width itself
+    if init == "scratch":
+        width = config.get("message_hidden_dim")
+    else:
+        width = dims.get(("embedding", "chemeleon" if init == "chemeleon" else "chemprop_log2fc"))
+    started = {
+        "chemeleon": trained_as(None, None),
+        "log2fc_checkpoint": trained_as(False, "log2fc"),
+        # no checkpoint at all, which is the whole of what this cell is
+        "scratch": "none",
+    }[init]
     lines = [
-        f"init: {trained_as(None, None) if chemeleon else trained_as(False, 'log2fc')}",
+        f"init: {started}",
         f"trained on: {plots.PRETTY.get(finetune, finetune)}",
         # released is the ordinary case and the label says frozen when it is
         # not, so only the exception is worth a word here

@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 # how the main model's message-passing body is initialised; the manifest's
 # vocabulary exactly, no more
-ENCODER_INITS = frozenset({"chemeleon", "log2fc_checkpoint"})
+ENCODER_INITS = frozenset({"chemeleon", "log2fc_checkpoint", "scratch"})
 
 # what the main model is fine-tuned against
 FINETUNE_TARGETS = frozenset({"pec50"})
@@ -190,7 +190,12 @@ class RunConfig:
         ``chemeleon`` initialises the body from the CheMeleon foundation
         checkpoint. ``log2fc_checkpoint`` initialises it from a body
         pretrained on log2FC, the E4 recipe, which replaces the foundation
-        init rather than sitting beside it.
+        init rather than sitting beside it. ``scratch`` initialises it from
+        nothing, which is the control the other two are worth measuring
+        against: without it a figure can compare pretraining recipes and
+        cannot say whether pretraining paid at all. It takes its width and
+        depth from ``message_hidden_dim`` and ``depth``, since no checkpoint
+        supplies them.
     finetune_target : str
         Always ``pec50``.
     aux_encoder : AuxEncoderConfig or None
@@ -279,6 +284,15 @@ class RunConfig:
                 "encoder_init='log2fc_checkpoint' replaces the foundation init with a "
                 "log2FC-pretrained body and admits no auxiliary encoder; got "
                 f"aux_encoder={self.aux_encoder!r}"
+            )
+
+        # scratch exists to say what pretraining bought, so an auxiliary
+        # encoder beside it would be pretraining by another route and the cell
+        # would answer neither question
+        if self.encoder_init == "scratch" and self.aux_encoder is not None:
+            raise ConfigError(
+                "encoder_init='scratch' is the control for pretraining and admits no "
+                f"auxiliary encoder; got aux_encoder={self.aux_encoder!r}"
             )
 
         if self.body_checkpoint is not None and self.body_checkpoint != RANDOM_BODY:

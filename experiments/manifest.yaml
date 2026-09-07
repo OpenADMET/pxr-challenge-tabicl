@@ -569,6 +569,30 @@ gnn:
           use_observed_readout: false
           use_predicted_readout: true
 
+    # The control every other cell is worth measuring against: a body with
+    # nothing behind it. Without it figure 1 can rank pretraining recipes and
+    # cannot say whether pretraining paid at all, which is the first thing a
+    # reader asks of a graph network that loses to a table.
+    #
+    # Its body is 256 wide, matching the log2FC-pretrained one it is the
+    # control for, so scratch against E4 differs in whether the body was
+    # pretrained and in nothing else. The CheMeleon cells are 2,048 wide
+    # because a checkpoint brings its own width; that is a property of the
+    # checkpoint rather than a choice this cell could match.
+    - id: scratch_pec50
+      title: Chemprop trained on pEC50 from nothing
+      axes:
+        encoder_init: scratch
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        # the warmup figure 1 holds. Holding a body with nothing behind it does
+        # little, but the control has to differ from the cell it controls for
+        # in one thing, and that thing is the pretraining
+        freeze_epochs: 2
+        gradient_clip_val: 0.5
+        message_hidden_dim: 256
+        aux_encoder: null
+
     - id: chemeleon_pec50
       title: CheMeleon fine-tuned on pEC50, no auxiliary encoder
       axes:

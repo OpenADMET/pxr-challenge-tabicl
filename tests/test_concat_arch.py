@@ -196,7 +196,7 @@ def test_every_graph_network_cell_in_the_manifest_parses_into_a_configuration():
     # the freeze/width grid is 3 x 2 at one clip, and the standalone cells cover
     # the predicted readout, the two E4 arms and the plain fine-tune
     assert len(configs) >= 6 + 4
-    assert {c.encoder_init for c in configs} == {"chemeleon", "log2fc_checkpoint"}
+    assert {c.encoder_init for c in configs} == {"chemeleon", "log2fc_checkpoint", "scratch"}
     assert all(c.aux_encoder is None for c in configs if c.encoder_init == "log2fc_checkpoint")
 
 

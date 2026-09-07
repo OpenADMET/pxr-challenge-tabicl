@@ -226,9 +226,9 @@ def test_an_inapplicable_width_is_normalized_away_rather_than_hidden(spec):
 
 def test_graph_network_cells_expand_the_declared_grid(spec):
     ids = [c.id for c in spec.gnn_cells]
-    # 3 warmups x 2 widths at one clip, plus 7 named variants, plus the four
-    # of those named variants run again at the warmup figure 1 holds
-    assert len(ids) == 6 + 7 + 4
+    # 3 warmups x 2 widths at one clip, plus 7 named variants, four of those
+    # run again at the warmup figure 1 holds, and the from-scratch control
+    assert len(ids) == 6 + 7 + 4 + 1
     assert len(set(ids)) == len(ids)
     assert "concat_freeze2_hd512_clip0p5" in ids
     assert all(cell.axes for cell in spec.gnn_cells)

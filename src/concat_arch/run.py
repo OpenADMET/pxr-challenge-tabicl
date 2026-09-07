@@ -40,7 +40,7 @@ import provenance
 
 from .backbone import CHEMELEON, build_mpnn
 from .concat_features import build_features
-from .config import RunConfig
+from .config import RANDOM_BODY, RunConfig
 from .datasets import GraphDataModule, GraphDataset
 from .module import GraphRegressor
 from .readouts import LOG2FC_PATH, TASKS, load_readouts
@@ -375,6 +375,9 @@ def _resolve_body(config: RunConfig, seed: int) -> str | Path:
         return config.body_checkpoint
     if config.encoder_init == "log2fc_checkpoint":
         return log2fc_body_checkpoint(seed)
+    if config.encoder_init == "scratch":
+        # a body with no checkpoint behind it, built at the configured width
+        return RANDOM_BODY
     return CHEMELEON
 
 
