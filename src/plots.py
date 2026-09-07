@@ -978,7 +978,7 @@ def _layout(n_rows: int) -> dict[str, Any]:
 # solid: plotly draws a shape at layer "below" beneath the traces but still
 # over the axis grid, so an opaque fill would wipe the gridlines out of the
 # band exactly where a reader is trying to place a row
-BAND = "rgba(100, 109, 122, 0.12)"
+BAND = "rgba(100, 109, 122, 0.04)"
 
 
 # the legend describes the encoding, not the rows: the two verdict colours and
