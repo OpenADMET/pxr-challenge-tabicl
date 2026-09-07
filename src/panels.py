@@ -48,18 +48,21 @@ PAIRED = ("fig2a", "fig2b")
 # an epoch budget: a body held this long is never released
 FROZEN_AT = 30
 
-# Where a reader last met each identity. Colour says they have seen a row
-# before; this says where, which is the whole of what carrying a colour forward
-# is for. The anchor is absent on purpose: it was established in the report
-# rather than in any figure, and its tooltip says so at length.
+# Where each identity was established, and how a later figure refers back to
+# it. Colour says a reader has seen a row before; this says where, which is the
+# whole of what carrying a colour forward is for. Both are suppressed in the
+# figure that established the identity, where the row is one of the things
+# being compared rather than a landmark brought in. The anchor is absent on
+# purpose: it was established in the report rather than in any figure, and its
+# tooltip says so at length.
 ESTABLISHED_IN = {
-    "best_gnn": "established in figure 1",
-    "chemeleon_baseline": "the baseline, from figure 1",
-    "canonical_descriptors": "chosen in figure 2",
-    "embedding_reduction": "chosen in figure 2",
-    "best_single": "established in figure 3",
-    "best_featureset": "chosen in figure 4",
-    "best_regressor": "chosen in figure 5",
+    "best_gnn": ("fig1", "established in figure 1"),
+    "chemeleon_baseline": ("fig1", "the baseline, from figure 1"),
+    "canonical_descriptors": ("fig2", "chosen in figure 2"),
+    "embedding_reduction": ("fig2", "chosen in figure 2"),
+    "best_single": ("fig3", "established in figure 3"),
+    "best_featureset": ("fig4", "chosen in figure 4"),
+    "best_regressor": ("fig5", "chosen in figure 5"),
 }
 
 
@@ -94,6 +97,9 @@ class Panel:
     carried: set[str] = field(default_factory=set)
     # identities settled elsewhere that this figure does not carry forward
     hidden: tuple[str, ...] = ()
+    # the page this panel is drawn on, which is not its id for the two that
+    # share one. An identity established here is not carried in
+    figure: str = ""
 
     def frame(self, winners: dict[str, dict[str, Any]] | None = None) -> pd.DataFrame:
         """Turn what this panel measured into rows ready to draw."""
@@ -105,7 +111,11 @@ class Panel:
             self.references,
             self.home,
             self.carried,
-            ESTABLISHED_IN,
+            {
+                name: phrase
+                for name, (where, phrase) in ESTABLISHED_IN.items()
+                if where != (self.figure or self.id)
+            },
         )
 
 
@@ -361,7 +371,7 @@ def gnn_panel(
         manifest,
         results_dir=results_dir,
         n_resamples=n_resamples,
-        annotations=annotations(cells, dims, manifest, titles=_titles(manifest, "best_gnn")),
+        annotations=annotations(cells, dims, manifest, titles=_titles(manifest, "fig1")),
     )
     named = {
         resolve(manifest, name).slug: name
@@ -377,6 +387,7 @@ def gnn_panel(
         evidence=evidence,
         named=named,
         home="best_gnn",
+        figure="fig1",
     )
 
 
@@ -424,6 +435,7 @@ def width_panels(
                 title=said["title"],
                 question=said["question"],
                 evidence=evidence,
+                figure="fig2",
             )
         )
     return panels[0], panels[1]
@@ -468,7 +480,7 @@ def ingredient_panels(
             [*singles, *carried_configs],
             dims,
             manifest,
-            titles=_titles(manifest, "best_single", gates_dir),
+            titles=_titles(manifest, "fig3", gates_dir),
             **label,
         ),
         **common,
@@ -480,7 +492,7 @@ def ingredient_panels(
             [*configs, *carried_configs],
             dims,
             manifest,
-            titles=_titles(manifest, None, gates_dir),
+            titles=_titles(manifest, "fig4", gates_dir),
             **label,
         ),
         **common,
@@ -500,6 +512,7 @@ def ingredient_panels(
             named=named,
             home="best_single",
             carried=carried_slugs,
+            figure="fig3",
         ),
         Panel(
             id="fig4",
@@ -509,6 +522,7 @@ def ingredient_panels(
             references=references,
             named=named,
             carried=carried_slugs,
+            figure="fig4",
         ),
     )
 
@@ -531,7 +545,7 @@ def regressor_panel(
     """
     configs = manifest.expand("regressor", gates.settled(manifest, "regressor", gates_dir))
     named_rows = annotations(configs, dims, manifest, axes=("regressor",)) | annotations(
-        carried_configs, dims, manifest, titles=_titles(manifest, None, gates_dir)
+        carried_configs, dims, manifest, titles=_titles(manifest, "fig5", gates_dir)
     )
     evidence = gates.measure(
         [*configs, *carried_configs],
@@ -550,6 +564,7 @@ def regressor_panel(
         references=references,
         named=_identities(manifest, gates_dir),
         carried={config.slug for config in carried_configs},
+        figure="fig5",
     )
 
 
@@ -559,7 +574,7 @@ def _annotate(evidence: dict[str, Any], named: dict[str, dict[str, str]]) -> Non
         row |= named.get(row["slug"], {})
 
 
-def _titles(manifest: Manifest, home: str | None, gates_dir: Path | None = None) -> dict[str, str]:
+def _titles(manifest: Manifest, figure: str, gates_dir: Path | None = None) -> dict[str, str]:
     """Map each carried reference's slug to the title it is drawn under.
 
     The figure that established a reference names it by its configuration,
@@ -569,7 +584,7 @@ def _titles(manifest: Manifest, home: str | None, gates_dir: Path | None = None)
     return {
         resolve(manifest, reference.id, gates_dir=gates_dir).slug: reference.title
         for reference in manifest.references
-        if reference.id != home
+        if ESTABLISHED_IN.get(reference.id, ("", ""))[0] != figure
     }
 
 
