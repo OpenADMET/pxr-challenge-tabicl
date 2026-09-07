@@ -95,7 +95,12 @@ tabular:
       # 0.5215 on its own pooled evaluation, so carrying the CheMeleon-
       # initialised one and not this was an omission. Those numbers rank
       # against each other and not against anything here
-      chemprop_pec50: {block: chemprop_pec50_embedding, reduce: true, n_features: 2048}
+      # 256 columns, like the scratch log2FC encoder beside it and unlike the
+      # CheMeleon-initialised ones: a body trained from nothing takes its width
+      # from this project's own encoder settings rather than from a foundation
+      # checkpoint. The prior sweep's scratch pEC50 encoder was 2,048 wide,
+      # which is another respect in which its number is not this one's
+      chemprop_pec50: {block: chemprop_pec50_embedding}
     # wider than the descriptor axis because the embedding keeps paying for
     # compression where the descriptors stop: 256 won its probe outright with
     # nothing tied, so the widths above it are run rather than assumed

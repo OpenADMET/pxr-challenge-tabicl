@@ -237,29 +237,31 @@ def test_a_widening_reduction_is_refused_with_its_own_message(tmp_path):
         reduction.build(block, width=6, fit_smiles=FIT, cache_dir=tmp_path / "reduced", seed=0)
 
 
-@pytest.mark.parametrize(
-    ("axis", "level"),
-    [
-        ("descriptors", "rdkit"),
-        ("descriptors", "mordred"),
-        ("descriptors", "rdkit_mordred"),
-        ("embedding", "chemeleon"),
-    ],
-)
-def test_the_declared_column_count_matches_the_block_it_names(spec, axis, level, tmp_path):
+def test_the_declared_column_count_matches_the_block_it_names(spec):
     # the manifest declares each reducible block's own width so that a width
     # which cannot reduce it is never generated. Declaring it twice invites
-    # drift, so the declaration is checked against the block itself
-    declared = manifest.native_width(spec.axes, axis, level)
-    names = spec.axes[axis][level].get("blocks") or [spec.axes[axis][level]["block"]]
-    if not all((features.CACHE_DIR / name).exists() for name in names):
-        pytest.skip("block not built; run run/02_featurize.py")
-
-    columns = sum(
-        features.load(features.build(name, cache_dir=features.CACHE_DIR)).shape[1] for name in names
-    )
-
-    assert declared == columns
+    # drift, so the declaration is checked against the block itself.
+    #
+    # Every level that declares one is checked, rather than a list written here:
+    # a level added to the manifest and forgotten in this test is exactly the
+    # case that would go unnoticed, and did.
+    checked = 0
+    for axis in ("descriptors", "embedding"):
+        for level, entry in spec.axes[axis].items():
+            declared = manifest.native_width(spec.axes, axis, level)
+            if declared is None:
+                continue
+            names = entry.get("blocks") or [entry["block"]]
+            if not all((features.CACHE_DIR / name).exists() for name in names):
+                continue
+            columns = sum(
+                features.load(features.build(name, cache_dir=features.CACHE_DIR)).shape[1]
+                for name in names
+            )
+            assert declared == columns, f"{axis} {level}: declared {declared}, block has {columns}"
+            checked += 1
+    if not checked:
+        pytest.skip("no declared block is built; run run/02_featurize.py")
 
 
 def test_no_planned_reduction_would_widen_its_block(spec):
