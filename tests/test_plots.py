@@ -210,3 +210,34 @@ def test_an_untested_row_is_given_no_p_value():
 
 def test_an_underflowed_p_value_says_so_rather_than_claiming_zero():
     assert plots.p_text(0.0) == ": p≈0"
+
+
+def test_the_band_spans_the_best_row_interval():
+    # the reach a row has to fall outside of to be separated from the best,
+    # carried down the column so it can be read against every other row
+    frame = plots.comparison_frame(_frame())
+    best = frame[frame["verdict"] == "best"].iloc[0]
+
+    band = plots.leader_band(frame)
+    assert band == (best["mae"] - best["err_minus"], best["mae"] + best["err_plus"])
+
+
+def test_a_panel_with_no_tested_best_row_gets_no_band():
+    # nothing was measured here, so there is no reach to anchor on
+    frame = plots.comparison_frame(_frame())
+    frame.loc[frame["verdict"] == "best", ["err_minus", "err_plus"]] = 0.0
+
+    assert plots.leader_band(frame) is None
+
+
+def test_the_band_is_drawn_below_the_rows_on_every_panel():
+    frame = plots.comparison_frame(_frame())
+
+    figure = plots.comparison_figure(frame, frame, subtitles=("left", "right"))
+    shapes = figure.layout.shapes
+    assert len(shapes) == 2
+    assert [shape.xref for shape in shapes] == ["x", "x2"]
+    for shape in shapes:
+        assert shape.layer == "below"
+        # full height, so the anchor reaches every row rather than the top one
+        assert (shape.y0, shape.y1) == (0, 1)

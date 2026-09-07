@@ -823,6 +823,35 @@ def _band(group: pd.DataFrame) -> str:
     return roles.pop() if len(roles) == 1 else ""
 
 
+def leader_band(frame: pd.DataFrame) -> tuple[float, float] | None:
+    """Return where the best row's interval starts and ends, or None.
+
+    Drawn the full height of a panel, this is the reach a row has to fall
+    outside of to be separated from the best, so a reader can carry the
+    comparison down the column instead of holding the top row's whiskers in
+    their head. Under Tukey every interval is the same width, which makes the
+    band the width of every row's whiskers as well as the best one's.
+
+    Parameters
+    ----------
+    frame : DataFrame
+        One panel, from :func:`comparison_frame`.
+
+    Returns
+    -------
+    tuple of float or None
+        None when the panel has no tested best row, which is a figure drawn
+        entirely from references and has nothing to anchor on.
+    """
+    best = frame[frame["verdict"] == "best"]
+    if best.empty:
+        return None
+    row = best.iloc[0]
+    if not row["err_minus"] and not row["err_plus"]:
+        return None
+    return float(row["mae"] - row["err_minus"]), float(row["mae"] + row["err_plus"])
+
+
 def comparison_figure(
     *frames: pd.DataFrame,
     subtitles: tuple[str, ...] = (),
@@ -873,6 +902,24 @@ def comparison_figure(
         horizontal_spacing=0.06,
     )
     for column, frame in enumerate(frames, start=1):
+        # the band goes down before the traces and is drawn below them, so a
+        # marker sitting inside it stays legible
+        band = leader_band(frame)
+        if band is not None:
+            axis = "" if column == 1 else str(column)
+            figure.add_shape(
+                type="rect",
+                xref=f"x{axis}",
+                yref=f"y{axis} domain",
+                x0=band[0],
+                x1=band[1],
+                y0=0,
+                y1=1,
+                fillcolor=BAND,
+                line={"width": 0},
+                layer="below",
+            )
+
         for trace in row_traces(frame):
             figure.add_trace(trace, row=1, col=column)
         # the y axis is pinned to the sorted labels rather than left to follow
@@ -925,6 +972,11 @@ def _layout(n_rows: int) -> dict[str, Any]:
         },
         "margin": {"l": 10, "r": 30, "t": 50, "b": 60},
     }
+
+
+# the band behind the best row's interval, lighter than either verdict colour
+# so it reads as ground rather than as a row of its own
+BAND = "#eef0f2"
 
 
 # the legend describes the encoding, not the rows: the two verdict colours and
