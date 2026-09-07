@@ -1,0 +1,886 @@
+# The coverage spec: what the rebuild sweeps, declared as axes and the stages
+# that sweep them, rather than enumerated configuration by configuration.
+#
+# Two rules shape it, and they are not the same rule.
+#
+# Nothing is excluded on the prior sweep's evidence. The prior scored phase 1
+# and phase 2 pooled (n = 513) and this rebuild scores phase 2 alone (n = 260),
+# so a configuration dropped on the prior's ranking would rest on an
+# incomparable measurement, and a reproduction with built-in exceptions is
+# hostile to whoever reruns it. experiments/prior_summary.csv stays as context
+# and as a check that nothing was forgotten; it decides nothing.
+#
+# Dimensions are still swept one stage at a time, each stage fixing what the
+# last one settled. That is a compute decision, not an evidential one: every
+# level of the dimension under test is run, and only the dimensions already
+# answered on this split are held fixed.
+
+version: 2
+
+anchor:
+  name: N283T, challenge leaderboard, phase 2
+  n: 260
+  mae_ensemble: 0.4113
+  source: https://n283t.github.io/openadmet-pxr-model-report/
+  note: >
+    The only phase-2 score in the report, and so the only absolute reference in
+    this repository: rank 4 on the blinded 260-compound phase-2 set, from a
+    nine-member ensemble. Prior sweep metrics rank configurations against each
+    other and are not comparable to it.
+  not_the_anchor:
+    0.437: >
+      An out-of-fold MAE on the training set, from the report's Table 4,
+      "OOF results for the same log2fc-pretrained Chemprop with only the
+      downstream model changed". It is a development number over training
+      compounds, not a phase-2 score, and drawing it beside one compares
+      different quantities. The previous generation treated it as a phase-2
+      target and measured a gap to it.
+    0.4059: >
+      The interim leaderboard, scored on AS1 and AS2 pooled at 513 compounds,
+      which is the pooled evaluation this rebuild exists to get away from.
+    0.408: >
+      Appears nowhere in the report. The previous generation's reference table
+      carries it as the ensemble MAE; the nearest real value is 0.4059 above.
+
+prior:
+  source: "main:reporting/results.parquet @ 00be37e"
+  summary: experiments/prior_summary.csv
+  eval: phase1+phase2 pooled, n=513
+  role: >
+    Context only. Used to check that every configuration the previous
+    generation ran is expressible here, never to decide what runs.
+
+# Every model here is fitted on dose-response pEC50 alone. The single-point
+# primary screen is not folded in as censored targets, which the prior
+# generation did through moal: it did not pay for itself there, and vendoring
+# the censored-likelihood machinery is more work than the arm is worth. The
+# consequence to state plainly is that this rebuild is what the prior called
+# drc_only, so its drc_plus_primary rows describe a training set we do not
+# build, and no cell here reproduces them.
+split:
+  fit: data/splits/fit_all.csv
+  fit_train: data/splits/fit_train.csv
+  fit_val: data/splits/fit_val.csv
+  test: data/splits/test_phase2.csv
+  n_fit: 4392
+  n_test: 260
+
+seeds: [0, 1, 2, 3, 4]
+
+# ---------------------------------------------------------------------------
+# The tabular axes, and the stages that sweep them.
+# ---------------------------------------------------------------------------
+tabular:
+  axes:
+    # a width axis carries the level "native", meaning the block is kept whole.
+    # It is the reference the reduced widths are measured against: without it a
+    # probe compares reductions only to each other and cannot say what reducing
+    # costs. It is only run for a block narrow enough to fit unreduced, which
+    # native_max_features below decides. A block declaring reduce: true takes
+    # its width from the matching width axis, so a width has exactly one home. A block without it is passed
+    # through at its native size. n_features is the block's own column count,
+    # and a width at or above it is not a reduction: RDKit has 217 columns, so
+    # projecting it to 256 is not a configuration that exists. A test checks
+    # every count here against the block it names, so this cannot drift
+    embedding:
+      none: null
+      chemeleon: {block: chemeleon, reduce: true, n_features: 2048}
+      chemprop_log2fc: {block: chemprop_log2fc_embedding}
+      chemeleon_log2fc: {block: chemeleon_log2fc_embedding, reduce: true, n_features: 2048}
+      chemeleon_pec50: {block: chemeleon_pec50_embedding, reduce: true, n_features: 2048}
+      # An encoder is initialised from the foundation checkpoint or from
+      # nothing, and trained on log2FC or on pEC50. The three above are the
+      # other corners; this one completes them. The previous generation ran all
+      # four and this was the better of its two pEC50 encoders, 0.4745 against
+      # 0.5215 on its own pooled evaluation, so carrying the CheMeleon-
+      # initialised one and not this was an omission. Those numbers rank
+      # against each other and not against anything here
+      # 256 columns, like the scratch log2FC encoder beside it and unlike the
+      # CheMeleon-initialised ones: a body trained from nothing takes its width
+      # from this project's own encoder settings rather than from a foundation
+      # checkpoint. The prior sweep's scratch pEC50 encoder was 2,048 wide,
+      # which is another respect in which its number is not this one's
+      chemprop_pec50: {block: chemprop_pec50_embedding}
+    # wider than the descriptor axis because the embedding keeps paying for
+    # compression where the descriptors stop: 256 won its probe outright with
+    # nothing tied, so the widths above it are run rather than assumed
+    embedding_pca: [native, 32, 64, 128, 256, 384, 512]
+    readout:
+      none: null
+      # two predicted log2FC columns; they mean something column by column, so
+      # they are passed through rather than rotated. Two levels because the
+      # network predicting them differs: chemprop_log2fc is randomly
+      # initialised at 256 and chemeleon_log2fc starts from the foundation
+      # checkpoint at 2,048, and the graph networks' auxiliary arm is the
+      # second of those. With one level the readout ingredient would mean a
+      # different thing in figure 1 than in figures 2 and 3
+      chemprop_log2fc: {block: chemprop_log2fc_readout}
+      chemeleon_log2fc: {block: chemeleon_log2fc_readout}
+    descriptors:
+      none: null
+      mordred: {blocks: [mordred], reduce: true, n_features: 1613}
+      rdkit: {blocks: [rdkit], reduce: true, n_features: 217}
+      rdkit_mordred: {blocks: [rdkit, mordred], reduce: true, n_features: 1830}
+    descriptor_pca: [native, 32, 64, 128, 256]
+    # tabpfn-v2.5 was swept and is not here. On this machine it returns NaN for
+    # every compound at the featureset the regressor stage runs, 258 columns at
+    # 4,392 rows, without raising or warning. Measured rather than assumed: the
+    # failure is deterministic, the same rows giving the same result twice and
+    # at two seeds, and it is not monotone in size, failing at 3,500 and 4,392
+    # while succeeding at 500, 2,000, 2,500, 3,000 and 4,000. Its inputs are
+    # finite and well scaled, and v2.6 and v3 handle the identical rows, so it
+    # is that checkpoint on this hardware rather than the data. TabPFN refuses
+    # CPU above 1,000 samples, so there is no fallback for it as there is for
+    # TabICL. Two working TabPFN versions carry the comparison.
+    regressor:
+      - lgbm
+      - xgboost
+      - tabpfn-v2.6
+      - tabpfn-v3
+      - tabicl
+      - tabfm
+    # calibration is post-hoc and applied by run/07_calibrate.py over a
+    # completed configuration, so it is not swept and every run carries none
+    calibration:
+      - none
+
+    # levels this vocabulary can name and deliberately does not run, each with
+  # what was measured. An axis level belongs here rather than being deleted:
+  # the prior explored it, and a level that simply vanished would read as an
+  # oversight instead of a decision
+  excluded:
+    regressor:
+      tabpfn-v2.5: >
+        Returns NaN for every compound at 258 columns and 4,392 rows on this
+        machine, without raising or warning. Deterministic, the same rows
+        giving the same result twice and at two seeds, and not monotone in
+        size: it fails at 3,500 and 4,392 while succeeding at 500, 2,000,
+        2,500, 3,000 and 4,000. Inputs are finite and well scaled, and v2.6
+        and v3 handle the identical rows, so it is that checkpoint on this
+        hardware rather than the data. TabPFN refuses CPU above 1,000
+        samples, so it has no fallback as TabICL does.
+
+  # Where the tabular models stop fitting, measured on this machine at 4,392
+  # training rows rather than taken from documentation.
+  #
+  # TabPFN v3 is the only checkpoint that splits inference over row chunks: the
+  # base architecture leaves chunking off and v3 turns it on, at a default
+  # inference_row_chunk_size of 2048. On an out-of-memory failure it clears its
+  # accumulated parts, halves that chunk and retries the same computation, so
+  # the fit completes under a setting nobody asked for. It announces this
+  # through the logging module, and src/regressors.py collects such messages
+  # into each run's regressor_notes so the record says when it happened.
+  #
+  # Measured: the CheMeleon embedding at 384 components fits without adapting;
+  # at 512 it does not, and halves to 1024 rows. The halved value is written
+  # back onto the model instance, but TabPFN caches the checkpoint rather than
+  # the module, so a fresh regressor starts at 2048 again and the adaptation
+  # does not carry into later runs. That was checked, not assumed.
+  #
+  # inference_row_chunk_size is a field of the architecture config, not a
+  # TabPFNRegressor argument, so there is no supported way to pin it. It can be
+  # assigned on each entry of the fitted regressor's models_, and deliberately
+  # is not: it is a private attribute of a version-pinned architecture, it would
+  # need rechecking on every upgrade, and the widths it would buy lost anyway.
+  tabpfn_v3_row_chunking: measured at 4392 rows; 384 columns fit, 512 adapt
+
+  # widest block that is run unreduced. Mordred at 1,613 columns and Mordred
+  # with RDKit at 1,830 do not fit the tabular models on this GPU, and the
+  # CheMeleon embedding at 2,048 is wider still and past TabPFN's documented
+  # 2,000-feature pretraining regime as well. RDKit's 217 columns do fit, so the
+  # descriptor probe keeps one unreduced reference and the others are measured
+  # against their own widest reduction instead. This is a stated budget rather
+  # than a measured ceiling, and raising it adds arms rather than changing any.
+  native_max_features: 512
+
+  constraints:
+    non_empty: >
+      A featureset with no embedding, no readout and no descriptors is not a
+      configuration; it is dropped from the cross product.
+    native_needs_a_narrow_block: >
+      Keeping a block whole is only a configuration where the block fits
+      unreduced, which native_max_features decides. Where it does not, the
+      block's widest reduction is the reference and the figure says so.
+    width_below_its_block: >
+      A width at or above a block's own column count is not a reduction, so it
+      is dropped rather than run. RDKit's 217 columns cannot be projected to
+      256, and sklearn refuses outright; the descriptor probe therefore runs 11
+      configurations rather than 12, and says which one is absent and why.
+    width_needs_its_block: >
+      A width axis means nothing where its block is absent or passed through
+      unreduced, so it is normalized to 0 before a configuration is built.
+      Without that, configurations identical but for an inapplicable width
+      would share a run directory under different specifications and each
+      would read the other's results as stale.
+
+  # Calibration is no longer a stage. It is post-hoc, applied by
+  # run/07_calibrate.py over a configuration that has already run, and it
+  # reproduces the report's method rather than asking a question of our own:
+  # an affine map over out-of-fold predictions spanning the whole fit set,
+  # weighted per compound by the density ratio P(test|x) / (1 - P(test|x))
+  # from a Morgan-fingerprint classifier separating fit from test, clipped to
+  # [1/3, 3]. It runs on whatever the gates settled unless a slug names another
+  # configuration, and it reads no test label: the test compounds enter only as
+  # the classifier's positive class.
+  calibration_note: >
+    The method is the report's, reproduced rather than reinterpreted. Fit the
+    model under k-fold cross-validation over the whole fit partition so that
+    every compound has a prediction made without it; train a logistic
+    regression on Morgan fingerprints to separate the fit compounds from the
+    test compounds; weight each fit compound by P(test|x) / (1 - P(test|x)),
+    clipped to [1/3, 3] because the report calls that clip essential; and fit
+    calibrated = slope * raw + intercept by weighted least squares. Apply the
+    coefficients to the seed-ensembled test predictions.
+
+    Two things this cannot do that the report did, and both are stated in the
+    run's own record rather than left to be discovered. The report validated
+    under 5-fold nested cross-validation and reported the calibration's effect
+    on a 513-compound pooled evaluation; this applies it to the 260-compound
+    phase-2 set, so the numbers are not comparable to their 0.4209 to 0.4077.
+    And the out-of-fold predictions are generated at one seed per fold by
+    default while the map is applied to a five-seed ensemble, which differ in
+    variance; --oof-seeds 5 removes that mismatch at five times the cost.
+
+    A positive slope leaves every ranking metric unchanged, so Spearman and
+    Kendall cannot move and only the error metrics can. That is a property of
+    the method rather than a result, and a figure drawn on a ranking metric
+    should not carry a calibration facet at all.
+
+  # Each stage sweeps every level of the dimensions it names, and holds fixed
+  # only what an earlier gate already decided on this split. A gate is resolved
+  # from its stage's completed runs and written to results/gates/<id>.json, and
+  # the next stage reads that file. The order below is the order they run in,
+  # which is not the order the figures tell the story in.
+  stages:
+    - id: descriptor_width
+      figures: [fig2]
+      sweeps: [descriptors, descriptor_pca]
+      fixed:
+        embedding: none
+        readout: none
+        regressor: tabpfn-v3
+        calibration: none
+      note: >
+        A descriptors-only probe, run before anything else, to settle what the
+        canonical descriptor block is and how far it can be reduced. Three
+        blocks against four widths is twelve configurations, sixty runs, and it
+        needs no trained encoder, so it can run the moment the raw blocks exist.
+        One regressor is enough because the question is about the features
+        rather than about the model, and running seven would multiply the probe
+        without sharpening its answer. The previous generation found the same
+        sweep flat and took 128-dimensional Mordred on that basis; this measures
+        it again on the challenge split rather than inheriting the conclusion.
+      gate:
+        id: canonical_descriptors
+        chooses: [descriptors, descriptor_pca]
+        # To promote a different configuration, change this and its reason. The
+        # pipeline checks the choice against the runs and records the evidence
+        # beside it; it warns if the choice is one the evidence now separates
+        # from the leader, and honours it anyway, because that is a judgement
+        decision: {descriptors: rdkit, descriptor_pca: 128}
+        reason: >
+          RDKit beats Mordred and the concatenation of the two at every width.
+          128 components are indistinguishable from keeping all 217 columns
+          (p = 0.77) at a little over half the width, and 64 is where reducing
+          starts to cost.
+        question: >
+          Which descriptor block, and how far it reduces.
+
+          A gate is a judgement, made by a person and recorded with its reason,
+          not an algorithm. At the top of these tables the configurations are
+          statistically tied, so any tie-break is a preference: cheapness,
+          fewer encoders to train, less memory. Expressing a preference as a
+          cost ordering does not make it less of a preference, it only makes it
+          harder to argue with, and it invites tuning the ordering until it
+          returns the answer already believed. So the pipeline measures and a
+          person decides.
+
+          What is measured, and recorded with every decision: each
+          configuration scored by the mean of its seeds, with the spread across
+          them and the seed ensemble alongside; every pair compared by a paired
+          bootstrap over the 260 compounds, resampled on one shared set of
+          draws so each difference is paired, with the family corrected by
+          Benjamini-Hochberg at a false discovery rate of 0.05; and the cost
+          facts, being blocks joined, encoders to train, and columns carried.
+
+          The score is the mean over seeds rather than the ensemble of them,
+          because the subject is how well a single model does. Seeds are
+          replicates, for statistical power and a variance estimate, not a way
+          to build a better predictor. The ensemble is carried because the
+          leaderboard anchor is one, and is the only quantity comparable to it.
+
+          Two limits the correction does not remove. Benjamini-Hochberg assumes
+          independence or positive regression dependence, and comparisons on a
+          shared compound set are correlated rather than independent; that is
+          the case it is generally taken to cover, and it is not proven here.
+          And the reference is the empirical leader, chosen by looking at the
+          same data the comparisons use, so a tied set is if anything narrower
+          than it should be.
+
+    - id: embedding_width
+      figures: [fig2]
+      sweeps: [embedding_pca]
+      fixed:
+        embedding: chemeleon
+        readout: none
+        descriptors: none
+        regressor: tabpfn-v3
+        calibration: none
+      note: >
+        The same probe for the frozen CheMeleon embedding, six widths and
+        thirty runs. It runs on the frozen embedding rather than a fine-tuned
+        one so that it depends on no trained encoder and can run up front; the
+        width it settles is then applied to the fine-tuned CheMeleon embeddings
+        too, which come off the same architecture at the same native size.
+      gate:
+        id: embedding_reduction
+        chooses: [embedding_pca]
+        decision: {embedding_pca: 256}
+        reason: >
+          Indistinguishable from 384 (p = 0.689) at two thirds of the columns
+          and materially less memory. 512 is separated and worse, and is also
+          the width at which TabPFN v3 begins adapting its own inference.
+        question: >
+          How far the frozen CheMeleon embedding reduces. Measured the same
+          way as the descriptor gate, and decided the same way: by a person,
+          with the reason recorded.
+
+    - id: ingredients
+      figures: [fig3, fig4]
+      sweeps: [embedding, readout]
+      fixed:
+        regressor: tabpfn-v3
+        calibration: none
+      fixed_from: [canonical_descriptors, embedding_reduction]
+      restrict:
+        # against the descriptor block the probe settled, and against no
+        # descriptors at all, which is what makes the single-ingredient and
+        # combination readings possible from one table
+        descriptors: [none, "@gate"]
+      note: >
+        Which blocks carry signal, and which combination of them wins. The
+        regressor is held at the same one the width probes used, on the same
+        argument: the question is about the features rather than the model, and
+        running seven of them multiplies the sweep by seven without sharpening
+        the answer. Figures 2 and 3 are two readings of this one table, the
+        single-block rows and the combinations. Nineteen featuresets at five
+        seeds is 95 runs, against 665 for the same sweep crossed with every
+        regressor.
+      gate:
+        id: best_featureset
+        chooses: [embedding, readout, descriptors]
+        decision: {embedding: chemeleon, readout: chemprop_log2fc, descriptors: none}
+        reason: >
+          Descriptors add nothing detectable on top of an embedding and a
+          readout. Among the featuresets nothing distinguishes from the leader,
+          this one needs a single trained encoder rather than two, since the
+          frozen CheMeleon embedding is off the shelf, and it has the steadiest
+          seeds of the candidates.
+        question: >
+          Which blocks carry signal, and which combination of them wins.
+          Measured and decided as the width gates are. This gate may choose no
+          descriptor block at all, superseding what the descriptor probe
+          settled, if an embedding on its own is what wins.
+
+    - id: regressor
+      figures: [fig5]
+      sweeps: [regressor]
+      fixed:
+        calibration: none
+      fixed_from: [canonical_descriptors, embedding_reduction, best_featureset]
+      note: >
+        The regressor question, asked once on the featureset the stage before
+        settled rather than across all nineteen. Seven configurations at five
+        seeds is 35 runs, one of which the ingredient stage already fitted and
+        content-addressing skips. The trade is that this cannot say whether the
+        regressor ranking depends on the featureset; figure 4 asks which
+        regressor wins on the featureset this split chose, and says so.
+      gate:
+        id: best_regressor
+        chooses: [regressor]
+        decision: {regressor: tabicl}
+        reason: >
+          TabICL and TabPFN v3 are the only two the evidence does not separate
+          (p = 0.35), and everything else is separated from both: the next
+          regressor is 0.044 behind, five times the gap within the pair. TabICL
+          leads nominally, 0.4269 against 0.4358 on the seed mean.
+
+          The pair is split on licence. TabICL is BSD 3-Clause. TabPFN carries
+          the Prior Labs Licence, Apache 2.0 with an added provision requiring
+          "Built with PriorLabs-TabPFN" displayed on any related website, blog
+          post or product documentation, and a TabPFN name prefix on models
+          derived from it. This work ends in a public write-up, so that is a
+          live obligation rather than a hypothetical one.
+
+          The cost is stated rather than hidden: TabICL does not fit this GPU
+          and runs on CPU at about 160 seconds a fit, against roughly 20 on the
+          accelerator for TabPFN v3, which also has the steadier seeds, 0.0052
+          against 0.0070. A reader preferring the faster and steadier of two
+          indistinguishable models should take TabPFN v3 and accept its
+          attribution terms.
+        question: Which regressor, on the featureset the stage before settled.
+
+    - id: tabpfn_ensemble
+      figures: [fig7]
+      # the levels are named under restrict rather than swept, since the axis
+      # vocabulary deliberately does not carry them
+      sweeps: []
+      fixed:
+        calibration: none
+      fixed_from: [canonical_descriptors, embedding_reduction, best_featureset]
+      restrict:
+        # v3 held at a fixed member count, the library default being 8. These
+        # levels are named here rather than added to the regressor axis on
+        # purpose: they are one question asked of one checkpoint, and putting
+        # them in the vocabulary would enlarge every stage that sweeps the axis
+        regressor:
+          - tabpfn-v3-e1
+          - tabpfn-v3-e2
+          - tabpfn-v3-e4
+          - tabpfn-v3-e8
+          - tabpfn-v3-e16
+          - tabpfn-v3-e32
+          - tabpfn-v3-e64
+          - tabpfn-v3-e128
+      note: >
+        How much of what a tabular foundation model does is ensembling. TabPFN
+        aggregates over permutations and preprocessing variants of one
+        in-context model, and every result in this project was produced at its
+        default of eight, so nothing here has ever isolated that from the model
+        itself. Eight sizes at five seeds is 40 runs on the featureset the
+        gates settled, which is also what the regressor stage ran, so
+        tabpfn-v3-e8 is a repeat of an existing run under a different name and
+        is the sweep's own control: if it does not reproduce reg-tabpfn-v3,
+        something in the declaration is wrong.
+
+        Two ensembles are in play and the sweep separates them. The internal
+        one is the axis. The seeds are the other, and because the seed is
+        threaded into TabPFN's random_state the two are partly the same
+        mechanism at very different cost: the five-seed ensemble at e1 is a
+        five-member ensemble built the expensive way, and reading it against a
+        single seed at e8 asks whether the internal ensemble does anything a
+        generic one would not.
+
+        No gate. This settles nothing and chooses nothing; it is a measurement
+        of a model's behaviour, and the configuration it runs on was already
+        decided by the gates it inherits from.
+
+    - id: uncertainty
+      figures: [fig6]
+      sweeps: []
+      fixed_from:
+        [canonical_descriptors, embedding_reduction, best_featureset, best_regressor]
+      reuses_runs: true
+      note: >
+        A diagnostic over predictions the earlier stages already wrote, adding
+        no runs of its own.
+
+# ---------------------------------------------------------------------------
+# The graph-network cells, which are heterogeneous enough to enumerate. The
+# freeze/width/clip grid is a cross product; the rest are named variants.
+# ---------------------------------------------------------------------------
+gnn:
+  grids:
+    - id: concat
+      title: Concatenation architecture, freeze and width
+      axes:
+        freeze_epochs: [0, 1, 2]
+        ffn_hidden_dim: [512, 1024]
+        gradient_clip_val: [0.5]
+      # abbreviations used in run directory names, matching the previous
+      # generation's convention so a reader can line the two up
+      slug_names:
+        freeze_epochs: freeze
+        ffn_hidden_dim: hd
+        gradient_clip_val: clip
+      fixed:
+        encoder_init: chemeleon
+        finetune_target: pec50
+        aux_encoder:
+          target: log2fc
+          use_observed_readout: false
+          use_predicted_readout: false
+      note: >
+        Six cells: the freeze and width axes crossed, at one gradient clip.
+
+        Clipping is held at 0.5 rather than swept. It is a training-stability
+        setting rather than a question figure 1 asks, and this stage has no
+        gate, so nothing downstream reads a winner along that axis. Three
+        levels would cost twelve further cells and sixty runs to answer a
+        question the figure does not pose. This is a stated compute budget, in
+        the same sense as native_max_features, and not a conclusion drawn from
+        any measurement: the prior sweep ran the grid but only one of its
+        eighteen cells produced metrics that survived aggregation, so there is
+        no clip contrast in it to prune against.
+
+  cells:
+    # only the predicted readout is run. The alternative supplies a compound's
+    # measured log2FC where the screen has one and a prediction where it does
+    # not, which is a branch on data availability rather than a modelling
+    # choice: the column means a different thing for different rows, and a
+    # compound's own measurement is a stronger input than any model's estimate
+    # of it, so the arms are not comparable at equal information. The prior
+    # generation ran all three and the measured variants did not pay for
+    # themselves, at one seed each. Predicting the readout for every compound
+    # is also what the tabular side does, so figure 1 and figures 2 to 3 now
+    # carry the same readout block rather than two different ones
+    - id: readout_predicted_2task
+      title: Predicted log2FC readout, two tasks
+      axes:
+        encoder_init: chemeleon
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 2
+        gradient_clip_val: 0.5
+        aux_encoder:
+          target: log2fc
+          use_observed_readout: false
+          use_predicted_readout: true
+      prior: feat_predicted_native_2task
+
+    - id: e4_frozen
+      title: E4, body pretrained on log2FC and never unfrozen
+      axes:
+        encoder_init: log2fc_checkpoint
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        # at or above the epoch budget, which is what "never unfrozen" means
+        freeze_epochs: 30
+        gradient_clip_val: 0.5
+        aux_encoder: null
+      prior: e4_frozen
+
+    - id: e4_finetune
+      title: E4, warmup then unfreeze
+      axes:
+        encoder_init: log2fc_checkpoint
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 2
+        gradient_clip_val: 0.5
+        aux_encoder: null
+      prior: e4_finetune
+
+    # what the auxiliary arm's two halves are each worth. The embedding is 2,048
+    # of the 2,055 concatenated columns and the predicted readout is 2, so a
+    # gain measured with both present says nothing about which carried it.
+    # readout_predicted_2task supplies both, concat_freeze2_hd512_clip0p5 the
+    # embedding alone, chemeleon_pec50 neither, and this cell the predictions
+    # alone. The embedding is dropped from the vector rather than zeroed
+    - id: readout_predicted_only
+      title: Predicted log2FC readout without the auxiliary embedding
+      axes:
+        encoder_init: chemeleon
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 2
+        gradient_clip_val: 0.5
+        aux_encoder:
+          target: log2fc
+          use_observed_readout: false
+          use_predicted_readout: true
+          use_embedding: false
+
+    # the missing corner of a two-by-two over what the body was pretrained on
+    # and whether it is allowed to adapt. e4_frozen and e4_finetune give the
+    # log2FC-pretrained row and chemeleon_pec50 the fine-tuned CheMeleon; with
+    # this cell, e4_frozen's last place can be attributed to the pretraining
+    # target or to the freeze, which it currently cannot
+    - id: chemeleon_frozen
+      title: CheMeleon never unfrozen, no auxiliary encoder
+      axes:
+        encoder_init: chemeleon
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        # at or above the epoch budget, which is what "never unfrozen" means
+        freeze_epochs: 30
+        gradient_clip_val: 0.5
+        aux_encoder: null
+
+    # whether the main body needs to adapt at all when a separate network
+    # supplies the task-specific signal. The freeze axis of the grid runs 0, 1
+    # and 2 epochs and every level releases the body, so no cell yet holds a
+    # CheMeleon body fixed while an auxiliary arm feeds the predictor
+    - id: concat_frozen_body
+      title: CheMeleon never unfrozen, with the log2FC auxiliary encoder
+      axes:
+        encoder_init: chemeleon
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 30
+        gradient_clip_val: 0.5
+        aux_encoder:
+          target: log2fc
+          use_observed_readout: false
+          use_predicted_readout: true
+
+    # The fourth corner of what a body can start as: initialised from the
+    # foundation checkpoint and then pretrained on the screen, where E4 does
+    # the same from nothing and chemeleon_pec50 skips the screen. Its body is
+    # the encoder the CheMeleon log2FC blocks are read off, so the cell costs
+    # no training beyond extracting it, and figures 3 to 5 carry that same
+    # network as features while this carries it as a predictor.
+    - id: chemeleon_log2fc_finetune
+      title: CheMeleon pretrained on log2FC, then fine-tuned on pEC50
+      axes:
+        encoder_init: chemeleon_log2fc_checkpoint
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 2
+        gradient_clip_val: 0.5
+        aux_encoder: null
+
+    # The control every other cell is worth measuring against: a body with
+    # nothing behind it. Without it figure 1 can rank pretraining recipes and
+    # cannot say whether pretraining paid at all, which is the first thing a
+    # reader asks of a graph network that loses to a table.
+    #
+    # Its body is 256 wide, matching the log2FC-pretrained one it is the
+    # control for, so scratch against E4 differs in whether the body was
+    # pretrained and in nothing else. The CheMeleon cells are 2,048 wide
+    # because a checkpoint brings its own width; that is a property of the
+    # checkpoint rather than a choice this cell could match.
+    - id: scratch_pec50
+      title: Chemprop trained on pEC50 from nothing
+      axes:
+        encoder_init: scratch
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        # the warmup figure 1 holds. Holding a body with nothing behind it does
+        # little, but the control has to differ from the cell it controls for
+        # in one thing, and that thing is the pretraining
+        freeze_epochs: 2
+        gradient_clip_val: 0.5
+        message_hidden_dim: 256
+        aux_encoder: null
+
+    - id: chemeleon_pec50
+      title: CheMeleon fine-tuned on pEC50, no auxiliary encoder
+      axes:
+        encoder_init: chemeleon
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 2
+        gradient_clip_val: 0.5
+        aux_encoder: null
+      prior: pxr_baseline_chemeleon_pec50
+
+    # The four cells above, again at a warmup of 0. Figure 1 holds the warmup
+    # fixed, and the level held is 0: within the concat grid, which is the one
+    # place both widths and all three warmups were crossed, 0 has the best
+    # marginal mean over widths at 0.5357 against 0.5371 for 2 and 0.5601 for
+    # 1. The grid is one architecture, so these twins are what make the
+    # marginal a comparison across architectures rather than an extrapolation
+    # from that block: with them, warmups 0 and 2 exist for all five cells that
+    # release the body, at one width.
+    #
+    # They carry no prior link. The previous generation ran its own warmup and
+    # a cell here is a configuration rather than a rerun of one of its rows.
+
+    - id: chemeleon_pec50_warm0
+      title: CheMeleon fine-tuned on pEC50, no auxiliary encoder, warmup 0
+      axes:
+        encoder_init: chemeleon
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 0
+        gradient_clip_val: 0.5
+        aux_encoder: null
+
+    - id: e4_finetune_warm0
+      title: E4, warmup 0 then unfreeze
+      axes:
+        encoder_init: log2fc_checkpoint
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 0
+        gradient_clip_val: 0.5
+        aux_encoder: null
+
+    - id: readout_predicted_2task_warm0
+      title: Predicted log2FC readout, two tasks, warmup 0
+      axes:
+        encoder_init: chemeleon
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 0
+        gradient_clip_val: 0.5
+        aux_encoder:
+          target: log2fc
+          use_observed_readout: false
+          use_predicted_readout: true
+
+    - id: readout_predicted_only_warm0
+      title: Predicted log2FC readout without the auxiliary embedding, warmup 0
+      axes:
+        encoder_init: chemeleon
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 0
+        gradient_clip_val: 0.5
+        aux_encoder:
+          target: log2fc
+          use_observed_readout: false
+          use_predicted_readout: true
+          use_embedding: false
+
+# ---------------------------------------------------------------------------
+# Reference points are configurations the figures carry for recognition. They
+# settle no axis and gate nothing, so they are not gates; what they have in
+# common with a gate is that naming one is a judgement, and a judgement is
+# declared here with its reason rather than computed from the runs. A figure
+# scores a reference on the same compounds as everything else and leaves it
+# out of the family the correction is computed over, so carrying one cannot
+# move a verdict, and draws it without an interval to say so.
+#
+# Each names a cell, for the graph networks, or the axis levels that pick out
+# one configuration of a stage, and carries the title it is drawn under. Away
+# from the figure that established it, a reference is read for what it is
+# rather than for how it is built: a row labelled by its blocks in a figure
+# comparing other things invites being read as one of them. The panel that measured the family a reference
+# came from warns if the runs have moved and it is no longer that family's
+# leader, which is a judgement for whoever reads the log rather than something
+# to override silently.
+# ---------------------------------------------------------------------------
+
+references:
+  - id: best_gnn
+    title: Best graph network
+    cell: e4_finetune
+    reason: >
+      The graph network the tabular figures are read against. It leads its
+      stage, and eight of the twelve cells behind it are not separated from
+      it, so this is a choice among ties rather than a finding. Taking the
+      leader is the conservative comparison: the tabular work is then read
+      against the most favourable graph network available, where a middling
+      cell would flatter it.
+
+  - id: chemeleon_baseline
+    title: CheMeleon baseline
+    cell: chemeleon_pec50
+    reason: >
+      CheMeleon fine-tuned on pEC50 with nothing else attached, which is where
+      this project started and what the rest of it is read against. It is
+      carried for recognition rather than for having won anything: it comes
+      second in its stage and is not separated from the leader, at p = 0.53.
+
+  - id: best_single
+    title: Best single ingredient
+    stage: ingredients
+    config: {embedding: chemeleon_log2fc, embedding_pca: 256, readout: none, descriptors: none}
+    reason: >
+      The furthest a single feature block gets on its own, carried into the
+      combination figures so that what joining blocks buys can be read off
+      directly. CheMeleon log2FC at 256 leads the single-block rows, with
+      plain CheMeleon 256, CheMeleon pEC50 256 and native Chemprop log2FC not
+      separated from it. The featureset gate later took the plain off-the-shelf
+      embedding out of that same tied group on cost, so this reference and that
+      decision name two members of one tie.
+
+# ---------------------------------------------------------------------------
+# The figures, in the order the story is told, which is not the order the
+# stages run in: the width probes run first and are reported second. Each is
+# declared here with the question it answers, and src/panels.py builds exactly
+# these: what a figure shows is a judgement about the story, so it is written
+# down where it can be read, and a figure the manifest does not declare cannot
+# be drawn.
+#
+# A figure is not a slice of a table. Each is measured as its own family, so
+# the correction covers what the figure shows rather than what its stage ran.
+# The verdicts drawn are Tukey HSD over the seeds, blocked on the seed, which
+# is not what a gate decides by: a gate resamples compounds under
+# Benjamini-Hochberg. The two disagree on some rows because they are answering
+# different questions, and a caption has to say which one is on the page.
+# ---------------------------------------------------------------------------
+
+figures:
+  - id: fig1
+    title: Graph-network baselines
+    question: Where does a fine-tuned message-passing network land on the challenge split?
+    # Two settings this figure holds rather than shows. Both were swept and
+    # neither is a question the figure asks, so every row carries the level
+    # named here and the rest are left out. A level held is a decision like a
+    # gate's: declared with its reason, checked against the runs, and never
+    # read off them.
+    #
+    # freeze_epochs is the warmup, the epochs the body stays frozen before it
+    # is released. It is held at 2, which is the better level averaged over the
+    # five architectures that carry both: 0.5057 against 0.5241 for a warmup of
+    # 0. It wins three of the five, and the asymmetry is what decides it: where
+    # 2 wins it wins separably, at p = 0.0006 and p = 0.0042 with a third at
+    # 0.056, and where 0 wins it wins by 0.008 and 0.0005 at p = 0.52 and
+    # p = 0.97, which is to say it does not.
+    #
+    # The concat grid alone says the opposite, 0.5357 for a warmup of 0 against
+    # 0.5371 for 2. That grid is one architecture, and one of the two where 0
+    # leads without separating. Four cells were run again at a warmup of 0 to
+    # settle it across architectures rather than extrapolate from that block,
+    # and they are why the marginal above is a comparison rather than a guess.
+    #
+    # A body held at or above the epoch budget is never released, which is a
+    # different question from how long a warmup runs, and those cells stay.
+    #
+    # ffn_hidden_dim is the predictor head's width. It is held at 512, which
+    # beat 1024 at every warmup, 0.5229 against 0.5513 averaged, and is
+    # separated from it at p = 0.001 to 0.006. The width was probed once,
+    # inside the concat architecture, and lost; nothing crossed it with the
+    # questions the named cells ask, so a single 1024 row among eight at 512
+    # would read as a gap in a grid rather than as a probe that was answered.
+    hold:
+      freeze_epochs: 2
+      ffn_hidden_dim: 512
+
+  - id: fig2
+    title: How far the feature blocks reduce
+    question: Which descriptor block wins, and what does reducing either block cost?
+    note: >
+      Two panels on one page, the descriptors and the embedding, which ask one
+      question of two blocks and are read against each other. Each keeps its
+      own family and so its own correction; only the axis is shared. These are
+      the figures where a width belongs in a label.
+
+  - id: fig3
+    title: Single-ingredient tabular features
+    question: How far does each feature block get on its own?
+    note: >
+      Corrected over the single-block rows alone, which is the family the
+      question is about. Every row carries the same regressor: the ingredients
+      stage holds it fixed and figure 5 asks that question separately.
+
+  - id: fig4
+    title: Featureset combinations
+    question: Which combination of blocks wins?
+    note: >
+      The whole ingredients stage, singles included, so the figure showing the
+      featureset decision is drawn on the family that decision was made on.
+
+  - id: fig5
+    title: Regressor comparison
+    question: Which regressor wins on the featureset this split chose?
+    note: >
+      Every row of the family carries the same columns, so this cannot say
+      whether the ranking would survive a different featureset.
+
+  - id: fig7
+    title: Ensemble size
+    question: How much of the tabular foundation model's advantage is ensembling?
+    note: >
+      Drawn against ensemble size rather than sorted by score, since the
+      question is the shape of the curve and where it flattens rather than a
+      ranking. The panel machinery's overlap-as-test geometry needs a
+      categorical axis, so the verdicts are reported beside the figure instead
+      of drawn into it.
+
+      The second panel carries the Spearman correlation between the predicted
+      spread and the absolute residual, the same quantity figure 6 reports for
+      the winning model. At one member the spread is the bar-distribution
+      criterion of a single model; at 128 it also absorbs the disagreement
+      between members, so it may sharpen where the error has already flattened.
+
+  - id: fig6
+    title: Predicted uncertainty against actual error
+    question: Do the winning model's uncertainty estimates track its errors?
+    note: >
+      Drawn from the uncertainty stage's artifacts rather than from the run
+      table, since the quantities are per compound and per nominal level
+      rather than one score per configuration.

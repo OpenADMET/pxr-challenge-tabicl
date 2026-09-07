@@ -2,9 +2,25 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .DS_Store
+.ruff_cache/
+.pytest_cache/
 
-# Generated run artifacts, checkpoints, and caches (large, reproducible from code)
-data/
-results/
-e4_log2fc_pretrain/
+# everything under data/ is reproducible from code, except the committed split
+# resources the recipes point at
+data/*
+!data/splits/
+
+# run directories, the aggregated table, and logs: large, and rebuilt from the
+# recipes. The gate decisions are neither. They are small records of what each
+# stage settled, they are what every later stage reads to know what to run, and
+# a manifest cannot be reviewed without them: seeing that the descriptor gate
+# took RDKit at 128 over a native leader, on a cost tie-break inside the
+# leader's seed spread, should not require refitting sixty models. Each one
+# carries the repo commit and package versions it was decided under
+results/*
+!results/gates/
 logs/
+
+# local type-checker override for a checkout whose environment is not ./.venv;
+# takes precedence over the [tool.pyright] block in pyproject.toml
+pyrightconfig.json

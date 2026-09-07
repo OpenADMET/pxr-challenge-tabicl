@@ -1,0 +1,103 @@
+[project]
+name = "pxr-challenge-tabicl"
+version = "0.0.0"
+description = "Rebuild of the OpenADMET PXR challenge analysis on the challenge's own train+phase1 / phase2 split"
+requires-python = ">=3.12"
+# Every version here is the one the results on this branch were produced under,
+# read off the environment that produced them. A floor would let a resolver
+# hand a clone a stack that has never run this analysis, and the lockfile is
+# supposed to describe an environment that has been run: while these were
+# floored, uv resolved pandas 3.0.5 against the 2.3.3 in use, rdkit 2026.3.5
+# against 2025.9.3, and five others besides.
+#
+# torch is the exception the lock cannot hold. The runs used 2.5.1+rocm6.2 from
+# AMD's wheel index, and a local version like that does not resolve from PyPI,
+# so the pin here names the base release and the ROCm build has to be installed
+# against it. A clone that syncs this lock gets stock 2.5.1 and no GPU.
+dependencies = [
+    "openadmet-models",
+    "pandas==2.3.3",
+    "numpy==2.5.1",
+    "scipy==1.17.0",
+    # Tukey HSD for the figure panels: the studentized range distribution and
+    # the block model behind the comparison intervals. Pinned like the rest of
+    # the stack to the version the figures were drawn under: the intervals are
+    # checked against this release's own pairwise_tukeyhsd, and 0.15 has not
+    # been run here
+    "statsmodels==0.14.6",
+    "rdkit==2025.9.3",
+    "mordredcommunity==2.0.6",
+    "pyarrow==22.0.0",
+    "huggingface-hub==1.3.2",
+    "pyyaml==6.0.3",
+    # pinned like the modelling stack: the lock should describe an environment
+    # that has been run, and 7.0 has not been
+    "plotly==6.5.2",
+    "scikit-learn==1.6.1",
+    # the modelling stack, pinned to the versions this analysis was run under
+    # rather than floored. These decide the numbers: a resolver free to take
+    # tabpfn 8.5 over 8.2 would hand a fresh clone a stack that never produced
+    # the results in this repository, and every artifact records the exact
+    # versions it was built with, so a floor here would contradict them
+    "torch==2.5.1",
+    "lightning==2.6.0",
+    "chemprop==2.2.1",
+    "lightgbm==4.6.0",
+    "xgboost==3.1.3",
+    "tabpfn==8.2.0",
+    "tabicl==2.1.1",
+    "tabfm==1.0.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "pyright>=1.1",
+]
+
+[tool.uv.sources]
+openadmet-models = { git = "https://github.com/OpenADMET/openadmet-models.git", rev = "4a8df806d12a7385edb6365074ce218af19002a5" }
+
+[tool.uv]
+# not an installable package: modules live in src/ and resolve via PYTHONPATH=src
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "run", "tests", "tools"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "N", "PTH", "D", "PT"]
+# D203/D213 conflict with the numpy convention's D211/D212
+ignore = ["D203", "D213"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+# entry-point scripts bootstrap sys.path before importing from src/
+"run/*" = ["E402"]
+# test functions are self-describing by name; docstrings would restate them
+"tests/*" = ["D100", "D103"]
+
+[tool.pyright]
+include = ["src", "run", "tests", "tools"]
+# resolves against the project environment uv sync creates. A checkout that
+# keeps its environment elsewhere overrides this with a pyrightconfig.json,
+# which takes precedence over this block and is not tracked
+extraPaths = ["src"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+
+[tool.pytest.ini_options]
+# gpu tests fit the tabular foundation models and need an accelerator plus a
+# weights download, so they are deselected unless asked for with -m gpu
+addopts = "-q -m 'not gpu and not slow'"
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "gpu: fits a tabular foundation model on an accelerator",
+    "slow: trains a model; deselected by default",
+]

@@ -1,0 +1,568 @@
+{
+  "chooses": [
+    "descriptors",
+    "descriptor_pca"
+  ],
+  "chosen": {
+    "descriptor_pca": 128,
+    "descriptors": "rdkit"
+  },
+  "chosen_slug": "emb-none__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none",
+  "environment": {
+    "checkouts": {
+      "openadmet-models": "4a8df806d12a7385edb6365074ce218af19002a5"
+    },
+    "packages": {
+      "chemprop": "2.2.1",
+      "lightgbm": "4.6.0",
+      "mordredcommunity": "2.0.6",
+      "numpy": "2.5.1",
+      "openadmet-models": "0.2.0+3.gba3d506",
+      "pandas": "2.3.3",
+      "rdkit": "2025.9.3",
+      "scikit-learn": "1.6.1",
+      "tabfm": "1.0.1",
+      "tabicl": "2.1.1",
+      "tabpfn": "8.2.0",
+      "torch": "2.5.1+rocm6.2",
+      "xgboost": "3.1.3"
+    },
+    "repo": {
+      "commit": "ab15fdf3e2e47e4ca97bbd25de8ba4ba1f56fc2a",
+      "dirty": false
+    }
+  },
+  "gate": "canonical_descriptors",
+  "indistinguishable_from_leader": [
+    "emb-none__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none",
+    "emb-none__ro-none__desc-rdkit_mordred256__reg-tabpfn-v3__cal-none",
+    "emb-none__ro-none__desc-rdkit_mordred128__reg-tabpfn-v3__cal-none",
+    "emb-none__ro-none__desc-rdkit64__reg-tabpfn-v3__cal-none",
+    "emb-none__ro-none__desc-mordred128__reg-tabpfn-v3__cal-none",
+    "emb-none__ro-none__desc-mordred256__reg-tabpfn-v3__cal-none",
+    "emb-none__ro-none__desc-mordred64__reg-tabpfn-v3__cal-none",
+    "emb-none__ro-none__desc-rdkit_mordred64__reg-tabpfn-v3__cal-none"
+  ],
+  "is_leader": false,
+  "leader_slug": "emb-none__ro-none__desc-rdkit-native__reg-tabpfn-v3__cal-none",
+  "metric": "mae",
+  "n_resamples": 10000,
+  "question": "Which descriptor block, and how far it reduces.\nA gate is a judgement, made by a person and recorded with its reason, not an algorithm. At the top of these tables the configurations are statistically tied, so any tie-break is a preference: cheapness, fewer encoders to train, less memory. Expressing a preference as a cost ordering does not make it less of a preference, it only makes it harder to argue with, and it invites tuning the ordering until it returns the answer already believed. So the pipeline measures and a person decides.\nWhat is measured, and recorded with every decision: each configuration scored by the mean of its seeds, with the spread across them and the seed ensemble alongside; every pair compared by a paired bootstrap over the 260 compounds, resampled on one shared set of draws so each difference is paired, with the family corrected by Benjamini-Hochberg at a false discovery rate of 0.05; and the cost facts, being blocks joined, encoders to train, and columns carried.\nThe score is the mean over seeds rather than the ensemble of them, because the subject is how well a single model does. Seeds are replicates, for statistical power and a variance estimate, not a way to build a better predictor. The ensemble is carried because the leaderboard anchor is one, and is the only quantity comparable to it.\nTwo limits the correction does not remove. Benjamini-Hochberg assumes independence or positive regression dependence, and comparisons on a shared compound set are correlated rather than independent; that is the case it is generally taken to cover, and it is not proven here. And the reference is the empirical leader, chosen by looking at the same data the comparisons use, so a tied set is if anything narrower than it should be.\n",
+  "ranking": [
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": -1,
+        "descriptors": "rdkit",
+        "embedding": "none",
+        "embedding_pca": 0,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.4926150324847351,
+        "mae": 0.5294031419387232,
+        "n": 260.0,
+        "r2": 0.37180752610251544,
+        "rae": 0.7334540820259516,
+        "rmse": 0.7466937873084158,
+        "spearman_rho": 0.6746234977279181
+      },
+      "kendall_tau": 0.49046340794613136,
+      "mae": 0.5299726874791657,
+      "n_blocks": 1,
+      "n_columns": 217,
+      "n_encoders_to_train": 0,
+      "n_seeds": 5,
+      "r2": 0.3705650326371222,
+      "rae": 0.7342431508252177,
+      "rmse": 0.7474296132336914,
+      "seed_spread": 0.001703940904328156,
+      "slug": "emb-none__ro-none__desc-rdkit-native__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.6727166029948696
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 128,
+        "descriptors": "rdkit",
+        "embedding": "none",
+        "embedding_pca": 0,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.5109811093474019,
+        "mae": 0.5304014700742868,
+        "n": 260.0,
+        "r2": 0.3837836039613305,
+        "rae": 0.7348372015963212,
+        "rmse": 0.7395419230084419,
+        "spearman_rho": 0.6947043029818444
+      },
+      "kendall_tau": 0.5099231282206852,
+      "mae": 0.5308653813948997,
+      "n_blocks": 1,
+      "n_columns": 128,
+      "n_encoders_to_train": 0,
+      "n_seeds": 5,
+      "r2": 0.3823821803242915,
+      "rae": 0.7354799209624275,
+      "rmse": 0.7403801630465834,
+      "seed_spread": 0.004375053014889442,
+      "slug": "emb-none__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.6933320133459983
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 256,
+        "descriptors": "rdkit_mordred",
+        "embedding": "none",
+        "embedding_pca": 0,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.4832239640565753,
+        "mae": 0.5364832429519066,
+        "n": 260.0,
+        "r2": 0.37920908455606905,
+        "rae": 0.7432631076585887,
+        "rmse": 0.7422818643099064,
+        "spearman_rho": 0.6689609851178934
+      },
+      "kendall_tau": 0.4816904857942556,
+      "mae": 0.5377534330147963,
+      "n_blocks": 1,
+      "n_columns": 256,
+      "n_encoders_to_train": 0,
+      "n_seeds": 5,
+      "r2": 0.37596920425260016,
+      "rae": 0.745022874484232,
+      "rmse": 0.7441986898300782,
+      "seed_spread": 0.0042073891347954315,
+      "slug": "emb-none__ro-none__desc-rdkit_mordred256__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.6671324718218293
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 128,
+        "descriptors": "rdkit_mordred",
+        "embedding": "none",
+        "embedding_pca": 0,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.4869090668574988,
+        "mae": 0.5376543847597562,
+        "n": 260.0,
+        "r2": 0.3722035076685065,
+        "rae": 0.7448856494826754,
+        "rmse": 0.7464584107341646,
+        "spearman_rho": 0.6700899372612196
+      },
+      "kendall_tau": 0.48535181373839886,
+      "mae": 0.5387887885900643,
+      "n_blocks": 1,
+      "n_columns": 128,
+      "n_encoders_to_train": 0,
+      "n_seeds": 5,
+      "r2": 0.37036415636011477,
+      "rae": 0.746457293196308,
+      "rmse": 0.7475493652935813,
+      "seed_spread": 0.002299815669413991,
+      "slug": "emb-none__ro-none__desc-rdkit_mordred128__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.6687958242328189
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 64,
+        "descriptors": "rdkit",
+        "embedding": "none",
+        "embedding_pca": 0,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.4980238124022195,
+        "mae": 0.5401883953167842,
+        "n": 260.0,
+        "r2": 0.366625549303252,
+        "rae": 0.7483963585051846,
+        "rmse": 0.7497672108151976,
+        "spearman_rho": 0.6870993235754707
+      },
+      "kendall_tau": 0.49770285183568747,
+      "mae": 0.5404547666182884,
+      "n_blocks": 1,
+      "n_columns": 64,
+      "n_encoders_to_train": 0,
+      "n_seeds": 5,
+      "r2": 0.3656977408340937,
+      "rae": 0.7487653988507093,
+      "rmse": 0.7503143321037871,
+      "seed_spread": 0.002908108868204802,
+      "slug": "emb-none__ro-none__desc-rdkit64__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.686515491112357
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 128,
+        "descriptors": "mordred",
+        "embedding": "none",
+        "embedding_pca": 0,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.48809780969650635,
+        "mae": 0.5476401918484615,
+        "n": 260.0,
+        "r2": 0.3589505454662404,
+        "rae": 0.7587203444274634,
+        "rmse": 0.7542962365783005,
+        "spearman_rho": 0.6742322733081261
+      },
+      "kendall_tau": 0.4858391983023919,
+      "mae": 0.5483385498413673,
+      "n_blocks": 1,
+      "n_columns": 128,
+      "n_encoders_to_train": 0,
+      "n_seeds": 5,
+      "r2": 0.35746080201730146,
+      "rae": 0.7596878746138851,
+      "rmse": 0.7551693975622822,
+      "seed_spread": 0.0016920926931542266,
+      "slug": "emb-none__ro-none__desc-mordred128__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.6720855914612367
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 256,
+        "descriptors": "mordred",
+        "embedding": "none",
+        "embedding_pca": 0,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.4829862154887738,
+        "mae": 0.5555200078670796,
+        "n": 260.0,
+        "r2": 0.3489838396432078,
+        "rae": 0.7696373238834295,
+        "rmse": 0.7601373247388977,
+        "spearman_rho": 0.6735655531581667
+      },
+      "kendall_tau": 0.4822373075001991,
+      "mae": 0.5562521977791419,
+      "n_blocks": 1,
+      "n_columns": 256,
+      "n_encoders_to_train": 0,
+      "n_seeds": 5,
+      "r2": 0.34690371525649766,
+      "rae": 0.7706517260228911,
+      "rmse": 0.7613391045617387,
+      "seed_spread": 0.00503350867754109,
+      "slug": "emb-none__ro-none__desc-mordred256__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.6727118919154689
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 64,
+        "descriptors": "mordred",
+        "embedding": "none",
+        "embedding_pca": 0,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.4929716553364374,
+        "mae": 0.556121591788072,
+        "n": 260.0,
+        "r2": 0.3368181719328852,
+        "rae": 0.770470779803085,
+        "rmse": 0.7672068683642636,
+        "spearman_rho": 0.6806164686611179
+      },
+      "kendall_tau": 0.491509501644458,
+      "mae": 0.556962359883235,
+      "n_blocks": 1,
+      "n_columns": 64,
+      "n_encoders_to_train": 0,
+      "n_seeds": 5,
+      "r2": 0.33561133301670576,
+      "rae": 0.7716356100479079,
+      "rmse": 0.7678924835261924,
+      "seed_spread": 0.003779541047124711,
+      "slug": "emb-none__ro-none__desc-mordred64__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.679238034139097
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 64,
+        "descriptors": "rdkit_mordred",
+        "embedding": "none",
+        "embedding_pca": 0,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.4864930068638461,
+        "mae": 0.5595001086088327,
+        "n": 260.0,
+        "r2": 0.32297132805504436,
+        "rae": 0.7751514980630969,
+        "rmse": 0.7751749038265052,
+        "spearman_rho": 0.6696113189047203
+      },
+      "kendall_tau": 0.48614374925365417,
+      "mae": 0.5603243985909682,
+      "n_blocks": 1,
+      "n_columns": 64,
+      "n_encoders_to_train": 0,
+      "n_seeds": 5,
+      "r2": 0.3217410297991432,
+      "rae": 0.7762934989396999,
+      "rmse": 0.7758698875383967,
+      "seed_spread": 0.004116362503854824,
+      "slug": "emb-none__ro-none__desc-rdkit_mordred64__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.6688008309758255
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 32,
+        "descriptors": "rdkit",
+        "embedding": "none",
+        "embedding_pca": 0,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.47187146994405305,
+        "mae": 0.5668053759428171,
+        "n": 260.0,
+        "r2": 0.33861397495913104,
+        "rae": 0.7852724771845657,
+        "rmse": 0.7661674201221306,
+        "spearman_rho": 0.6605506842400631
+      },
+      "kendall_tau": 0.4716574962330317,
+      "mae": 0.5668751971684969,
+      "n_blocks": 1,
+      "n_columns": 32,
+      "n_encoders_to_train": 0,
+      "n_seeds": 5,
+      "r2": 0.33804992624236585,
+      "rae": 0.7853692100124052,
+      "rmse": 0.7664880466823233,
+      "seed_spread": 0.003557676272974369,
+      "slug": "emb-none__ro-none__desc-rdkit32__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.6604261478802551
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 32,
+        "descriptors": "mordred",
+        "embedding": "none",
+        "embedding_pca": 0,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.4429255818142188,
+        "mae": 0.610801965566782,
+        "n": 260.0,
+        "r2": 0.2587141720488936,
+        "rae": 0.8462269289030496,
+        "rmse": 0.811127306346159,
+        "spearman_rho": 0.6151549962415916
+      },
+      "kendall_tau": 0.44187948811589217,
+      "mae": 0.6109301015707163,
+      "n_blocks": 1,
+      "n_columns": 32,
+      "n_encoders_to_train": 0,
+      "n_seeds": 5,
+      "r2": 0.25768884721185203,
+      "rae": 0.8464044531141754,
+      "rmse": 0.8116765850076824,
+      "seed_spread": 0.004480187148882033,
+      "slug": "emb-none__ro-none__desc-mordred32__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.6139502571687769
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 32,
+        "descriptors": "rdkit_mordred",
+        "embedding": "none",
+        "embedding_pca": 0,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.4155844965170449,
+        "mae": 0.63620883505161,
+        "n": 260.0,
+        "r2": 0.19592462947509814,
+        "rae": 0.8814265162475929,
+        "rmse": 0.8447818084101407,
+        "spearman_rho": 0.5811334925525673
+      },
+      "kendall_tau": 0.41426499196574645,
+      "mae": 0.6366079252169683,
+      "n_blocks": 1,
+      "n_columns": 32,
+      "n_encoders_to_train": 0,
+      "n_seeds": 5,
+      "r2": 0.19481471493817548,
+      "rae": 0.8819794300625855,
+      "rmse": 0.8453628470323977,
+      "seed_spread": 0.00306003042016326,
+      "slug": "emb-none__ro-none__desc-rdkit_mordred32__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.5796871911765723
+    }
+  ],
+  "reason": "RDKit beats Mordred and the concatenation of the two at every width. 128 components are indistinguishable from keeping all 217 columns (p = 0.77) at a little over half the width, and 64 is where reducing starts to cost.",
+  "separated_from_leader": false,
+  "significance": {
+    "against_leader": [
+      {
+        "bh_threshold": 0.04924242424242425,
+        "p_value": 0.9403059694030597,
+        "separated": false,
+        "slug": "emb-none__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.043939393939393945,
+        "p_value": 0.7117288271172882,
+        "separated": false,
+        "slug": "emb-none__ro-none__desc-rdkit_mordred256__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.04166666666666667,
+        "p_value": 0.6513348665133487,
+        "separated": false,
+        "slug": "emb-none__ro-none__desc-rdkit_mordred128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.03257575757575758,
+        "p_value": 0.3113688631136886,
+        "separated": false,
+        "slug": "emb-none__ro-none__desc-rdkit64__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.03484848484848485,
+        "p_value": 0.36476352364763526,
+        "separated": false,
+        "slug": "emb-none__ro-none__desc-mordred128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.028787878787878793,
+        "p_value": 0.23017698230176983,
+        "separated": false,
+        "slug": "emb-none__ro-none__desc-mordred256__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.025,
+        "p_value": 0.1705829417058294,
+        "separated": false,
+        "slug": "emb-none__ro-none__desc-mordred64__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.021969696969696972,
+        "p_value": 0.11878812118788121,
+        "separated": false,
+        "slug": "emb-none__ro-none__desc-rdkit_mordred64__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.016666666666666666,
+        "p_value": 0.006999300069993001,
+        "separated": true,
+        "slug": "emb-none__ro-none__desc-rdkit32__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.0015151515151515154,
+        "p_value": 0.00019998000199980003,
+        "separated": true,
+        "slug": "emb-none__ro-none__desc-mordred32__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.0007575757575757577,
+        "p_value": 0.00019998000199980003,
+        "separated": true,
+        "slug": "emb-none__ro-none__desc-rdkit_mordred32__reg-tabpfn-v3__cal-none"
+      }
+    ],
+    "comparison_intervals": {
+      "emb-none__ro-none__desc-mordred128__reg-tabpfn-v3__cal-none": [
+        -0.027256300007013044,
+        0.06707864222930034
+      ],
+      "emb-none__ro-none__desc-mordred256__reg-tabpfn-v3__cal-none": [
+        -0.02461083766221989,
+        0.07866095395601716
+      ],
+      "emb-none__ro-none__desc-mordred32__reg-tabpfn-v3__cal-none": [
+        0.029736502757806222,
+        0.1335058695741801
+      ],
+      "emb-none__ro-none__desc-mordred64__reg-tabpfn-v3__cal-none": [
+        -0.018963541264167112,
+        0.0757425138332294
+      ],
+      "emb-none__ro-none__desc-rdkit-native__reg-tabpfn-v3__cal-none": [
+        0.0,
+        0.0
+      ],
+      "emb-none__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        -0.0235171329852251,
+        0.025460496072218983
+      ],
+      "emb-none__ro-none__desc-rdkit32__reg-tabpfn-v3__cal-none": [
+        0.004533330870408292,
+        0.06851299373535005
+      ],
+      "emb-none__ro-none__desc-rdkit64__reg-tabpfn-v3__cal-none": [
+        -0.013932418923011164,
+        0.035740541362028984
+      ],
+      "emb-none__ro-none__desc-rdkit_mordred128__reg-tabpfn-v3__cal-none": [
+        -0.03602684483436442,
+        0.0550067721190818
+      ],
+      "emb-none__ro-none__desc-rdkit_mordred256__reg-tabpfn-v3__cal-none": [
+        -0.04211103460293555,
+        0.06014119083753008
+      ],
+      "emb-none__ro-none__desc-rdkit_mordred32__reg-tabpfn-v3__cal-none": [
+        0.05169175008462022,
+        0.16435540925722888
+      ],
+      "emb-none__ro-none__desc-rdkit_mordred64__reg-tabpfn-v3__cal-none": [
+        -0.015657516118196282,
+        0.07913547256231306
+      ]
+    },
+    "fdr": 0.05,
+    "interval_alpha": 0.016666666666666666,
+    "leader_halfwidth": 0.012204913450479544,
+    "n_comparisons": 66,
+    "n_separated_pairs": 22,
+    "procedure": "all-pairwise paired bootstrap, Benjamini-Hochberg"
+  },
+  "stage": "descriptor_width",
+  "version": 1,
+  "wall_clock_s": 3.643
+}
