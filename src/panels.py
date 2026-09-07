@@ -909,10 +909,15 @@ def tabular_detail(
         known = known and (width > 0 or native is not None)
 
         if axis == "descriptors":
-            head = f"descriptor: {plots.PRETTY.get(level, level)}"
+            # blocks rather than a descriptor: rdkit_mordred is two of them,
+            # and the singular under a plural heading read as a slip
+            head = f"blocks: {plots.PRETTY.get(level, level)}"
         else:
             head = f"encoder: {provenance(axis, level, manifest)}"
-        lines = [head, f"dims: {native or '?'}", f"PCA: {width if width > 0 else 'none'}"]
+        # a reduction is reported where one happened. The only line in the set
+        # that reported a thing not happening was this one saying none, and its
+        # absence says the same more quietly
+        lines = [head, f"dims: {native or '?'}"] + ([f"PCA: {width}"] if width > 0 else [])
         if len(present) > 1:
             blocks.append(f"{axis}:<br>" + "<br>".join(INDENT + line for line in lines))
         else:
@@ -954,16 +959,19 @@ def gnn_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> str:
         f"MPNN dim: {width or '?'}" + (", frozen" if frozen else ""),
         f"FFN dim: {config['ffn_hidden_dim']}",
     ]
-    if str(config.get("aux_target", "none")) != "none":
-        halves = []
-        if config.get("aux_embedding"):
-            halves.append(f"embedding ({dims.get(('embedding', 'chemeleon_log2fc'), '?')})")
-        if config.get("aux_readout"):
-            halves.append(f"readout ({dims.get(('readout', 'chemeleon_log2fc'), '?')})")
-        target = plots.PRETTY.get(str(config["aux_target"]), str(config["aux_target"]))
-        lines.append(f"auxiliary: {target} {' + '.join(halves)}")
-    else:
+    if str(config.get("aux_target", "none")) == "none":
         lines.append("auxiliary: none")
+        return "<br>".join(lines)
+
+    # the auxiliary arm is a block like any other and says so the same way. It
+    # is also the network behind the CheMeleon log2FC blocks of figures 3 to 5,
+    # which is worth being able to read off both places in the same words
+    arm = [f"encoder: {trained_as(True, str(config['aux_target']))}"]
+    if config.get("aux_embedding"):
+        arm.append(f"embedding dims: {dims.get(('embedding', 'chemeleon_log2fc'), '?')}")
+    if config.get("aux_readout"):
+        arm.append(f"readout dims: {dims.get(('readout', 'chemeleon_log2fc'), '?')}")
+    lines.append("auxiliary:<br>" + "<br>".join(INDENT + line for line in arm))
     return "<br>".join(lines)
 
 
