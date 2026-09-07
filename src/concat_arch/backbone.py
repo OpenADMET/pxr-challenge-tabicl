@@ -144,7 +144,8 @@ def write_body_checkpoint(
     ------
     BackboneError
         If no key carries the prefix, which would otherwise write an empty
-        checkpoint that only fails much later.
+        checkpoint that only fails much later, or if the declared width
+        disagrees with the width of the weights.
     """
     body = {
         key.removeprefix(prefix): value
@@ -153,6 +154,19 @@ def write_body_checkpoint(
     }
     if not body:
         raise BackboneError(f"no key in the state dict begins with {prefix!r}")
+
+    # the width the caller declares has to be the width the weights carry. A
+    # checkpoint that disagrees loads into a model built at the wrong size and
+    # fails on the first shape it reaches, a long way from here: a foundation
+    # init overrides the width a configuration asked for, so a caller passing
+    # its own configuration's number is the way this goes wrong
+    declared = hyper_parameters.get("d_h")
+    carried = body["W_h.weight"].shape[0] if "W_h.weight" in body else None
+    if declared is not None and carried is not None and int(declared) != int(carried):
+        raise BackboneError(
+            f"hyper_parameters say d_h={declared} and the weights are {carried} wide; "
+            f"the checkpoint would build a body it cannot load"
+        )
 
     with provenance.atomic(path) as partial:
         torch.save({"hyper_parameters": dict(hyper_parameters), "state_dict": body}, partial)

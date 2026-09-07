@@ -1019,9 +1019,14 @@ def log2fc_body_checkpoint(
     # the two directions may bind at import time
     from concat_arch import write_body_checkpoint
 
+    # the trained body's own width and depth, not the configuration's: a
+    # foundation initialisation overrides both, so an encoder built from
+    # CheMeleon is 2,048 wide however narrow its configuration asked to be
+    passing = model.estimator.message_passing
+    hyper = {
+        "d_h": int(passing.W_h.weight.shape[0]),
+        "depth": int(getattr(passing, "depth", config.depth)),
+    }
+
     body_path.parent.mkdir(parents=True, exist_ok=True)
-    return write_body_checkpoint(
-        model.estimator.state_dict(),
-        {"d_h": config.message_hidden_dim, "depth": config.depth},
-        body_path,
-    )
+    return write_body_checkpoint(model.estimator.state_dict(), hyper, body_path)

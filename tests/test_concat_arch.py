@@ -850,3 +850,27 @@ def test_the_freeze_two_by_two_has_all_four_corners():
         assert axes["encoder_init"] == init
         assert (axes["freeze_epochs"] >= budget) is frozen
         assert axes["aux_encoder"] is None
+
+
+def test_a_body_checkpoint_refuses_a_width_its_weights_do_not_carry(tmp_path):
+    # a foundation init overrides the width a configuration asked for, so a
+    # caller passing its own number writes a checkpoint that builds a body it
+    # cannot load, and fails on the first shape it reaches instead of here
+    state = {
+        "message_passing.W_i.weight": torch.zeros(2048, 86),
+        "message_passing.W_h.weight": torch.zeros(2048, 2048),
+    }
+
+    with pytest.raises(BackboneError, match="d_h=256 and the weights are 2048 wide"):
+        write_body_checkpoint(state, {"d_h": 256, "depth": 3}, tmp_path / "body.pt")
+
+
+def test_a_body_checkpoint_keeps_a_width_its_weights_do_carry(tmp_path):
+    state = {
+        "message_passing.W_i.weight": torch.zeros(256, 86),
+        "message_passing.W_h.weight": torch.zeros(256, 256),
+    }
+
+    path = write_body_checkpoint(state, {"d_h": 256, "depth": 3}, tmp_path / "body.pt")
+
+    assert torch.load(path, weights_only=False)["hyper_parameters"]["d_h"] == 256
