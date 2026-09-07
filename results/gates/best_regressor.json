@@ -26,8 +26,8 @@
       "xgboost": "3.1.3"
     },
     "repo": {
-      "commit": "00c6cf213bd3e4c8a12296e368e9412ac8bb18b0",
-      "dirty": true
+      "commit": "ab15fdf3e2e47e4ca97bbd25de8ba4ba1f56fc2a",
+      "dirty": false
     }
   },
   "gate": "best_regressor",
@@ -268,12 +268,40 @@
         "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v2.6__cal-none"
       }
     ],
+    "comparison_intervals": {
+      "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-lgbm__cal-none": [
+        0.025136914370414175,
+        0.0823372449368772
+      ],
+      "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabfm__cal-none": [
+        0.01989485782480243,
+        0.08624640761987987
+      ],
+      "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabicl__cal-none": [
+        0.0,
+        0.0
+      ],
+      "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v2.6__cal-none": [
+        0.03575202995769791,
+        0.11081918094191175
+      ],
+      "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none": [
+        -0.011950031906824784,
+        0.030083491923405543
+      ],
+      "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-xgboost__cal-none": [
+        0.041133023277796235,
+        0.0927347121252647
+      ]
+    },
     "fdr": 0.05,
+    "interval_alpha": 0.03,
+    "leader_halfwidth": 0.01040536426168219,
     "n_comparisons": 15,
     "n_separated_pairs": 9,
     "procedure": "all-pairwise paired bootstrap, Benjamini-Hochberg"
   },
   "stage": "regressor",
   "version": 1,
-  "wall_clock_s": 3.275
+  "wall_clock_s": 0.443
 }

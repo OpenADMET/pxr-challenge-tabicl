@@ -8,7 +8,6 @@
     "descriptors": "rdkit"
   },
   "chosen_slug": "emb-none__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none",
-  "decided_by": "sean",
   "environment": {
     "checkouts": {
       "openadmet-models": "4a8df806d12a7385edb6365074ce218af19002a5"
@@ -29,8 +28,8 @@
       "xgboost": "3.1.3"
     },
     "repo": {
-      "commit": "ab20de44c1d69e0eb55cfc838051df9f2ac30ad2",
-      "dirty": true
+      "commit": "ab15fdf3e2e47e4ca97bbd25de8ba4ba1f56fc2a",
+      "dirty": false
     }
   },
   "gate": "canonical_descriptors",
@@ -44,6 +43,7 @@
     "emb-none__ro-none__desc-mordred64__reg-tabpfn-v3__cal-none",
     "emb-none__ro-none__desc-rdkit_mordred64__reg-tabpfn-v3__cal-none"
   ],
+  "is_leader": false,
   "leader_slug": "emb-none__ro-none__desc-rdkit-native__reg-tabpfn-v3__cal-none",
   "metric": "mae",
   "n_resamples": 10000,
@@ -435,6 +435,7 @@
     }
   ],
   "reason": "RDKit beats Mordred and the concatenation of the two at every width. 128 components are indistinguishable from keeping all 217 columns (p = 0.77) at a little over half the width, and 64 is where reducing starts to cost.",
+  "separated_from_leader": false,
   "significance": {
     "against_leader": [
       {
@@ -504,12 +505,64 @@
         "slug": "emb-none__ro-none__desc-rdkit_mordred32__reg-tabpfn-v3__cal-none"
       }
     ],
+    "comparison_intervals": {
+      "emb-none__ro-none__desc-mordred128__reg-tabpfn-v3__cal-none": [
+        -0.027256300007013044,
+        0.06707864222930034
+      ],
+      "emb-none__ro-none__desc-mordred256__reg-tabpfn-v3__cal-none": [
+        -0.02461083766221989,
+        0.07866095395601716
+      ],
+      "emb-none__ro-none__desc-mordred32__reg-tabpfn-v3__cal-none": [
+        0.029736502757806222,
+        0.1335058695741801
+      ],
+      "emb-none__ro-none__desc-mordred64__reg-tabpfn-v3__cal-none": [
+        -0.018963541264167112,
+        0.0757425138332294
+      ],
+      "emb-none__ro-none__desc-rdkit-native__reg-tabpfn-v3__cal-none": [
+        0.0,
+        0.0
+      ],
+      "emb-none__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        -0.0235171329852251,
+        0.025460496072218983
+      ],
+      "emb-none__ro-none__desc-rdkit32__reg-tabpfn-v3__cal-none": [
+        0.004533330870408292,
+        0.06851299373535005
+      ],
+      "emb-none__ro-none__desc-rdkit64__reg-tabpfn-v3__cal-none": [
+        -0.013932418923011164,
+        0.035740541362028984
+      ],
+      "emb-none__ro-none__desc-rdkit_mordred128__reg-tabpfn-v3__cal-none": [
+        -0.03602684483436442,
+        0.0550067721190818
+      ],
+      "emb-none__ro-none__desc-rdkit_mordred256__reg-tabpfn-v3__cal-none": [
+        -0.04211103460293555,
+        0.06014119083753008
+      ],
+      "emb-none__ro-none__desc-rdkit_mordred32__reg-tabpfn-v3__cal-none": [
+        0.05169175008462022,
+        0.16435540925722888
+      ],
+      "emb-none__ro-none__desc-rdkit_mordred64__reg-tabpfn-v3__cal-none": [
+        -0.015657516118196282,
+        0.07913547256231306
+      ]
+    },
     "fdr": 0.05,
+    "interval_alpha": 0.016666666666666666,
+    "leader_halfwidth": 0.012204913450479544,
     "n_comparisons": 66,
     "n_separated_pairs": 22,
     "procedure": "all-pairwise paired bootstrap, Benjamini-Hochberg"
   },
   "stage": "descriptor_width",
   "version": 1,
-  "wall_clock_s": 0.787
+  "wall_clock_s": 3.643
 }

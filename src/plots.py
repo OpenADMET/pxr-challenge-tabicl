@@ -144,6 +144,7 @@ PRETTY = {
     "chemprop_log2fc": f"Chemprop {LOG2FC}",
     "chemeleon_log2fc": f"CheMeleon {LOG2FC}",
     "chemeleon_pec50": f"CheMeleon {PEC50}",
+    "chemprop_pec50": f"Chemprop {PEC50}",
     "chemeleon": "CheMeleon",
     "log2fc": LOG2FC,
     "pec50": PEC50,

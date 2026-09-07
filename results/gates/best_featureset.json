@@ -10,7 +10,6 @@
     "readout": "chemprop_log2fc"
   },
   "chosen_slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none",
-  "decided_by": "sean",
   "environment": {
     "checkouts": {
       "openadmet-models": "4a8df806d12a7385edb6365074ce218af19002a5"
@@ -31,8 +30,8 @@
       "xgboost": "3.1.3"
     },
     "repo": {
-      "commit": "ab20de44c1d69e0eb55cfc838051df9f2ac30ad2",
-      "dirty": true
+      "commit": "ab15fdf3e2e47e4ca97bbd25de8ba4ba1f56fc2a",
+      "dirty": false
     }
   },
   "gate": "best_featureset",
@@ -46,6 +45,7 @@
     "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none",
     "emb-chemeleon_pec50256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none"
   ],
+  "is_leader": false,
   "leader_slug": "emb-chemeleon_log2fc256__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none",
   "metric": "mae",
   "n_resamples": 10000,
@@ -502,6 +502,70 @@
     {
       "config": {
         "calibration": "none",
+        "descriptor_pca": 128,
+        "descriptors": "rdkit",
+        "embedding": "chemprop_pec50",
+        "embedding_pca": 0,
+        "readout": "chemeleon_log2fc",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.607150405023114,
+        "mae": 0.4532610219808726,
+        "n": 260.0,
+        "r2": 0.5433834294577518,
+        "rae": 0.6279640607679001,
+        "rmse": 0.6366078760347582,
+        "spearman_rho": 0.8032031926390022
+      },
+      "kendall_tau": 0.5932777760918958,
+      "mae": 0.46291624441880447,
+      "n_blocks": 3,
+      "n_columns": 128,
+      "n_encoders_to_train": 2,
+      "n_seeds": 5,
+      "r2": 0.527488912232015,
+      "rae": 0.6413407518922407,
+      "rmse": 0.6474427629211739,
+      "seed_spread": 0.010353471409191706,
+      "slug": "emb-chemprop_pec50__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.7895373071689414
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemprop_pec50",
+        "embedding_pca": 0,
+        "readout": "chemeleon_log2fc",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.6023359965251334,
+        "mae": 0.4526457465611972,
+        "n": 260.0,
+        "r2": 0.542791455520006,
+        "rae": 0.6271116361553855,
+        "rmse": 0.6370204029035273,
+        "spearman_rho": 0.7980599229107433
+      },
+      "kendall_tau": 0.5866802533354037,
+      "mae": 0.4630043812018174,
+      "n_blocks": 2,
+      "n_columns": 0,
+      "n_encoders_to_train": 2,
+      "n_seeds": 5,
+      "r2": 0.5255154616406857,
+      "rae": 0.6414628597494791,
+      "rmse": 0.648825355819442,
+      "seed_spread": 0.009119248143143712,
+      "slug": "emb-chemprop_pec50__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.7830336961946206
+    },
+    {
+      "config": {
+        "calibration": "none",
         "descriptor_pca": 0,
         "descriptors": "none",
         "embedding": "chemeleon",
@@ -626,6 +690,38 @@
       "seed_spread": 0.009787508398359162,
       "slug": "emb-none__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none",
       "spearman_rho": 0.7790466892149088
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 128,
+        "descriptors": "rdkit",
+        "embedding": "chemprop_pec50",
+        "embedding_pca": 0,
+        "readout": "chemprop_log2fc",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.5679813284778147,
+        "mae": 0.4685685466619639,
+        "n": 260.0,
+        "r2": 0.5062234497622782,
+        "rae": 0.6491716539490509,
+        "rmse": 0.6620052048429496,
+        "spearman_rho": 0.7651209433361695
+      },
+      "kendall_tau": 0.5620452639180165,
+      "mae": 0.47240397099715015,
+      "n_blocks": 3,
+      "n_columns": 128,
+      "n_encoders_to_train": 2,
+      "n_seeds": 5,
+      "r2": 0.4992749082979525,
+      "rae": 0.6544853882511219,
+      "rmse": 0.6665712346595966,
+      "seed_spread": 0.007523016350722865,
+      "slug": "emb-chemprop_pec50__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.7592492236563086
     },
     {
       "config": {
@@ -792,6 +888,38 @@
         "calibration": "none",
         "descriptor_pca": 0,
         "descriptors": "none",
+        "embedding": "chemprop_pec50",
+        "embedding_pca": 0,
+        "readout": "chemprop_log2fc",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.5437904117040108,
+        "mae": 0.47387076194469746,
+        "n": 260.0,
+        "r2": 0.4905676322364865,
+        "rae": 0.6565175329868286,
+        "rmse": 0.672418170989838,
+        "spearman_rho": 0.736675241085593
+      },
+      "kendall_tau": 0.5373949752301501,
+      "mae": 0.47900076873485864,
+      "n_blocks": 2,
+      "n_columns": 0,
+      "n_encoders_to_train": 2,
+      "n_seeds": 5,
+      "r2": 0.48273662484177676,
+      "rae": 0.6636248282085483,
+      "rmse": 0.6775125784627176,
+      "seed_spread": 0.005858505059508281,
+      "slug": "emb-chemprop_pec50__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.7303778934572045
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
         "embedding": "chemprop_log2fc",
         "embedding_pca": 0,
         "readout": "none",
@@ -856,6 +984,38 @@
         "calibration": "none",
         "descriptor_pca": 128,
         "descriptors": "rdkit",
+        "embedding": "chemprop_pec50",
+        "embedding_pca": 0,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.541947860303549,
+        "mae": 0.487159514940702,
+        "n": 260.0,
+        "r2": 0.46229844791521657,
+        "rae": 0.6749282475403177,
+        "rmse": 0.690823047821962,
+        "spearman_rho": 0.7363348826680254
+      },
+      "kendall_tau": 0.5370026900932776,
+      "mae": 0.49100649745647723,
+      "n_blocks": 2,
+      "n_columns": 128,
+      "n_encoders_to_train": 1,
+      "n_seeds": 5,
+      "r2": 0.4548155778723942,
+      "rae": 0.680257994959921,
+      "rmse": 0.6955594658845129,
+      "seed_spread": 0.006745721895224693,
+      "slug": "emb-chemprop_pec50__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.7289927678369044
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 128,
+        "descriptors": "rdkit",
         "embedding": "chemeleon",
         "embedding_pca": 256,
         "readout": "none",
@@ -882,6 +1042,38 @@
       "seed_spread": 0.001571506635455815,
       "slug": "emb-chemeleon256__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none",
       "spearman_rho": 0.7281504404953736
+    },
+    {
+      "config": {
+        "calibration": "none",
+        "descriptor_pca": 0,
+        "descriptors": "none",
+        "embedding": "chemprop_pec50",
+        "embedding_pca": 0,
+        "readout": "none",
+        "regressor": "tabpfn-v3"
+      },
+      "ensemble": {
+        "kendall_tau": 0.5137746550190697,
+        "mae": 0.49448343009215134,
+        "n": 260.0,
+        "r2": 0.44956169122918554,
+        "rae": 0.6850750620162771,
+        "rmse": 0.6989570653942198,
+        "spearman_rho": 0.6998274311387528
+      },
+      "kendall_tau": 0.5065114362727334,
+      "mae": 0.5003861509689917,
+      "n_blocks": 1,
+      "n_columns": 0,
+      "n_encoders_to_train": 1,
+      "n_seeds": 5,
+      "r2": 0.4406186572139548,
+      "rae": 0.6932529030210051,
+      "rmse": 0.7045966527334617,
+      "seed_spread": 0.004495463877364796,
+      "slug": "emb-chemprop_pec50__ro-none__desc-none__reg-tabpfn-v3__cal-none",
+      "spearman_rho": 0.6921605932115534
     },
     {
       "config": {
@@ -981,183 +1173,364 @@
     }
   ],
   "reason": "Descriptors add nothing detectable on top of an embedding and a readout. Among the featuresets nothing distinguishes from the leader, this one needs a single trained encoder rather than two, since the frozen CheMeleon embedding is off the shelf, and it has the steadiest seeds of the candidates.",
+  "separated_from_leader": false,
   "significance": {
     "against_leader": [
       {
-        "bh_threshold": 0.04273399014778326,
+        "bh_threshold": 0.042605042016806725,
         "p_value": 0.7063293670632936,
         "separated": false,
         "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.028448275862068967,
+        "bh_threshold": 0.028487394957983192,
         "p_value": 0.20577942205779423,
         "separated": false,
         "slug": "emb-chemeleon_log2fc256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.02056650246305419,
+        "bh_threshold": 0.020252100840336136,
         "p_value": 0.062993700629937,
         "separated": false,
         "slug": "emb-chemeleon256__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.02352216748768473,
+        "bh_threshold": 0.023445378151260507,
         "p_value": 0.09979002099790021,
         "separated": false,
         "slug": "emb-chemeleon256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.013669950738916256,
+        "bh_threshold": 0.013361344537815126,
         "p_value": 0.007599240075992401,
         "separated": true,
         "slug": "emb-chemeleon_log2fc256__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.013916256157635469,
+        "bh_threshold": 0.013529411764705882,
         "p_value": 0.0081991800819918,
         "separated": true,
         "slug": "emb-chemeleon256__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.001970443349753695,
+        "bh_threshold": 0.0006722689075630253,
         "p_value": 0.00019998000199980003,
         "separated": true,
         "slug": "emb-chemeleon_log2fc256__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.01145320197044335,
+        "bh_threshold": 0.010840336134453782,
         "p_value": 0.0017998200179982,
         "separated": true,
         "slug": "emb-chemeleon_log2fc256__ro-none__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.011330049261083745,
+        "bh_threshold": 0.010588235294117648,
         "p_value": 0.0015998400159984002,
         "separated": true,
         "slug": "emb-chemprop_log2fc__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.024261083743842365,
+        "bh_threshold": 0.024285714285714285,
         "p_value": 0.10698930106989302,
         "separated": false,
         "slug": "emb-chemeleon_pec50256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.02130541871921182,
+        "bh_threshold": 0.02126050420168067,
         "p_value": 0.0791920807919208,
         "separated": false,
         "slug": "emb-chemeleon_pec50256__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.009729064039408868,
+        "bh_threshold": 0.008823529411764707,
         "p_value": 0.000999900009999,
         "separated": true,
         "slug": "emb-chemeleon_log2fc256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.009236453201970444,
+        "bh_threshold": 0.00865546218487395,
         "p_value": 0.0007999200079992001,
         "separated": true,
         "slug": "emb-chemprop_log2fc__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.01785714285714286,
+        "bh_threshold": 0.0013445378151260507,
+        "p_value": 0.00019998000199980003,
+        "separated": true,
+        "slug": "emb-chemprop_pec50__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.008991596638655463,
+        "p_value": 0.000999900009999,
+        "separated": true,
+        "slug": "emb-chemprop_pec50__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.017394957983193276,
         "p_value": 0.0357964203579642,
         "separated": false,
         "slug": "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.010344827586206896,
+        "bh_threshold": 0.009663865546218488,
         "p_value": 0.0013998600139986002,
         "separated": true,
         "slug": "emb-chemprop_log2fc__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.018226600985221674,
+        "bh_threshold": 0.017647058823529415,
         "p_value": 0.0375962403759624,
         "separated": false,
         "slug": "emb-chemeleon_pec50256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.005788177339901478,
+        "bh_threshold": 0.006050420168067228,
         "p_value": 0.00019998000199980003,
         "separated": true,
         "slug": "emb-none__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.008004926108374385,
+        "bh_threshold": 0.0014285714285714286,
+        "p_value": 0.00019998000199980003,
+        "separated": true,
+        "slug": "emb-chemprop_pec50__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.0011764705882352942,
         "p_value": 0.00019998000199980003,
         "separated": true,
         "slug": "emb-chemprop_log2fc__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.008497536945812808,
+        "bh_threshold": 0.008067226890756304,
         "p_value": 0.0005999400059994001,
         "separated": true,
         "slug": "emb-chemprop_log2fc__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.015270935960591134,
+        "bh_threshold": 0.014873949579831933,
         "p_value": 0.013598640135986401,
         "separated": true,
         "slug": "emb-chemeleon_pec50256__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.00024630541871921186,
+        "bh_threshold": 0.001512605042016807,
         "p_value": 0.00019998000199980003,
         "separated": true,
         "slug": "emb-none__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.015886699507389163,
+        "bh_threshold": 0.015378151260504203,
         "p_value": 0.014998500149985002,
         "separated": true,
         "slug": "emb-chemeleon_pec50256__ro-none__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.00036945812807881776,
+        "bh_threshold": 0.001008403361344538,
+        "p_value": 0.00019998000199980003,
+        "separated": true,
+        "slug": "emb-chemprop_pec50__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.001092436974789916,
         "p_value": 0.00019998000199980003,
         "separated": true,
         "slug": "emb-chemprop_log2fc__ro-none__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.012931034482758622,
+        "bh_threshold": 0.01226890756302521,
         "p_value": 0.0035996400359964,
         "separated": true,
         "slug": "emb-chemeleon_pec50256__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.0004926108374384237,
+        "bh_threshold": 0.006554621848739496,
+        "p_value": 0.00019998000199980003,
+        "separated": true,
+        "slug": "emb-chemprop_pec50__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.006134453781512605,
         "p_value": 0.00019998000199980003,
         "separated": true,
         "slug": "emb-chemeleon256__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.0008620689655172414,
+        "bh_threshold": 0.006218487394957984,
+        "p_value": 0.00019998000199980003,
+        "separated": true,
+        "slug": "emb-chemprop_pec50__ro-none__desc-none__reg-tabpfn-v3__cal-none"
+      },
+      {
+        "bh_threshold": 0.0063025210084033615,
         "p_value": 0.00019998000199980003,
         "separated": true,
         "slug": "emb-none__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.0007389162561576355,
+        "bh_threshold": 8.403361344537817e-05,
         "p_value": 0.00019998000199980003,
         "separated": true,
         "slug": "emb-none__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none"
       },
       {
-        "bh_threshold": 0.0006157635467980297,
+        "bh_threshold": 0.00016806722689075633,
         "p_value": 0.00019998000199980003,
         "separated": true,
         "slug": "emb-none__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none"
       }
     ],
+    "comparison_intervals": {
+      "emb-chemeleon256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none": [
+        -0.007440642230453175,
+        0.04065989580675832
+      ],
+      "emb-chemeleon256__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.0020208598874016156,
+        0.04320529392406231
+      ],
+      "emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none": [
+        -0.016994298299537334,
+        0.023870472161479826
+      ],
+      "emb-chemeleon256__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        -0.004009092129518769,
+        0.03159419698165556
+      ],
+      "emb-chemeleon256__ro-none__desc-none__reg-tabpfn-v3__cal-none": [
+        -0.0048574115141779995,
+        0.07224589310138452
+      ],
+      "emb-chemeleon256__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.025488011076630023,
+        0.09432286003003369
+      ],
+      "emb-chemeleon_log2fc256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none": [
+        0.00843101598576012,
+        0.05240061492042629
+      ],
+      "emb-chemeleon_log2fc256__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.0021614217807526424,
+        0.03700153170236591
+      ],
+      "emb-chemeleon_log2fc256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none": [
+        -0.006945993655609086,
+        0.02265775767395091
+      ],
+      "emb-chemeleon_log2fc256__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.0,
+        0.0
+      ],
+      "emb-chemeleon_log2fc256__ro-none__desc-none__reg-tabpfn-v3__cal-none": [
+        0.007238549393596525,
+        0.047816206068893426
+      ],
+      "emb-chemeleon_log2fc256__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.008328307752716453,
+        0.041219381485930476
+      ],
+      "emb-chemeleon_pec50256__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none": [
+        -0.013599564737335375,
+        0.07154382346387024
+      ],
+      "emb-chemeleon_pec50256__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        -0.011469246598620315,
+        0.06952519943666796
+      ],
+      "emb-chemeleon_pec50256__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none": [
+        -0.006107056951292908,
+        0.08187266616346675
+      ],
+      "emb-chemeleon_pec50256__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.001697338300743107,
+        0.08661612615784814
+      ],
+      "emb-chemeleon_pec50256__ro-none__desc-none__reg-tabpfn-v3__cal-none": [
+        0.0004965217019539211,
+        0.09209452268731774
+      ],
+      "emb-chemeleon_pec50256__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.01055921346439172,
+        0.10044021994221991
+      ],
+      "emb-chemprop_log2fc__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none": [
+        0.009076801549825713,
+        0.061027948914904026
+      ],
+      "emb-chemprop_log2fc__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.007921554035196588,
+        0.05358375596913196
+      ],
+      "emb-chemprop_log2fc__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none": [
+        0.014904723106886085,
+        0.0699996261926602
+      ],
+      "emb-chemprop_log2fc__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.0067030396750227894,
+        0.051246381829215495
+      ],
+      "emb-chemprop_log2fc__ro-none__desc-none__reg-tabpfn-v3__cal-none": [
+        0.02267821502837317,
+        0.07712143596715451
+      ],
+      "emb-chemprop_log2fc__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.018641639408699118,
+        0.06303104508747708
+      ],
+      "emb-chemprop_pec50__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none": [
+        0.009586857436333002,
+        0.052126736221316604
+      ],
+      "emb-chemprop_pec50__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.011975894202896322,
+        0.049636759170127186
+      ],
+      "emb-chemprop_pec50__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none": [
+        0.02144485927280207,
+        0.07156928695051021
+      ],
+      "emb-chemprop_pec50__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.019397647451578362,
+        0.06066854684391579
+      ],
+      "emb-chemprop_pec50__ro-none__desc-none__reg-tabpfn-v3__cal-none": [
+        0.039953668759638815,
+        0.09575158336308665
+      ],
+      "emb-chemprop_pec50__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.033257426218784344,
+        0.08361505884941181
+      ],
+      "emb-none__ro-chemeleon_log2fc__desc-none__reg-tabpfn-v3__cal-none": [
+        0.06928900326464166,
+        0.14811648226973523
+      ],
+      "emb-none__ro-chemeleon_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.020586066125893785,
+        0.06960446665599135
+      ],
+      "emb-none__ro-chemprop_log2fc__desc-none__reg-tabpfn-v3__cal-none": [
+        0.05882688091519486,
+        0.13747754843353865
+      ],
+      "emb-none__ro-chemprop_log2fc__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.01721202256158248,
+        0.06041008812555865
+      ],
+      "emb-none__ro-none__desc-rdkit128__reg-tabpfn-v3__cal-none": [
+        0.06543029177651762,
+        0.13325759295760128
+      ]
+    },
     "fdr": 0.05,
-    "n_comparisons": 406,
-    "n_separated_pairs": 132,
+    "interval_alpha": 0.015630252100840337,
+    "leader_halfwidth": 0.0074219491028606095,
+    "n_comparisons": 595,
+    "n_separated_pairs": 186,
     "procedure": "all-pairwise paired bootstrap, Benjamini-Hochberg"
   },
   "stage": "ingredients",
   "version": 1,
-  "wall_clock_s": 1.755
+  "wall_clock_s": 2.149
 }
