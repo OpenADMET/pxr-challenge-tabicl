@@ -1,4 +1,4 @@
-"""Resolve a stage's gate into a recorded decision the next stage reads.
+"""Confirm a stage's declared decision and record it for the next stage.
 
 A staged sweep only reproduces if the decision between two stages is an
 artifact. Declaring the chain in the manifest is not enough: without this
@@ -7,25 +7,31 @@ typed by whoever ran it, so the chain is carried by shell history, a typo pins
 the sweep to a configuration nothing chose, and reproducing the work means
 rerunning the aggregation and reading a winner off a table by eye.
 
-So a gate is resolved once, from the completed runs of the stage that gates it,
-and written to ``results/gates/<gate_id>.json``. The file carries the chosen
-axis values, the rule that chose them, the ranking that rule was applied to,
-and the keys of the runs it read. Later stages load it instead of being told.
+So a gate is confirmed once, against the completed runs of the stage that
+gates it, and written to ``results/gates/<gate_id>.json``. The file carries the
+chosen axis values, the reason they were chosen, the ranking they were checked
+against, and the keys of the runs it read. Later stages load it instead of
+being told.
 
-Ties are decided rather than hidden, and by two bars rather than one. The
-ranking is by ensemble MAE. A difference smaller than compound sampling noise
-is not a result, so the leader is compared to every other configuration by a
-paired bootstrap over the 260 phase-2 compounds, and the ones it does not
-separate from are recorded as tied.
+Nothing here chooses. The decision is declared in the manifest with its reason,
+because at the top of these tables the configurations are statistically tied
+and any tie-break is a preference rather than a finding. A preference stated in
+prose can be argued with; the same preference expressed as a cost ordering
+cannot, and invites tuning the ordering until it returns the answer already
+believed. A declared choice the evidence now separates from the leader is
+honoured and logged, since the runs having moved is a judgement for whoever
+reads the log.
 
-That bar alone is too weak to decide on. At 260 compounds the bootstrap fails
-to separate configurations differing by ten times the run-to-run noise, so
-taking the cheapest thing it waves through would trade real accuracy for
-columns. A second bar decides: a saving counts as free only when it moves the
-metric less than changing the training seed does, measured by the leader's own
-spread across seeds. The cheapest configuration clearing both wins, cheap
-meaning fewer feature blocks and then fewer columns, and the file records the
-tied set, the affordable subset, the budget and whether cost decided it.
+What this module measures is the evidence a decision is answerable to. A
+configuration is scored by the mean of its seeds, because the subject is a
+single model and the seeds are replicates; the ensemble is carried alongside
+because the leaderboard anchor is one. Every pair is then compared by a paired
+bootstrap over the 260 phase-2 compounds, on one shared set of draws, and the
+family is corrected by Benjamini-Hochberg. Cost is recorded as three facts
+about a configuration, how many blocks it joins, how many encoders it has to
+train and how many columns it carries, and never as an ordering: whether any of
+that is worth a difference in score is a judgement, and judgements live in a
+decision's reason.
 """
 
 from __future__ import annotations

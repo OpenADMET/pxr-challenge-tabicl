@@ -23,9 +23,10 @@ decides nothing about what runs.
 Imputation and PCA are fitted on the fit partition alone and then applied to
 every molecule, test set included. That is the one place in the pipeline where a
 leak could enter, so it is the one place the fit rows are passed explicitly
-rather than inferred. The isotonic calibration arm is fitted on a held-out slice
-of the fit partition rather than on predictions the model was trained on; that
-arm is declared but not yet run, and the manifest says why.
+rather than inferred. Calibration is post-hoc and never part of a sweep: every
+run carries none, and `run/07_calibrate.py` fits a map afterwards on
+out-of-fold predictions, so nothing is calibrated on predictions the model was
+trained on.
 
 Compounds are matched across every stage by a canonical SMILES computed once, so
 a block joined to another block is joined on structure rather than on the string
@@ -82,7 +83,7 @@ only way to overwrite completed work.
 | `run/03_reduce.py` | reductions in `data/reduced/`, each fitted on the fit partition | minutes, and optional: the sweep builds any reduction it needs on demand |
 | `run/04_sweep.py` | a run directory per configuration and seed under `results/`, each holding predictions, metrics and a provenance record | the bulk of the compute |
 | `run/05_aggregate.py` | `results/results.parquet`, a coverage report, and any gate the completed stage settles | seconds |
-| `run/06_figures.py` | the manifest's figures, each a slice of the completed table | seconds |
+| `run/06_figures.py` | the manifest's figures, each measured as its own family | a minute, mostly bootstrap |
 
 `run/02_featurize.py` and `run/04_sweep.py` both take `--seeds`, which is how a
 run is spread across processes. Split by seed and never by block or cell: seeds
@@ -113,21 +114,20 @@ axis this rebuild does not have, and no cell reproduces them.
 
 Each stage sweeps every level of the dimensions it names and holds fixed only
 what an earlier stage settled. A stage that settles something writes a **gate**:
-a record in `results/gates/` naming the chosen level, the ranking behind it, the
-configurations a paired bootstrap could not separate from the leader, and the
-budget the tie-break used. Later stages read that file. Gates are tracked in git,
-because they are what a later stage runs against and a manifest cannot be
-reviewed without them.
+a record in `results/gates/` naming the chosen level, the reason it was chosen,
+the ranking it was checked against, and the configurations the paired bootstrap
+could not separate from the leader. Later stages read that file. Gates are
+tracked in git, because they are what a later stage runs against and a manifest
+cannot be reviewed without them.
 
 | Stage | Sweeps | Runs | Settles |
 |---|---|---|---|
 | `descriptor_width` | descriptor block against width | 60 | `canonical_descriptors` |
 | `embedding_width` | CheMeleon embedding width | 30 | `embedding_reduction` |
-| `ingredients` | which blocks, and which combination | 95 | `best_featureset` |
-| `regressor` | seven regressors, on the winning featureset | 35 | `best_regressor` |
-| `calibration` | isotonic against none | 10 | held; see the manifest |
+| `ingredients` | which blocks, and which combination | 145 | `best_featureset` |
+| `regressor` | six regressors, on the winning featureset | 30 | `best_regressor` |
 | `uncertainty` | nothing; reads runs already written | 0 | |
-| `gnn` | graph-network cells | 50 | no gate |
+| `gnn` | graph-network cells | 85 | no gate |
 
 Run order is not figure order. The two width probes run first because they need
 no trained encoder, and they are reported late.
@@ -138,16 +138,23 @@ python run/04_sweep.py --stage ingredients
 python run/05_aggregate.py
 ```
 
-A gate is decided from completed runs, not chosen by hand. `--fix AXIS=VALUE`
-overrides one for a deliberate off-plan run, and `--regate` re-decides a gate
-that already has a record. Neither is part of the normal path.
+A gate is declared in the manifest and confirmed against the completed runs,
+rather than computed from them. At the top of these tables the configurations
+are statistically tied, so any rule that picks between them is a preference
+dressed as a finding; the preference is written down with its reason, where it
+can be argued with, and `run/05_aggregate.py` checks it against the evidence and
+records both. A declared choice the runs now separate from the leader is
+honoured and logged rather than overridden. `--fix AXIS=VALUE` overrides a gate
+for a deliberate off-plan run, and `--regate` rewrites a record that already
+exists. Neither is part of the normal path.
 
-The gate rule is two bars, because one is not enough. A paired bootstrap over
-the 260 phase-2 compounds says which configurations the leader does not separate
-from, but at that sample size it fails to separate differences ten times the
-run-to-run noise. So a cheaper configuration may displace the leader only if its
-gap is also no larger than the leader's own standard deviation across seeds: the
-saving has to cost less than changing the training seed does.
+The evidence a decision answers to is an all-pairwise paired bootstrap over the
+260 phase-2 compounds, drawn once so every difference is paired, corrected by
+Benjamini-Hochberg at a false discovery rate of 0.05. Configurations are ranked
+on the mean over seeds, since the subject is a single model and the seeds are
+replicates rather than a way to build a better predictor. Cost is reported as
+three facts, blocks joined, encoders to train and columns carried, and never as
+an ordering.
 
 ## Reading the results
 

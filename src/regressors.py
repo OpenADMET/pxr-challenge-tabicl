@@ -1,4 +1,9 @@
-"""Stage three: one uniform adapter over the seven regressors the sweep fits.
+"""Stage three: one uniform adapter over the seven regressors this can fit.
+
+Six of them are swept. The manifest excludes tabpfn-v2.5, which returns NaN for
+every compound at the featureset the regressor stage runs, and records what was
+measured; the adapter stays here so the exclusion can be rechecked rather than
+taken on trust.
 
 Every regressor here answers the same three questions: what parameters it runs
 under, how to construct it, and how to get a prediction with an uncertainty out
