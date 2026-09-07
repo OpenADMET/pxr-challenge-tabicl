@@ -298,7 +298,11 @@ def comparison_frame(
                 "role": (CHOSEN if gate == this_gate else (CARRIED if slug in carried else SCORED)),
                 "p_value": p_values.get(slug),
                 "detail": row.get("detail", ""),
-                "origin": "" if gate == this_gate else origins.get(gate or "", ""),
+                # a titled row composes its own, naming the configuration its
+                # label no longer shows
+                "origin": (
+                    "" if gate == this_gate else row.get("origin") or origins.get(gate or "", "")
+                ),
                 # the leader is what every other row is compared against, and
                 # says so: with no line, it is the one row whose standing is
                 # silent, which reads as missing rather than as the reference

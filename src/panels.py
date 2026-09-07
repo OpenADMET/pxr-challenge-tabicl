@@ -128,7 +128,7 @@ def annotations(
     widths: tuple[str, ...] = ("descriptors",),
     freeze: bool = False,
     width_separator: str = " ",
-    titles: dict[str, str] | None = None,
+    titles: dict[str, tuple[str, str]] | None = None,
 ) -> dict[str, dict[str, str]]:
     """Name and describe each configuration, the way one figure wants it.
 
@@ -140,7 +140,8 @@ def annotations(
     A reference carried into a figure takes its declared title instead. Away
     from the family that established it, what matters about it is what it is,
     and a row labelled by its blocks among rows that differ in exactly those
-    blocks reads as one of them.
+    blocks reads as one of them. Its configuration goes into the line that
+    says where a reader met it, which is the line that has to name it anyway.
     """
     named: dict[str, dict[str, str]] = {}
     for config in configs:
@@ -156,13 +157,16 @@ def annotations(
             detail = tabular_detail(flat, dims, manifest)
         else:
             label, detail = plots.gnn_label(flat, freeze=freeze), gnn_detail(flat, dims)
-        title = (titles or {}).get(config.slug)
-        named[config.slug] = {
-            "label": title or label,
-            # the configuration is still worth reading, so a titled row says
-            # what it is made of on hover instead of in the column
-            "detail": f"<b>{plots.spelled(label)}</b><br>{detail}" if title else detail,
-        }
+        title, page = (titles or {}).get(config.slug, ("", ""))
+        named[config.slug] = {"label": title or label, "detail": detail}
+        if title:
+            # the row is drawn under its title, so the line saying where a
+            # reader met it carries the configuration too: one line naming what
+            # it is and where it came from, rather than a second bold heading
+            # competing with the row's own
+            named[config.slug]["origin"] = (
+                f"{plots.spelled(label)}, from {page.replace('fig', 'figure ')}"
+            )
     return named
 
 
@@ -574,15 +578,21 @@ def _annotate(evidence: dict[str, Any], named: dict[str, dict[str, str]]) -> Non
         row |= named.get(row["slug"], {})
 
 
-def _titles(manifest: Manifest, figure: str, gates_dir: Path | None = None) -> dict[str, str]:
-    """Map each carried reference's slug to the title it is drawn under.
+def _titles(
+    manifest: Manifest, figure: str, gates_dir: Path | None = None
+) -> dict[str, tuple[str, str]]:
+    """Map each carried reference's slug to the title and the page it came from.
 
     The figure that established a reference names it by its configuration,
     since that is what that figure is asking about. Everywhere else it is a
-    landmark and is named as one.
+    landmark, drawn under its title with the configuration moved into the
+    line that says where a reader met it.
     """
     return {
-        resolve(manifest, reference.id, gates_dir=gates_dir).slug: reference.title
+        resolve(manifest, reference.id, gates_dir=gates_dir).slug: (
+            reference.title,
+            ESTABLISHED_IN[reference.id][0],
+        )
         for reference in manifest.references
         if ESTABLISHED_IN.get(reference.id, ("", ""))[0] != figure
     }
