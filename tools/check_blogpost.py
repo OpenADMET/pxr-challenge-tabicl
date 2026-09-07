@@ -20,12 +20,17 @@ retire.
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import logging
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
+
+import numpy as np
+from scipy.stats import studentized_range
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -52,8 +57,14 @@ SCORE = re.compile(r"(?<![\d.])(0\.\d{3,4})(?![\d])")
 # a p-value as the post writes it, either decimal or scientific
 P_VALUE = re.compile(r"\*p\*\s*=\s*([0-9]*\.?[0-9]+(?:e-?[0-9]+)?)")
 
-# how close a quoted score has to be to a recorded one to count as that value
-SCORE_TOLERANCE = 5e-5
+
+# a quoted number is a rounding of a recorded one, so it matches anything that
+# rounds to it: half a unit in the last place the post actually printed
+def _rounds_to(recorded: float, text: str) -> bool:
+    """Whether a recorded value rounds to the decimal the post prints."""
+    places = len(text.split(".")[1]) if "." in text else 0
+    return abs(recorded - float(text)) <= 0.5 * 10**-places + 1e-12
+
 
 # Numbers the post cites from outside this repository. Nothing here can be
 # checked against a run, so each is listed with where it comes from and is
@@ -66,7 +77,9 @@ EXTERNAL = {
     "0.484": "N283T report, single-embedding comparison, AttentiveFP",
     "0.448": "N283T report, single-embedding comparison, KERMT",
     "0.408": "N283T report, their ensemble after calibration",
-    "0.6755": "CYP challenge live leaderboard, MA-ST-RAE, not this assay or metric",
+    "0.6755": "CYP challenge live leaderboard, our TabICL baseline, MA-ST-RAE",
+    "0.4326": "CYP challenge live leaderboard, current top entry, MA-ST-RAE",
+    "0.8335": "CYP challenge live leaderboard, the previous CheMeleon baseline, MA-ST-RAE",
 }
 
 
@@ -115,9 +128,7 @@ def recorded_values(
             if ensemble is not None:
                 values.append(Value(ensemble, "score", f"{name}, seed ensemble"))
         values.append(Value(significance["hsd"], "score", f"{panel.id} Tukey HSD"))
-        for row in significance["against_leader"]:
-            where = f"{panel.id} {label_of.get(row['slug'], row['slug'])} against the leader"
-            values.append(Value(row["p_value"], "p", where))
+        values += _all_pairs(panel, significance, label_of)
 
     # the anchor, which is published rather than measured here
     anchor = spec.anchor or {}
@@ -127,6 +138,33 @@ def recorded_values(
 
     values += _ensemble_sweep(spec, results_dir=results_dir, block_by_seed=block_by_seed)
     values += _uncertainty(results_dir=results_dir)
+    return values
+
+
+def _all_pairs(panel: Any, significance: dict[str, Any], label_of: dict[str, str]) -> list[Value]:
+    """Return a p-value for every pair on a panel, not only against its leader.
+
+    Tukey compares every pair under one critical distance, and the post uses
+    that: a claim like "RDKit at 128 separates from every one of them" is a
+    row against another row rather than against the panel's leader. Checking
+    only the leader column would report those as unmatched.
+    """
+    per_seed = {
+        row["slug"]: row["per_seed"] for row in panel.evidence["ranking"] if row.get("per_seed")
+    }
+    diagnostics = significance.get("diagnostics") or {}
+    mse, df = diagnostics.get("mse"), diagnostics.get("df_resid")
+    groups, blocks = diagnostics.get("groups"), diagnostics.get("blocks")
+    if not all(isinstance(v, (int, float)) for v in (mse, df, groups, blocks)):
+        return []
+
+    means = {slug: float(np.mean(seeds)) for slug, seeds in per_seed.items()}
+    values = []
+    for left, right in itertools.combinations(sorted(means), 2):
+        q = abs(means[left] - means[right]) / np.sqrt(mse / blocks)
+        p_value = float(studentized_range.sf(q, groups, df))
+        where = f"{panel.id} {label_of.get(left, left)} against {label_of.get(right, right)}"
+        values.append(Value(p_value, "p", where))
     return values
 
 
@@ -225,15 +263,14 @@ def quoted_numbers(text: str) -> list[Finding]:
 def resolve(findings: list[Finding], values: list[Value]) -> list[Finding]:
     """Attach every recorded value a quoted number could be."""
     for finding in findings:
-        quoted = float(finding.quoted)
         for value in values:
             if value.kind != finding.kind:
                 continue
             if finding.kind == "score":
-                if abs(value.number - quoted) <= SCORE_TOLERANCE:
+                if _rounds_to(value.number, finding.quoted):
                     finding.matches.append(value.where)
             # a p-value is quoted rounded, so it matches at the precision given
-            elif _same_p(quoted, value.number, finding.quoted):
+            elif _same_p(float(finding.quoted), value.number, finding.quoted):
                 finding.matches.append(value.where)
     return findings
 
