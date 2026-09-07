@@ -189,3 +189,24 @@ def test_a_separated_row_takes_a_grey_whisker_whatever_its_colour():
     row = frame[frame["slug"] == "b"].iloc[0]
     assert row["colour"] == plots.IDENTITY_COLOUR["best_gnn"]
     assert row["whisker"] == plots.VERDICT_COLOUR[plots.SEPARATED]
+
+
+def test_a_decisive_p_value_is_not_rounded_to_zero():
+    # four decimals print every decisive comparison as 0.0000, which reads as
+    # certainty rather than as a number too small to write
+    assert plots.p_text(2.0e-07) == ": p=2.0e-07"
+    assert plots.p_text(3.1e-15) == ": p=3.1e-15"
+
+
+def test_an_ordinary_p_value_keeps_its_decimals():
+    assert plots.p_text(0.0234) == ": p=0.0234"
+    assert plots.p_text(plots.P_FLOOR) == ": p=0.0010"
+
+
+def test_an_untested_row_is_given_no_p_value():
+    # a reference is drawn where its score puts it and tested against nothing
+    assert plots.p_text(None) == ""
+
+
+def test_an_underflowed_p_value_says_so_rather_than_claiming_zero():
+    assert plots.p_text(0.0) == ": p≈0"

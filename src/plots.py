@@ -57,6 +57,10 @@ logger = logging.getLogger(__name__)
 TIED = "tied with best"
 SEPARATED = "worse than best"
 
+# below this a p-value is written in scientific notation, since four decimals
+# would print it as zero
+P_FLOOR = 0.001
+
 # A verdict is drawn in grey, dark for a row the procedure does not separate
 # from the leader and light for one it does. Colour is then spent entirely on
 # identity: a hue means a particular configuration and nothing else, and a row
@@ -319,7 +323,7 @@ def comparison_frame(
                 "verdict": (
                     "best"
                     if slug == leader
-                    else f"{SEPARATED if is_separated else TIED}: p={p_values.get(slug, 0):.4f}"
+                    else f"{SEPARATED if is_separated else TIED}{p_text(p_values.get(slug))}"
                 ),
             }
         )
@@ -360,6 +364,36 @@ def comparison_frame(
         f'<span style="color:{row["colour"]}">{row["label"]}</span>' for _, row in frame.iterrows()
     ]
     return frame
+
+
+def p_text(p_value: float | None) -> str:
+    """Return a p-value as a tooltip reads it, in scientific notation once tiny.
+
+    Four decimals put every decisive comparison at ``0.0000``, which reads as a
+    p-value of zero rather than as one too small to write. Scientific notation
+    keeps them apart and keeps them ordered, which a ``< 0.001`` bound would
+    flatten; it also keeps a bare ``<`` out of the hover text, where an entity
+    would not be parsed and a raw one is at the mercy of plotly's own parser.
+
+    Parameters
+    ----------
+    p_value : float or None
+        None where the row was not tested, which is drawn without a p-value
+        rather than with a made-up one.
+
+    Returns
+    -------
+    str
+        Ready to append to a verdict, empty when there is nothing to say.
+    """
+    if p_value is None:
+        return ""
+    if p_value <= 0.0:
+        # underflow rather than certainty, and said as such
+        return ": p\u22480"
+    if p_value < P_FLOOR:
+        return f": p={p_value:.1e}"
+    return f": p={p_value:.4f}"
 
 
 def _hover(row: pd.Series) -> str:
