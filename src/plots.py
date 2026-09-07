@@ -619,6 +619,14 @@ def gnn_label(
     held = int(config["freeze_epochs"]) >= frozen_at
     name = BODY.get(str(config["encoder_init"]), str(config["encoder_init"]))
 
+    # whether the body was released is a fact about that body, so it is said
+    # where the body is named. Trailing it reads as though it applied to the
+    # auxiliary arm, or to the configuration as a whole
+    if held:
+        name += " (frozen)"
+    elif freeze:
+        name += f" (warmup {int(config['freeze_epochs'])})"
+
     # the auxiliary arm is a second network feeding the same predictor, so it
     # is joined with a circled plus rather than the plain one that joins the
     # feature blocks of a tabular row: nothing is concatenated into a table
@@ -635,15 +643,10 @@ def gnn_label(
         name += f" \u2295 {target} ({', '.join(halves)})"
 
     # the head's width is a property of the predictor rather than something
-    # added to the inputs, so it follows them behind a comma
-    parts = [name]
+    # added to the inputs, so it follows behind a comma
     if width:
-        parts.append(f"FFN {config['ffn_hidden_dim']}")
-    if held:
-        parts.append("frozen")
-    elif freeze:
-        parts.append(f"freeze {int(config['freeze_epochs'])}")
-    return ", ".join(parts)
+        name += f", FFN {config['ffn_hidden_dim']}"
+    return name
 
 
 def darken(colour: str, factor: float = 0.78) -> str:
