@@ -945,7 +945,8 @@ def comparison_figure(
         figure.add_trace(trace, row=1, col=1)
 
     figure.update_layout(**_layout(max(len(frame) for frame in frames)))
-    figure.update_xaxes(tickfont=BOLD)
+    figure.update_xaxes(tickfont=BOLD, gridcolor=GRID)
+    figure.update_yaxes(showgrid=False)
     figure.update_annotations(font={"size": 13})
     return figure
 
@@ -978,7 +979,13 @@ def _layout(n_rows: int) -> dict[str, Any]:
 # solid: plotly draws a shape at layer "below" beneath the traces but still
 # over the axis grid, so an opaque fill would wipe the gridlines out of the
 # band exactly where a reader is trying to place a row
-BAND = "rgba(100, 109, 122, 0.04)"
+BAND = "rgba(100, 109, 122, 0.06)"
+
+# the grid, darker than plotly_white's #EBF0F8 so it reads through the band.
+# Compositing the band over a gridline costs the same fraction of contrast
+# as it costs the background, so a line stays as legible inside the band as
+# outside it
+GRID = "#d5dbe3"
 
 
 # the legend describes the encoding, not the rows: the two verdict colours and
@@ -1158,8 +1165,8 @@ def uncertainty_figure(
     figure.update_yaxes(title_text="<b>absolute error</b>", row=1, col=1)
     figure.update_xaxes(title_text="<b>nominal coverage</b>", range=[0, 1], row=1, col=2)
     figure.update_yaxes(title_text="<b>observed coverage</b>", range=[0, 1], row=1, col=2)
-    figure.update_xaxes(tickfont=BOLD)
-    figure.update_yaxes(tickfont=BOLD)
+    figure.update_xaxes(tickfont=BOLD, gridcolor=GRID)
+    figure.update_yaxes(tickfont=BOLD, gridcolor=GRID)
     # both panels carry their own axis titles, so the margin has to hold one
     layout = {**_layout(6), "height": 420}
     layout["margin"] = {"l": 70, "r": 30, "t": 20, "b": 60}
@@ -1338,6 +1345,9 @@ def ensemble_figure(
         row=1,
         col=2,
     )
+
+    figure.update_xaxes(gridcolor=GRID)
+    figure.update_yaxes(gridcolor=GRID)
 
     layout = _layout(len(sizes))
     layout["height"] = 460
