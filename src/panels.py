@@ -941,12 +941,14 @@ def gnn_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> str:
     # than restated here
     level = "chemeleon" if chemeleon else "chemprop_log2fc"
     width = dims.get(("embedding", level))
-    began = trained_as(None, None) if chemeleon else trained_as(False, "log2fc")
     lines = [
-        "model: Chemprop",
+        # the checkpoint this network started as, named as the label names it.
+        # A description of training would belong to the checkpoint rather than
+        # to this run, and would contradict the fine-tuned line below
+        f"model: {plots.BODY.get(str(config['encoder_init']), config['encoder_init'])}",
         # released is the ordinary case and the label says frozen when it is
         # not, so only the exception is worth a word here
-        f"MPNN: {began}" + (f", {width} wide" if width else "") + (", frozen" if frozen else ""),
+        f"MPNN: {width} wide" + (", frozen" if frozen else ""),
         f"predictor head: {config['ffn_hidden_dim']} wide",
         f"fine-tuned on: {plots.PRETTY.get(finetune, finetune)}",
     ]
