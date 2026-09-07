@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -206,6 +207,83 @@ def held(
     return kept, hold
 
 
+def marginal(
+    manifest: Manifest,
+    axis: str,
+    hold: dict[str, Any],
+    *,
+    results_dir: Path = aggregate.RESULTS_DIR,
+    frozen_at: int = FROZEN_AT,
+) -> dict[str, float]:
+    """Return each level of an axis, averaged over the architectures that carry it.
+
+    The number a level is pinned on. It is a mean of per-cell seed means with
+    one weight per architecture, not a mean over runs: the cells differ by a
+    factor of five in seed spread, and pooling runs would let the noisiest of
+    them decide a training setting.
+
+    Only architectures carrying every level counted are included, so the levels
+    are compared over the same set. A level one architecture happens to have
+    and another does not says nothing about the level.
+
+    Returns
+    -------
+    dict
+        Level mapped to its mean, empty where no architecture carries more than
+        one level of the axis.
+    """
+    groups = _families(manifest, axis, hold, frozen_at=frozen_at)
+    if not groups:
+        return {}
+
+    levels = set.intersection(*({str(cell.as_dict()[axis]) for cell in g} for g in groups))
+    if len(levels) < 2:
+        return {}
+
+    scored = {
+        row["slug"]: row["mae"]
+        for row in gates.scores(
+            [cell for group in groups for cell in group], manifest, results_dir=results_dir
+        )
+    }
+    means: dict[str, float] = {}
+    for level in sorted(levels):
+        at = [
+            scored[cell.slug]
+            for group in groups
+            for cell in group
+            if str(cell.as_dict()[axis]) == level
+        ]
+        means[level] = float(np.mean(at))
+    return means
+
+
+def _families(
+    manifest: Manifest, axis: str, hold: dict[str, Any], *, frozen_at: int = FROZEN_AT
+) -> list[list[Any]]:
+    """Group the cells that differ in nothing but one axis.
+
+    The only place a level of that axis can be judged. Cells that merely share
+    the other held levels differ in what the figure is about, so the best of
+    those says nothing about the setting.
+    """
+    candidates = [
+        cell
+        for cell in manifest.gnn_cells
+        if int(cell.as_dict()["freeze_epochs"]) < frozen_at
+        and all(
+            str(cell.as_dict().get(name)) == str(value)
+            for name, value in hold.items()
+            if name != axis
+        )
+    ]
+    groups: dict[tuple, list[Any]] = {}
+    for cell in candidates:
+        rest = tuple(sorted((k, str(v)) for k, v in cell.as_dict().items() if k != axis))
+        groups.setdefault(rest, []).append(cell)
+    return [group for group in groups.values() if len({str(c.as_dict()[axis]) for c in group}) > 1]
+
+
 def check_held(
     manifest: Manifest,
     hold: dict[str, Any],
@@ -228,22 +306,18 @@ def check_held(
     the best of those says nothing about the setting.
     """
     for axis, level in hold.items():
-        candidates = [
-            cell
-            for cell in manifest.gnn_cells
-            if int(cell.as_dict()["freeze_epochs"]) < frozen_at
-            and all(
-                str(cell.as_dict().get(name)) == str(value)
-                for name, value in hold.items()
-                if name != axis
+        means = marginal(manifest, axis, hold, results_dir=results_dir, frozen_at=frozen_at)
+        if means:
+            best = min(means, key=lambda name: means[name])
+            logger.info(
+                "figure 1: %s averaged over the architectures carrying it, %s; best %s, held %s",
+                axis,
+                ", ".join(f"{name} {value:.4f}" for name, value in means.items()),
+                best,
+                level,
             )
-        ]
-        groups: dict[tuple, list[Any]] = {}
-        for cell in candidates:
-            rest = tuple(sorted((k, str(v)) for k, v in cell.as_dict().items() if k != axis))
-            groups.setdefault(rest, []).append(cell)
 
-        for family in groups.values():
+        for family in _families(manifest, axis, hold, frozen_at=frozen_at):
             if len({str(cell.as_dict()[axis]) for cell in family}) < 2:
                 continue
             measured = gates.measure(

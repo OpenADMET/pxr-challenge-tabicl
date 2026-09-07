@@ -557,12 +557,12 @@ def _key(config: RunConfig, seed: int, splits: SplitPaths) -> str:
 def test_the_auxiliary_encoder_is_shared_across_the_cells_that_agree_on_it(tiny_splits):
     keys = {cell_id: _key(config, 0, tiny_splits) for cell_id, config in _cell_configs()}
 
-    # 9 cells carry an auxiliary arm and they ask for a single encoder per seed.
-    # The auxiliary fit reads the cell's gradient clip, so holding the clip at
-    # one value leaves nothing for them to disagree on: the main model's width,
-    # freeze schedule, and which parts of the arm it concatenates are not the
-    # encoder's to care about
-    assert len(keys) == 9
+    # 11 cells carry an auxiliary arm and they ask for a single encoder per
+    # seed. The auxiliary fit reads the cell's gradient clip, so holding the
+    # clip at one value leaves nothing for them to disagree on: the main
+    # model's width, freeze schedule, and which parts of the arm it
+    # concatenates are not the encoder's to care about
+    assert len(keys) == 11
     assert len(set(keys.values())) == 1
 
 

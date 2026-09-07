@@ -567,6 +567,65 @@ gnn:
         aux_encoder: null
       prior: pxr_baseline_chemeleon_pec50
 
+    # The four cells above, again at a warmup of 0. Figure 1 holds the warmup
+    # fixed, and the level held is 0: within the concat grid, which is the one
+    # place both widths and all three warmups were crossed, 0 has the best
+    # marginal mean over widths at 0.5357 against 0.5371 for 2 and 0.5601 for
+    # 1. The grid is one architecture, so these twins are what make the
+    # marginal a comparison across architectures rather than an extrapolation
+    # from that block: with them, warmups 0 and 2 exist for all five cells that
+    # release the body, at one width.
+    #
+    # They carry no prior link. The previous generation ran its own warmup and
+    # a cell here is a configuration rather than a rerun of one of its rows.
+
+    - id: chemeleon_pec50_warm0
+      title: CheMeleon fine-tuned on pEC50, no auxiliary encoder, warmup 0
+      axes:
+        encoder_init: chemeleon
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 0
+        gradient_clip_val: 0.5
+        aux_encoder: null
+
+    - id: e4_finetune_warm0
+      title: E4, warmup 0 then unfreeze
+      axes:
+        encoder_init: log2fc_checkpoint
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 0
+        gradient_clip_val: 0.5
+        aux_encoder: null
+
+    - id: readout_predicted_2task_warm0
+      title: Predicted log2FC readout, two tasks, warmup 0
+      axes:
+        encoder_init: chemeleon
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 0
+        gradient_clip_val: 0.5
+        aux_encoder:
+          target: log2fc
+          use_observed_readout: false
+          use_predicted_readout: true
+
+    - id: readout_predicted_only_warm0
+      title: Predicted log2FC readout without the auxiliary embedding, warmup 0
+      axes:
+        encoder_init: chemeleon
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 0
+        gradient_clip_val: 0.5
+        aux_encoder:
+          target: log2fc
+          use_observed_readout: false
+          use_predicted_readout: true
+          use_embedding: false
+
 # ---------------------------------------------------------------------------
 # Reference points are configurations the figures carry for recognition. They
 # settle no axis and gate nothing, so they are not gates; what they have in
@@ -638,29 +697,35 @@ figures:
   - id: fig1
     title: Graph-network baselines
     question: Where does a fine-tuned message-passing network land on the challenge split?
-    # Two settings this figure holds rather than shows. Both were swept in the
-    # concat stage and neither is a question the figure asks, so every row
-    # carries the level named here and the rest are left out. A level held is
-    # a decision like a gate's: declared with its reason, checked against the
-    # runs, and never read off them.
+    # Two settings this figure holds rather than shows. Both were swept and
+    # neither is a question the figure asks, so every row carries the level
+    # named here and the rest are left out. A level held is a decision like a
+    # gate's: declared with its reason, checked against the runs, and never
+    # read off them.
     #
     # freeze_epochs is the warmup, the epochs the body stays frozen before it
-    # is released. It is held at 2. The best of the three is 0, which the
-    # paired test does not separate from 2 at p = 0.52, and 1 is separated from
-    # both. Holding at 2 rather than at the nominal best is what makes the rest
-    # of the table comparable: every named cell runs at 2, including the three
-    # that decompose the auxiliary arm, so a difference between them is the
-    # thing they differ in rather than a warmup as well.
+    # is released. It is held at 2, which is the better level averaged over the
+    # five architectures that carry both: 0.5057 against 0.5241 for a warmup of
+    # 0. It wins three of the five, and the asymmetry is what decides it: where
+    # 2 wins it wins separably, at p = 0.0006 and p = 0.0042 with a third at
+    # 0.056, and where 0 wins it wins by 0.008 and 0.0005 at p = 0.52 and
+    # p = 0.97, which is to say it does not.
+    #
+    # The concat grid alone says the opposite, 0.5357 for a warmup of 0 against
+    # 0.5371 for 2. That grid is one architecture, and one of the two where 0
+    # leads without separating. Four cells were run again at a warmup of 0 to
+    # settle it across architectures rather than extrapolate from that block,
+    # and they are why the marginal above is a comparison rather than a guess.
     #
     # A body held at or above the epoch budget is never released, which is a
     # different question from how long a warmup runs, and those cells stay.
     #
     # ffn_hidden_dim is the predictor head's width. It is held at 512, which
-    # beat 1024 at every warmup and is separated from it at p = 0.001 to 0.006.
-    # The width was probed once, inside the concat architecture, and lost;
-    # nothing crossed it with the questions the named cells ask, so a single
-    # 1024 row among eight at 512 would read as a gap in a grid rather than as
-    # a probe that was answered.
+    # beat 1024 at every warmup, 0.5229 against 0.5513 averaged, and is
+    # separated from it at p = 0.001 to 0.006. The width was probed once,
+    # inside the concat architecture, and lost; nothing crossed it with the
+    # questions the named cells ask, so a single 1024 row among eight at 512
+    # would read as a gap in a grid rather than as a probe that was answered.
     hold:
       freeze_epochs: 2
       ffn_hidden_dim: 512
