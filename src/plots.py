@@ -360,13 +360,12 @@ def _hover(row: pd.Series) -> str:
     be shown as it was typed.
     """
     lines = [f"<b>{spelled(_visible(row['label']))}</b>"]
-    # how this row stands comes before anything else about it: it is what a
-    # reader hovered to find out, and the leader saying "best" answers the same
-    # question everybody else's p-value answers
-    if row["verdict"]:
-        lines.append(row["verdict"])
+    # where a reader has met this row comes first, since it says what the row
+    # is; how it stands here comes next, which is what they hovered to find out
     if row["origin"]:
         lines.append(f"<i>{row['origin']}</i>")
+    if row["verdict"]:
+        lines.append(row["verdict"])
     lines.append(f"MAE {row['mae']:.4f}")
     if pd.notna(row["seed_spread"]):
         lines[-1] += f" \u00b1 {row['seed_spread']:.4f} over seeds"
@@ -645,6 +644,21 @@ def gnn_label(
     return name
 
 
+def readable_on(colour: str) -> str:
+    """Return the text colour a tooltip needs over this background.
+
+    Plotly fills a tooltip with the trace's own colour and picks the text to
+    match, and it picks black on colours dark enough to swallow it. The choice
+    is made here instead, from relative luminance: dark grounds take white text
+    and light ones take near-black.
+    """
+    value = colour.lstrip("#")
+    channels = [int(value[i : i + 2], 16) / 255 for i in (0, 2, 4)]
+    linear = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+    luminance = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+    return "#24292f" if luminance > 0.4 else "#ffffff"
+
+
 def darken(colour: str, factor: float = 0.78) -> str:
     """Return a darker shade of a hex colour, for a marker's own outline.
 
@@ -734,6 +748,7 @@ def row_traces(frame: pd.DataFrame) -> list[go.Scatter]:
                 },
                 customdata=group[["hover"]].to_numpy(),
                 hovertemplate="%{customdata[0]}<extra></extra>",
+                hoverlabel={"font": {"color": readable_on(colour)}},
                 legendgroup=_band(group),
                 showlegend=False,
             )
