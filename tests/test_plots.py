@@ -286,8 +286,26 @@ def test_a_spread_source_the_sweep_did_not_record_is_left_off():
     frame = _ensemble_frame().drop(columns=["spearman_model"])
 
     figure = plots.ensemble_figure(frame)
-    assert "model spread" not in {t.name for t in figure.data}
-    assert "ensemble spread" in {t.name for t in figure.data}
+    on_spread_panel = [t for t in figure.data if t.xaxis == "x2"]
+    assert [t.legendgroup for t in on_spread_panel] == ["ensemble"]
+
+
+def test_the_key_names_each_colour_once():
+    # both panels draw one fitted model against the five seeds taken together,
+    # so a second entry per colour would read as a second thing being measured
+    figure = plots.ensemble_figure(_ensemble_frame())
+
+    shown = [t.name for t in figure.data if t.showlegend is not False]
+    assert shown == [plots.ENSEMBLE_LABEL["single"], plots.ENSEMBLE_LABEL["ensemble"]]
+    assert len(figure.data) == 4
+
+
+def test_the_axes_are_bounded_the_same_way_for_every_sweep():
+    # a later sweep is read against this one, which a fitted range would break
+    figure = plots.ensemble_figure(_ensemble_frame())
+
+    assert tuple(figure.layout.yaxis.range) == plots.ENSEMBLE_RANGE
+    assert tuple(figure.layout.yaxis2.range) == plots.SPEARMAN_RANGE
 
 
 def test_a_reference_is_drawn_as_a_rule_rather_than_a_row():

@@ -1156,10 +1156,15 @@ def uncertainty_figure(
 # they keep the same colours
 ENSEMBLE_COLOUR = {"single": SPREAD_COLOUR["model"], "ensemble": SPREAD_COLOUR["ensemble"]}
 
-ENSEMBLE_LABEL = {
-    "single": "one model, averaged over seeds",
-    "ensemble": "the five seeds ensembled",
-}
+# one entry per colour rather than per curve. Both panels draw the same
+# distinction, one fitted model against the five seeds taken together, so the
+# key names it once and the right panel joins the left panel's groups
+ENSEMBLE_LABEL = {"single": "one model", "ensemble": "the five seeds"}
+
+# axis bounds are fixed rather than fitted, so a later sweep is read against
+# the same scale as this one
+ENSEMBLE_RANGE = (0.40, 0.60)
+SPEARMAN_RANGE = (0.0, 0.35)
 
 
 def ensemble_figure(
@@ -1208,15 +1213,7 @@ def ensemble_figure(
 
     ordered = frame.sort_values("n_estimators")
     sizes = ordered["n_estimators"].tolist()
-    figure = make_subplots(
-        rows=1,
-        cols=2,
-        horizontal_spacing=0.09,
-        subplot_titles=[
-            "Error against ensemble size",
-            "Does the predicted spread rank the error?",
-        ],
-    )
+    figure = make_subplots(rows=1, cols=2, horizontal_spacing=0.09)
 
     figure.add_trace(
         go.Scatter(
@@ -1224,6 +1221,7 @@ def ensemble_figure(
             y=ordered["mae"],
             mode="lines+markers",
             name=ENSEMBLE_LABEL["single"],
+            legendgroup="single",
             line={"color": ENSEMBLE_COLOUR["single"], "width": 2.4},
             marker={"size": 9, "color": ENSEMBLE_COLOUR["single"]},
             error_y={
@@ -1246,6 +1244,7 @@ def ensemble_figure(
             y=ordered["ensemble_mae"],
             mode="lines+markers",
             name=ENSEMBLE_LABEL["ensemble"],
+            legendgroup="ensemble",
             line={"color": ENSEMBLE_COLOUR["ensemble"], "width": 2.4},
             marker={"size": 9, "symbol": "diamond", "color": ENSEMBLE_COLOUR["ensemble"]},
             hovertemplate="%{x} members<br>seed ensemble MAE %{y:.4f}<extra></extra>",
@@ -1273,14 +1272,23 @@ def ensemble_figure(
         column = f"spearman_{source}"
         if column not in ordered:
             continue
+        group = "single" if source == "model" else "ensemble"
         figure.add_trace(
             go.Scatter(
                 x=sizes,
                 y=ordered[column],
                 mode="lines+markers",
-                name=f"{source} spread",
+                name=ENSEMBLE_LABEL[group],
+                legendgroup=group,
+                # the key is the left panel's; this curve is the same thing
+                # measured a different way and adds no entry of its own
+                showlegend=False,
                 line={"color": SPREAD_COLOUR[source], "width": 2.4},
-                marker={"size": 9, "color": SPREAD_COLOUR[source]},
+                marker={
+                    "size": 9,
+                    "symbol": "diamond" if group == "ensemble" else "circle",
+                    "color": SPREAD_COLOUR[source],
+                },
                 hovertemplate=(
                     f"%{{x}} members<br>{source} spread, Spearman %{{y:.3f}}<extra></extra>"
                 ),
@@ -1301,9 +1309,19 @@ def ensemble_figure(
             row=1,
             col=column,
         )
-    figure.update_yaxes(title_text=f"<b>{metric_label}</b>", tickfont=BOLD, row=1, col=1)
     figure.update_yaxes(
-        title_text="<b>Spearman, spread against |residual|</b>", tickfont=BOLD, row=1, col=2
+        title_text=f"<b>{metric_label}</b>",
+        range=list(ENSEMBLE_RANGE),
+        tickfont=BOLD,
+        row=1,
+        col=1,
+    )
+    figure.update_yaxes(
+        title_text="<b>Spearman, spread against |residual|</b>",
+        range=list(SPEARMAN_RANGE),
+        tickfont=BOLD,
+        row=1,
+        col=2,
     )
 
     layout = _layout(len(sizes))
