@@ -357,7 +357,7 @@ def _hover(row: pd.Series) -> str:
     hovertemplate is not parsed as markup beyond its tags, so an entity would
     be shown as it was typed.
     """
-    lines = [f"<b>{_visible(row['label'])}</b>"]
+    lines = [f"<b>{_spelled(_visible(row['label']))}</b>"]
     if row["origin"]:
         lines.append(f"<i>{row['origin']}</i>")
     lines.append(f"MAE {row['mae']:.4f}")
@@ -454,10 +454,14 @@ def varying_axes(ranking: list[dict[str, Any]]) -> tuple[str, ...]:
     return tuple(axis for axis in axes if len({str(row["config"][axis]) for row in ranking}) > 1)
 
 
-# a block whose width is not shown is named by what kind of block it is, since
+# A block whose width is not shown is named by what kind of block it is, since
 # the level alone ("CheMeleon") does not say whether it is an embedding, a
-# readout or a descriptor set
+# readout or a descriptor set. Two are abbreviated, because a figure of
+# combinations spends its width on them three at a time; a tooltip has the room
+# to say them in full and EXPANDED puts them back.
 BLOCK_NOUN = {"embedding": "emb.", "descriptors": "descriptors"}
+READOUT_NOUN = "r.o."
+EXPANDED = {" emb.": " embedding", f" {READOUT_NOUN}": " readout"}
 
 
 def label_for(
@@ -520,7 +524,7 @@ def label_for(
         # a readout is two predicted columns, not an embedding, and the two are
         # produced by the same networks, so the name has to say which it is
         if axis == "readout":
-            name = f"{name} r.o."
+            name = f"{name} {READOUT_NOUN}"
         elif not shown and axis in BLOCK_NOUN:
             name = f"{name} {BLOCK_NOUN[axis]}"
         parts.append(f"{name}{suffix}")
@@ -539,6 +543,13 @@ def label_for(
 # this project's own checkpoint pretrained on log2FC, which is what a network
 # was trained to predict and never a body of its own
 BODY = {"chemeleon": "CheMeleon", "log2fc_checkpoint": f"Chemprop {LOG2FC}"}
+
+
+def _spelled(label: str) -> str:
+    """Return a name with the label column's abbreviations written out."""
+    for short, full in EXPANDED.items():
+        label = label.replace(short, full)
+    return label
 
 
 def _visible(label: str) -> str:

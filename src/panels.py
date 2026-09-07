@@ -814,20 +814,35 @@ def _columns(directory: Path) -> int | None:
     return len(pq.ParquetFile(written[0]).schema.names) - 1
 
 
+# an indent inside a tooltip: HTML eats ordinary spaces, so the two that set a
+# stanza's lines under its heading have to be non-breaking
+INDENT = "\u00a0\u00a0"
+
+
+def trained_as(from_foundation: Any, target: str | None) -> str:
+    """Say where a network came from, in the words every tooltip uses.
+
+    Two facts and no more: what it started as, and what it was trained on. A
+    checkpoint used unmodified was trained on nothing here and says so instead.
+    """
+    if target is None:
+        return "CheMeleon published checkpoint"
+    origin = "CheMeleon" if from_foundation else "Chemprop"
+    return f"{origin}, {plots.PRETTY.get(target, target)} trained"
+
+
 def provenance(axis: str, level: str, manifest: Manifest) -> str:
-    """Say where a feature block came from, in one clause.
+    """Say which network produced a feature block.
 
     A block name says what a column is called and not what produced it, and
-    four of these blocks are outputs of networks this project trained. The
-    graph-network tooltips say which checkpoint a body started from and what it
-    was fine-tuned on; a tabular row carrying that same network's output should
-    say the same thing, since "CheMeleon log2FC" and "Chemprop log2FC" differ in
-    exactly that and in nothing a label shows.
+    four of these blocks are outputs of networks this project trained.
+    "CheMeleon log2FC" and "Chemprop log2FC" differ in exactly that and in
+    nothing a label shows.
 
     Read from the encoder specifications rather than restated here, so a block
-    that changes what it trains cannot keep an old description. Phrased as
-    briefly as the graph-network lines it sits beside: what the encoder started
-    from and what it was trained on, and nothing a reader can already see.
+    that changes what it trains cannot keep an old description. A block nothing
+    trains says nothing: descriptors are computed from structure, and the
+    foundation embedding is the checkpoint as published.
     """
     spec = (manifest.axes.get(axis) or {}).get(level) or {}
     blocks = spec.get("blocks") or ([spec["block"]] if spec.get("block") else [])
@@ -842,15 +857,9 @@ def provenance(axis: str, level: str, manifest: Manifest) -> str:
     for block in blocks:
         declared = BLOCK_SPECS.get(block)
         if declared is None:
-            # a block nothing trains: descriptors, or the foundation embedding
-            # taken off the shelf
-            # a block nothing trains: descriptors say nothing, and the
-            # foundation embedding says only that it is unmodified
-            described.append("CheMeleon checkpoint, as published" if block == "chemeleon" else "")
+            described.append(trained_as(None, None) if block == "chemeleon" else "")
             continue
-        target = plots.PRETTY.get(declared.target, declared.target)
-        start = declared.defaults.get("from_foundation")
-        described.append(f"{'from CheMeleon' if start else 'from scratch'} on {target}")
+        described.append(trained_as(declared.defaults.get("from_foundation"), declared.target))
     return ", ".join(part for part in described if part)
 
 
@@ -860,70 +869,63 @@ def tabular_detail(
     """Describe one tabular configuration: its blocks, their widths, its total.
 
     The labels carry only what varies in a figure, so everything a reader would
-    otherwise look up in a table goes here: what each block is, what it was
-    reduced from and to, and how many columns reach the regressor in the end.
+    otherwise look up in a table goes here: what each block is, what produced
+    it, how many columns it contributes and how many reach the regressor.
 
-    A row of one block is named by it already, so the block is not repeated
-    here; a row joining several needs saying which line belongs to which.
+    A row joining several blocks says of each what that block says of itself
+    where it stands alone, under its own name. Compressing each source onto one
+    line saves height and costs the reader the correspondence between a
+    combination and the single ingredients it was built from.
     """
-    present = sum(
-        1 for axis in ("embedding", "readout", "descriptors") if config.get(axis, "none") != "none"
-    )
-    lines, total, known = [], 0, True
-    for axis, width_axis in (
-        ("embedding", "embedding_pca"),
-        ("readout", None),
-        ("descriptors", "descriptor_pca"),
-    ):
-        level = str(config.get(axis, "none"))
-        if level == "none":
-            continue
+    present = [
+        (axis, width_axis)
+        for axis, width_axis in (
+            ("embedding", "embedding_pca"),
+            ("readout", None),
+            ("descriptors", "descriptor_pca"),
+        )
+        if str(config.get(axis, "none")) != "none"
+    ]
+    regressor = config.get("regressor")
+    lines = [f"model: {plots.PRETTY.get(regressor, regressor)}"] if regressor else []
+
+    stanzas, total, known = [], 0, True
+    for axis, width_axis in present:
+        level = str(config[axis])
         native = dims.get((axis, level))
         width = int(config.get(width_axis, 0)) if width_axis else 0
-        name = plots.PRETTY.get(level, level)
-        # a comma rather than a colon, since the line that follows carries one
-        source = provenance(axis, level, manifest)
         if width > 0:
-            width_clause = f"PCA: {native or '?'} \u2192 {width}"
+            columns = f"columns: PCA {native or '?'} \u2192 {width}"
             total += width
-        elif axis == "readout":
-            # a readout is a network's predictions, not a compressed block, so
-            # there is no reduction to report and the columns mean something
-            width_clause = f"{native or '?'} predicted columns"
-            total += native or 0
-            known = known and native is not None
         else:
-            width_clause = f"PCA: none ({native or '?'})"
+            columns = f"columns: {native or '?'}"
             total += native or 0
             known = known and native is not None
 
-        if present > 1:
-            # the block is the key, so it takes the colon and the rest of the
-            # line carries none: a row joining three blocks and naming each
-            # twice is a paragraph rather than a tooltip
-            joined = (
-                f"{source}, {width_clause.replace('PCA: ', 'PCA ')}" if source else width_clause
-            )
-            lines.append(f"{name} {axis}: {joined.replace('PCA: ', 'PCA ')}")
+        source = provenance(axis, level, manifest)
+        body = ([f"encoder: {source}"] if source else []) + [columns]
+        if len(present) > 1:
+            name = plots.PRETTY.get(level, level)
+            stanzas.append(f"{name} {axis}<br>" + "<br>".join(INDENT + line for line in body))
         else:
-            lines += ([f"encoder: {source}"] if source else []) + [width_clause]
+            stanzas.append("<br>".join(body))
 
+    if len(present) > 1:
+        # a blank line between stanzas, so three sources read as three things
+        for stanza in stanzas:
+            lines += ["", stanza]
+        lines.append("")
+    else:
+        lines += stanzas
     if known:
         lines.append(f"ndims: {total}")
-
-    # the model comes first, as it does for a graph network, so a reader
-    # meeting a tooltip in any figure finds the same thing on the same line
-    regressor = config.get("regressor")
-    if regressor:
-        model = f"model: {plots.PRETTY.get(regressor, regressor)}"
-        lines.insert(0, model)
     return "<br>".join(lines)
 
 
 def gnn_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> str:
     """Describe one graph-network cell: its body, its head, its auxiliary arm.
 
-    Every cell is a Chemprop D-MPNN with a feed-forward predictor on top, and
+    Every cell is a Chemprop network with a feed-forward predictor on top, and
     those are two different sizes that one integer in a label cannot keep
     apart. What differs between the cells is where the body's weights came
     from and how wide that body therefore is: the CheMeleon checkpoint brings
@@ -932,17 +934,19 @@ def gnn_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> str:
     sits on.
     """
     frozen = int(config["freeze_epochs"]) >= FROZEN_AT
-    started = plots.BODY.get(str(config["encoder_init"]), str(config["encoder_init"]))
+    chemeleon = str(config["encoder_init"]) == "chemeleon"
     finetune = str(config["finetune_target"])
 
     # the body's own width, read off the block that same network writes rather
     # than restated here
-    level = "chemeleon" if str(config["encoder_init"]) == "chemeleon" else "chemprop_log2fc"
+    level = "chemeleon" if chemeleon else "chemprop_log2fc"
     width = dims.get(("embedding", level))
+    began = trained_as(None, None) if chemeleon else trained_as(False, "log2fc")
     lines = [
-        "model: Chemprop D-MPNN",
-        f"MPNN body from: {started}" + (f", width {width}" if width else ""),
-        f"MPNN body: {'frozen' if frozen else 'free'}",
+        "model: Chemprop",
+        f"MPNN: {began}"
+        + (f", {width} wide" if width else "")
+        + (", frozen" if frozen else ", released"),
         f"predictor head: {config['ffn_hidden_dim']} wide",
         f"fine-tuned on: {plots.PRETTY.get(finetune, finetune)}",
     ]
