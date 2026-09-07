@@ -420,6 +420,51 @@ tabular:
           attribution terms.
         question: Which regressor, on the featureset the stage before settled.
 
+    - id: tabpfn_ensemble
+      figures: [fig7]
+      # the levels are named under restrict rather than swept, since the axis
+      # vocabulary deliberately does not carry them
+      sweeps: []
+      fixed:
+        calibration: none
+      fixed_from: [canonical_descriptors, embedding_reduction, best_featureset]
+      restrict:
+        # v3 held at a fixed member count, the library default being 8. These
+        # levels are named here rather than added to the regressor axis on
+        # purpose: they are one question asked of one checkpoint, and putting
+        # them in the vocabulary would enlarge every stage that sweeps the axis
+        regressor:
+          - tabpfn-v3-e1
+          - tabpfn-v3-e2
+          - tabpfn-v3-e4
+          - tabpfn-v3-e8
+          - tabpfn-v3-e16
+          - tabpfn-v3-e32
+          - tabpfn-v3-e64
+          - tabpfn-v3-e128
+      note: >
+        How much of what a tabular foundation model does is ensembling. TabPFN
+        aggregates over permutations and preprocessing variants of one
+        in-context model, and every result in this project was produced at its
+        default of eight, so nothing here has ever isolated that from the model
+        itself. Eight sizes at five seeds is 40 runs on the featureset the
+        gates settled, which is also what the regressor stage ran, so
+        tabpfn-v3-e8 is a repeat of an existing run under a different name and
+        is the sweep's own control: if it does not reproduce reg-tabpfn-v3,
+        something in the declaration is wrong.
+
+        Two ensembles are in play and the sweep separates them. The internal
+        one is the axis. The seeds are the other, and because the seed is
+        threaded into TabPFN's random_state the two are partly the same
+        mechanism at very different cost: the five-seed ensemble at e1 is a
+        five-member ensemble built the expensive way, and reading it against a
+        single seed at e8 asks whether the internal ensemble does anything a
+        generic one would not.
+
+        No gate. This settles nothing and chooses nothing; it is a measurement
+        of a model's behaviour, and the configuration it runs on was already
+        decided by the gates it inherits from.
+
     - id: uncertainty
       figures: [fig6]
       sweeps: []
@@ -815,6 +860,22 @@ figures:
     note: >
       Every row of the family carries the same columns, so this cannot say
       whether the ranking would survive a different featureset.
+
+  - id: fig7
+    title: Ensemble size
+    question: How much of the tabular foundation model's advantage is ensembling?
+    note: >
+      Drawn against ensemble size rather than sorted by score, since the
+      question is the shape of the curve and where it flattens rather than a
+      ranking. The panel machinery's overlap-as-test geometry needs a
+      categorical axis, so the verdicts are reported beside the figure instead
+      of drawn into it.
+
+      The second panel carries the Spearman correlation between the predicted
+      spread and the absolute residual, the same quantity figure 6 reports for
+      the winning model. At one member the spread is the bar-distribution
+      criterion of a single model; at 128 it also absorbs the disagreement
+      between members, so it may sharpen where the error has already flattened.
 
   - id: fig6
     title: Predicted uncertainty against actual error

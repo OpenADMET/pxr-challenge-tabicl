@@ -105,8 +105,35 @@ def test_every_regressor_declares_a_semantic_version(name):
     assert regressors.REGRESSORS[name].version >= 1
 
 
-def test_registry_holds_exactly_the_seven_documented_names():
-    assert sorted(regressors.REGRESSORS) == sorted(FAST_NAMES + SLOW_NAMES)
+def test_registry_holds_exactly_the_documented_names():
+    # the ensemble sizes are v3 under a fixed member count, so they belong to
+    # the registry without being separate models
+    expected = FAST_NAMES + SLOW_NAMES + regressors.TABPFN_ENSEMBLE_NAMES
+    assert sorted(regressors.REGRESSORS) == sorted(expected)
+
+
+def test_every_ensemble_size_is_the_v3_checkpoint_at_a_fixed_member_count():
+    for name, size in zip(
+        regressors.TABPFN_ENSEMBLE_NAMES, regressors.TABPFN_ENSEMBLE_SIZES, strict=True
+    ):
+        resolved = regressors.resolved_params(name, seed=0, n_features=258)
+        assert resolved["n_estimators"] == size
+        # the memory settings are pinned for these exactly as for plain v3
+        assert resolved["fit_mode"] == "low_memory"
+        assert resolved["memory_saving_mode"] is True
+
+
+def test_the_default_member_count_is_swept():
+    # the library default is 8, which is what every other result was produced
+    # under; without it in the sweep there is nothing to check the rest against
+    assert 8 in regressors.TABPFN_ENSEMBLE_SIZES
+
+
+def test_an_ensemble_size_reports_a_predictive_spread():
+    # _predict reads the bar distribution off names in TABPFN_NAMES, so a
+    # variant missing from it would silently write no spread at all
+    for name in regressors.TABPFN_ENSEMBLE_NAMES:
+        assert name in regressors.TABPFN_NAMES
 
 
 def test_tabicl_runs_under_pinned_memory_settings():

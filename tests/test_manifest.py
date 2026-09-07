@@ -32,6 +32,7 @@ def test_manifest_loads(spec):
         "embedding_width",
         "ingredients",
         "regressor",
+        "tabpfn_ensemble",
         "uncertainty",
     ]
 
@@ -256,13 +257,22 @@ def test_every_regressor_level_is_implemented(spec):
     import regressors
 
     swept = set(spec.axes["regressor"])
+    # a level a stage restricts to is named by the manifest without being part
+    # of the axis vocabulary, which is how the ensemble sizes are declared
+    restricted = {
+        level
+        for stage in spec.stages
+        for level in stage.restrict.get("regressor", ())
+        if level != manifest.GATE_REF
+    }
     excluded = set(spec.excluded.get("regressor", {}))
 
     # a swept level must be implemented, and so must an excluded one: it was
     # run to find out that it fails, and the record of that has to stay runnable
     assert swept <= set(regressors.REGRESSORS)
+    assert restricted <= set(regressors.REGRESSORS)
     assert excluded <= set(regressors.REGRESSORS)
-    assert swept | excluded == set(regressors.REGRESSORS)
+    assert swept | restricted | excluded == set(regressors.REGRESSORS)
     assert not swept & excluded, "a level cannot be both swept and excluded"
 
 

@@ -98,7 +98,20 @@ SPREAD_QUANTILES = (0.1, 0.9)
 SPREAD_QUANTILE_WIDTH = 2.0 * 1.2815515655446004
 
 # names whose estimator is a version-pinned TabPFN checkpoint
-TABPFN_NAMES = ("tabpfn-v2.5", "tabpfn-v2.6", "tabpfn-v3")
+TABPFN_CHECKPOINT_NAMES = ("tabpfn-v2.5", "tabpfn-v2.6", "tabpfn-v3")
+
+# v3 held at a fixed ensemble size, to ask how much of what the model does is
+# ensembling. The library default is 8, which is what every other result in
+# this project was produced under, so the sweep brackets them rather than
+# extending from them. These are regressor names rather than a configuration
+# axis on purpose: the count rides in the slug, and the sweep, the gates, the
+# panels and the uncertainty readers need no schema change to carry it
+TABPFN_ENSEMBLE_SIZES = (1, 2, 4, 8, 16, 32, 64, 128)
+TABPFN_ENSEMBLE_NAMES = tuple(f"tabpfn-v3-e{size}" for size in TABPFN_ENSEMBLE_SIZES)
+
+# every name whose prediction carries the bar-distribution spread, which is
+# what _predict reads the per-compound standard deviation off
+TABPFN_NAMES = TABPFN_CHECKPOINT_NAMES + TABPFN_ENSEMBLE_NAMES
 
 
 class RegressorError(RuntimeError):
@@ -521,4 +534,22 @@ REGRESSORS: dict[str, _Spec] = {
         _construct_tabfm,
         _resolve_seeded,
     ),
+}
+
+# the ensemble sweep, built from one template so the eight entries cannot drift
+# apart in anything but the member count. tabpfn-v3-e8 is the library default
+# and so should reproduce plain tabpfn-v3, which is the sweep's own control
+REGRESSORS |= {
+    name: _Spec(
+        1,
+        {
+            "device": "auto",
+            "memory_saving_mode": True,
+            "fit_mode": "low_memory",
+            "n_estimators": size,
+        },
+        _construct_tabpfn("V3"),
+        _resolve_tabpfn,
+    )
+    for name, size in zip(TABPFN_ENSEMBLE_NAMES, TABPFN_ENSEMBLE_SIZES, strict=True)
 }
