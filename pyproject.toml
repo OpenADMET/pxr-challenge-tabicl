@@ -8,6 +8,9 @@ dependencies = [
     "pandas>=2.2",
     "numpy>=2.0",
     "scipy>=1.13",
+    # Tukey HSD for the figure panels: the studentized range distribution and
+    # the block model behind the comparison intervals
+    "statsmodels>=0.14",
     "rdkit>=2024.03",
     "mordredcommunity==2.0.6",
     "pyarrow>=15",
