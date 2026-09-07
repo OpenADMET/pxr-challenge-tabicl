@@ -966,6 +966,7 @@ BLOCK_SPECS: dict[str, _BlockSpec] = {
 def log2fc_body_checkpoint(
     seed: int,
     *,
+    block: str = "chemprop_log2fc_embedding",
     cache_dir: Path = CHECKPOINT_DIR,
     **paths: Path,
 ) -> Path:
@@ -981,6 +982,11 @@ def log2fc_body_checkpoint(
     ----------
     seed : int
         The replicate seed, so the pretrained body matches the run it feeds.
+    block : str, optional
+        Which log2FC encoder to take the body from. The default is the one
+        trained from scratch, which is the E4 recipe. Naming the
+        CheMeleon-initialised encoder instead gives a body that was pretrained
+        twice, once on structures and once on the screen.
     cache_dir : path-like, optional
         Root of the checkpoint cache.
     **paths
@@ -994,9 +1000,9 @@ def log2fc_body_checkpoint(
         for chemprop's ``BondMessagePassing``, in the shape the vendored
         architecture loads a foundation checkpoint in.
     """
-    # the from-scratch log2FC encoder, the same one the embedding and readout
-    # blocks share, so the E4 arm costs no additional training
-    spec = BLOCK_SPECS["chemprop_log2fc_embedding"]
+    # the log2FC encoder, the same one the embedding and readout blocks share,
+    # so an arm that starts from its body costs no additional training
+    spec = BLOCK_SPECS[block]
     config = EncoderConfig(**{**spec.defaults, "seed": seed})
     training = _training_set_for(spec.target, config, **paths)
     artifact = encoder_artifact(spec.target, config, training, cache_dir=cache_dir)

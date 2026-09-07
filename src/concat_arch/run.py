@@ -155,13 +155,16 @@ class RunResult:
     record: dict[str, Any] = field(repr=False)
 
 
-def log2fc_body_checkpoint(seed: int) -> Path:
+def log2fc_body_checkpoint(seed: int, block: str | None = None) -> Path:
     """Ask ``encoders`` for a message-passing body pretrained on log2FC.
 
     Parameters
     ----------
     seed : int
         The replicate seed, so the pretrained body matches the run it feeds.
+    block : str, optional
+        Which log2FC encoder to take the body from. None takes the module's
+        own default, the encoder trained from scratch.
 
     Returns
     -------
@@ -191,7 +194,7 @@ def log2fc_body_checkpoint(seed: int) -> Path:
             f"{ENCODERS_MODULE} defines no {ENCODERS_FACTORY}(seed) returning a path to a "
             "log2FC-pretrained BondMessagePassing checkpoint"
         )
-    return Path(factory(seed=seed))
+    return Path(factory(seed=seed) if block is None else factory(seed=seed, block=block))
 
 
 def run_cell(
@@ -375,6 +378,8 @@ def _resolve_body(config: RunConfig, seed: int) -> str | Path:
         return config.body_checkpoint
     if config.encoder_init == "log2fc_checkpoint":
         return log2fc_body_checkpoint(seed)
+    if config.encoder_init == "chemeleon_log2fc_checkpoint":
+        return log2fc_body_checkpoint(seed, block="chemeleon_log2fc_embedding")
     if config.encoder_init == "scratch":
         # a body with no checkpoint behind it, built at the configured width
         return RANDOM_BODY

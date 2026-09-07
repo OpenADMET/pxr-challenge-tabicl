@@ -569,6 +569,22 @@ gnn:
           use_observed_readout: false
           use_predicted_readout: true
 
+    # The fourth corner of what a body can start as: initialised from the
+    # foundation checkpoint and then pretrained on the screen, where E4 does
+    # the same from nothing and chemeleon_pec50 skips the screen. Its body is
+    # the encoder the CheMeleon log2FC blocks are read off, so the cell costs
+    # no training beyond extracting it, and figures 3 to 5 carry that same
+    # network as features while this carries it as a predictor.
+    - id: chemeleon_log2fc_finetune
+      title: CheMeleon pretrained on log2FC, then fine-tuned on pEC50
+      axes:
+        encoder_init: chemeleon_log2fc_checkpoint
+        finetune_target: pec50
+        ffn_hidden_dim: 512
+        freeze_epochs: 2
+        gradient_clip_val: 0.5
+        aux_encoder: null
+
     # The control every other cell is worth measuring against: a body with
     # nothing behind it. Without it figure 1 can rank pretraining recipes and
     # cannot say whether pretraining paid at all, which is the first thing a

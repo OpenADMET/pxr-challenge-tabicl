@@ -960,13 +960,19 @@ def gnn_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> str:
     # the body's own width, read off the block that same network writes rather
     # than restated here. A body with no checkpoint behind it writes no block
     # and carries its width itself
-    if init == "scratch":
-        width = config.get("message_hidden_dim")
-    else:
-        width = dims.get(("embedding", "chemeleon" if init == "chemeleon" else "chemprop_log2fc"))
+    # the body's width is the width of the block that same network writes,
+    # except for a body with no checkpoint behind it, which writes no block and
+    # carries its width itself
+    block = {
+        "chemeleon": "chemeleon",
+        "log2fc_checkpoint": "chemprop_log2fc",
+        "chemeleon_log2fc_checkpoint": "chemeleon_log2fc",
+    }.get(init)
+    width = config.get("message_hidden_dim") if block is None else dims.get(("embedding", block))
     started = {
         "chemeleon": trained_as(None, None),
         "log2fc_checkpoint": trained_as(False, "log2fc"),
+        "chemeleon_log2fc_checkpoint": trained_as(True, "log2fc"),
         # no checkpoint at all, which is the whole of what this cell is
         "scratch": "none",
     }[init]

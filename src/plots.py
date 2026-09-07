@@ -553,6 +553,7 @@ def label_for(
 BODY = {
     "chemeleon": "CheMeleon",
     "log2fc_checkpoint": f"Chemprop {LOG2FC}",
+    "chemeleon_log2fc_checkpoint": f"CheMeleon {LOG2FC}",
     "scratch": "Chemprop",
 }
 

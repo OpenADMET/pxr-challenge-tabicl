@@ -29,7 +29,13 @@ logger = logging.getLogger(__name__)
 
 # how the main model's message-passing body is initialised; the manifest's
 # vocabulary exactly, no more
-ENCODER_INITS = frozenset({"chemeleon", "log2fc_checkpoint", "scratch"})
+ENCODER_INITS = frozenset(
+    {"chemeleon", "log2fc_checkpoint", "chemeleon_log2fc_checkpoint", "scratch"}
+)
+
+# the inits that spend log2FC on the body itself, which is the alternative to
+# spending it through an auxiliary encoder rather than something to do as well
+PRETRAINED_ON_LOG2FC = frozenset({"log2fc_checkpoint", "chemeleon_log2fc_checkpoint"})
 
 # what the main model is fine-tuned against
 FINETUNE_TARGETS = frozenset({"pec50"})
@@ -190,10 +196,13 @@ class RunConfig:
         ``chemeleon`` initialises the body from the CheMeleon foundation
         checkpoint. ``log2fc_checkpoint`` initialises it from a body
         pretrained on log2FC, the E4 recipe, which replaces the foundation
-        init rather than sitting beside it. ``scratch`` initialises it from
-        nothing, which is the control the other two are worth measuring
-        against: without it a figure can compare pretraining recipes and
-        cannot say whether pretraining paid at all. It takes its width and
+        init rather than sitting beside it. ``chemeleon_log2fc_checkpoint`` is
+        the same recipe starting from the foundation checkpoint rather than
+        from nothing, so the body is pretrained twice, once on structures and
+        once on the screen. ``scratch`` initialises it from nothing, which is
+        the control the others are worth measuring against: without it a
+        figure can compare pretraining recipes and cannot say whether
+        pretraining paid at all. It takes its width and
         depth from ``message_hidden_dim`` and ``depth``, since no checkpoint
         supplies them.
     finetune_target : str
@@ -279,11 +288,10 @@ class RunConfig:
         # E4 pretrains the body on log2FC in place of the foundation init; the
         # auxiliary encoder is the alternative way of spending that same
         # signal, so the two together would use log2FC twice over
-        if self.encoder_init == "log2fc_checkpoint" and self.aux_encoder is not None:
+        if self.encoder_init in PRETRAINED_ON_LOG2FC and self.aux_encoder is not None:
             raise ConfigError(
-                "encoder_init='log2fc_checkpoint' replaces the foundation init with a "
-                "log2FC-pretrained body and admits no auxiliary encoder; got "
-                f"aux_encoder={self.aux_encoder!r}"
+                f"encoder_init={self.encoder_init!r} pretrains the body on log2FC and admits "
+                f"no auxiliary encoder; got aux_encoder={self.aux_encoder!r}"
             )
 
         # scratch exists to say what pretraining bought, so an auxiliary
