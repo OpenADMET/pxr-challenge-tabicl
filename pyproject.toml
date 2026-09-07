@@ -3,26 +3,37 @@ name = "pxr-challenge-tabicl"
 version = "0.0.0"
 description = "Rebuild of the OpenADMET PXR challenge analysis on the challenge's own train+phase1 / phase2 split"
 requires-python = ">=3.12"
+# Every version here is the one the results on this branch were produced under,
+# read off the environment that produced them. A floor would let a resolver
+# hand a clone a stack that has never run this analysis, and the lockfile is
+# supposed to describe an environment that has been run: while these were
+# floored, uv resolved pandas 3.0.5 against the 2.3.3 in use, rdkit 2026.3.5
+# against 2025.9.3, and five others besides.
+#
+# torch is the exception the lock cannot hold. The runs used 2.5.1+rocm6.2 from
+# AMD's wheel index, and a local version like that does not resolve from PyPI,
+# so the pin here names the base release and the ROCm build has to be installed
+# against it. A clone that syncs this lock gets stock 2.5.1 and no GPU.
 dependencies = [
     "openadmet-models",
-    "pandas>=2.2",
-    "numpy>=2.0",
-    "scipy>=1.13",
+    "pandas==2.3.3",
+    "numpy==2.5.1",
+    "scipy==1.17.0",
     # Tukey HSD for the figure panels: the studentized range distribution and
     # the block model behind the comparison intervals. Pinned like the rest of
     # the stack to the version the figures were drawn under: the intervals are
     # checked against this release's own pairwise_tukeyhsd, and 0.15 has not
     # been run here
     "statsmodels==0.14.6",
-    "rdkit>=2024.03",
+    "rdkit==2025.9.3",
     "mordredcommunity==2.0.6",
-    "pyarrow>=15",
-    "huggingface-hub>=0.24",
-    "pyyaml>=6",
+    "pyarrow==22.0.0",
+    "huggingface-hub==1.3.2",
+    "pyyaml==6.0.3",
     # pinned like the modelling stack: the lock should describe an environment
     # that has been run, and 7.0 has not been
     "plotly==6.5.2",
-    "scikit-learn>=1.5",
+    "scikit-learn==1.6.1",
     # the modelling stack, pinned to the versions this analysis was run under
     # rather than floored. These decide the numbers: a resolver free to take
     # tabpfn 8.5 over 8.2 would hand a fresh clone a stack that never produced
