@@ -298,10 +298,11 @@ def comparison_frame(
                 "p_value": p_values.get(slug),
                 "detail": row.get("detail", ""),
                 "origin": "" if gate == this_gate else origins.get(gate or "", ""),
-                # the leader has nothing to be compared against and is the top
-                # row, which says it without a line of its own
+                # the leader is what every other row is compared against, and
+                # says so: with no line, it is the one row whose standing is
+                # silent, which reads as missing rather than as the reference
                 "verdict": (
-                    ""
+                    "best"
                     if slug == leader
                     else f"{SEPARATED if is_separated else TIED}: p={p_values.get(slug, 0):.4f}"
                 ),
@@ -357,7 +358,12 @@ def _hover(row: pd.Series) -> str:
     hovertemplate is not parsed as markup beyond its tags, so an entity would
     be shown as it was typed.
     """
-    lines = [f"<b>{_spelled(_visible(row['label']))}</b>"]
+    lines = [f"<b>{spelled(_visible(row['label']))}</b>"]
+    # how this row stands comes before anything else about it: it is what a
+    # reader hovered to find out, and the leader saying "best" answers the same
+    # question everybody else's p-value answers
+    if row["verdict"]:
+        lines.append(row["verdict"])
     if row["origin"]:
         lines.append(f"<i>{row['origin']}</i>")
     lines.append(f"MAE {row['mae']:.4f}")
@@ -365,8 +371,6 @@ def _hover(row: pd.Series) -> str:
         lines[-1] += f" \u00b1 {row['seed_spread']:.4f} over seeds"
     if pd.notna(row["ensemble"]) and row["ensemble"] != row["mae"]:
         lines.append(f"seed ensemble MAE: {row['ensemble']:.4f}")
-    if row["verdict"]:
-        lines.append(row["verdict"])
     if row["detail"]:
         lines.append(f"<br>{row['detail']}")
     return "<br>".join(lines)
@@ -545,8 +549,13 @@ def label_for(
 BODY = {"chemeleon": "CheMeleon", "log2fc_checkpoint": f"Chemprop {LOG2FC}"}
 
 
-def _spelled(label: str) -> str:
-    """Return a name with the label column's abbreviations written out."""
+def spelled(label: str) -> str:
+    """Return a name with the label column's abbreviations written out.
+
+    The column abbreviates because a figure of combinations spends its width
+    three blocks at a time. A tooltip has the room, and a name spelled one way
+    in the column and another in the tooltip is two names.
+    """
     for short, full in EXPANDED.items():
         label = label.replace(short, full)
     return label

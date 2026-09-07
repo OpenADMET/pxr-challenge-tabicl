@@ -161,7 +161,7 @@ def annotations(
             "label": title or label,
             # the configuration is still worth reading, so a titled row says
             # what it is made of on hover instead of in the column
-            "detail": f"<b>{label}</b><br>{detail}" if title else detail,
+            "detail": f"<b>{plots.spelled(label)}</b><br>{detail}" if title else detail,
         }
     return named
 

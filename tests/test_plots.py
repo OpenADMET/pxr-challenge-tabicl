@@ -138,12 +138,14 @@ def _frame():
     return evidence
 
 
-def test_the_leader_is_given_no_verdict_line():
+def test_the_leader_says_it_is_the_best_rather_than_saying_nothing():
     frame = plots.comparison_frame(_frame())
 
     leader = frame.iloc[0]
-    assert leader["verdict"] == ""
-    assert "separated" not in leader["hover"]
+    # every row answers the same question in the same slot; a leader with no
+    # verdict reads as a row whose standing was never checked
+    assert leader["verdict"] == "best"
+    assert "p=" not in leader["hover"]
 
 
 def test_a_tooltip_opens_with_the_name_and_the_score():
@@ -151,10 +153,11 @@ def test_a_tooltip_opens_with_the_name_and_the_score():
 
     lines = frame.iloc[1]["hover"].split("<br>")
     assert lines[0] == "<b>B</b>"
-    assert lines[1].startswith("MAE 0.5000 ")
-    assert "over seeds" in lines[1]
-    assert lines[2].startswith("seed ensemble MAE:")
-    assert lines[3] == f"{plots.SEPARATED}: p=0.0100"
+    # how it stands comes first, then what it scored
+    assert lines[1] == f"{plots.SEPARATED}: p=0.0100"
+    assert lines[2].startswith("MAE 0.5000 ")
+    assert "over seeds" in lines[2]
+    assert lines[3].startswith("seed ensemble MAE:")
 
 
 def test_a_carried_row_says_where_it_came_from():
