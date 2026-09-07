@@ -35,6 +35,13 @@ DESCRIPTION = "Draw the figures from the runs on disk."
 # the panel drawn from the uncertainty artifacts rather than from the run table
 UNCERTAINTY = "fig6"
 
+# the ensemble sweep, drawn against member count rather than as a ranking, so
+# it is built from its own stage's runs rather than from a comparison panel
+ENSEMBLE = "fig7"
+
+# the two that are not comparison panels and so are not built by panels.build
+STANDALONE = (UNCERTAINTY, ENSEMBLE)
+
 logger = logging.getLogger(__name__)
 
 
@@ -89,7 +96,7 @@ def main() -> None:
     wanted = set(args.figure)
 
     written = {}
-    if wanted != {UNCERTAINTY}:
+    if not wanted or wanted - set(STANDALONE):
         built = panels.build(
             spec,
             results_dir=args.results,
@@ -109,10 +116,13 @@ def main() -> None:
     if not wanted or UNCERTAINTY in wanted:
         target = gates.resolve_target(spec)
         figure = panels.uncertainty_figure(target.slug, results_dir=args.results)
-        path = Path(args.out) / f"{UNCERTAINTY}.html"
-        figure.write_html(path, include_plotlyjs="cdn", full_html=True)
-        written[UNCERTAINTY] = path
-        logger.info("wrote %s", path)
+        written[UNCERTAINTY] = panels.write_standalone(
+            figure, Path(args.out) / f"{UNCERTAINTY}.html"
+        )
+
+    if not wanted or ENSEMBLE in wanted:
+        figure = panels.ensemble_figure(spec, results_dir=args.results)
+        written[ENSEMBLE] = panels.write_standalone(figure, Path(args.out) / f"{ENSEMBLE}.html")
 
     for figure_id, path in sorted(written.items()):
         print(f"{figure_id}: {path}")

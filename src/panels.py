@@ -1118,6 +1118,18 @@ def _write(figure: go.Figure, path: Path) -> Path:
     return path
 
 
+def write_standalone(figure: go.Figure, path: Path) -> Path:
+    """Write a figure whose axes carry numbers rather than one row per configuration.
+
+    Figures 6 and 7 have no row labels, so there is nothing for a hover on a
+    tick to open and the label script is left off rather than attached and
+    left to report that it matched nothing.
+    """
+    figure.write_html(path, include_plotlyjs="cdn", full_html=True)
+    logger.info("wrote %s", path)
+    return path
+
+
 # the stage whose regressor levels are one checkpoint at a fixed member count
 ENSEMBLE_STAGE = "tabpfn_ensemble"
 
