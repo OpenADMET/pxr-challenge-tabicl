@@ -974,9 +974,11 @@ def _layout(n_rows: int) -> dict[str, Any]:
     }
 
 
-# the band behind the best row's interval, lighter than either verdict colour
-# so it reads as ground rather than as a row of its own
-BAND = "#eef0f2"
+# the band behind the best row's interval. Translucent rather than a light
+# solid: plotly draws a shape at layer "below" beneath the traces but still
+# over the axis grid, so an opaque fill would wipe the gridlines out of the
+# band exactly where a reader is trying to place a row
+BAND = "rgba(100, 109, 122, 0.12)"
 
 
 # the legend describes the encoding, not the rows: the two verdict colours and
@@ -1148,3 +1150,4 @@ def uncertainty_figure(
     layout["margin"] = {"l": 70, "r": 30, "t": 20, "b": 60}
     figure.update_layout(**layout)
     return figure
+
