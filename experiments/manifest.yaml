@@ -88,6 +88,14 @@ tabular:
       chemprop_log2fc: {block: chemprop_log2fc_embedding}
       chemeleon_log2fc: {block: chemeleon_log2fc_embedding, reduce: true, n_features: 2048}
       chemeleon_pec50: {block: chemeleon_pec50_embedding, reduce: true, n_features: 2048}
+      # An encoder is initialised from the foundation checkpoint or from
+      # nothing, and trained on log2FC or on pEC50. The three above are the
+      # other corners; this one completes them. The previous generation ran all
+      # four and this was the better of its two pEC50 encoders, 0.4745 against
+      # 0.5215 on its own pooled evaluation, so carrying the CheMeleon-
+      # initialised one and not this was an omission. Those numbers rank
+      # against each other and not against anything here
+      chemprop_pec50: {block: chemprop_pec50_embedding, reduce: true, n_features: 2048}
     # wider than the descriptor axis because the embedding keeps paying for
     # compression where the descriptors stop: 256 won its probe outright with
     # nothing tied, so the widths above it are run rather than assumed

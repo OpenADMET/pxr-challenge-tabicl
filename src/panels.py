@@ -825,7 +825,9 @@ def provenance(axis: str, level: str, manifest: Manifest) -> str:
     exactly that and in nothing a label shows.
 
     Read from the encoder specifications rather than restated here, so a block
-    that changes what it trains cannot keep an old description.
+    that changes what it trains cannot keep an old description. Phrased as
+    briefly as the graph-network lines it sits beside: what the encoder started
+    from and what it was trained on, and nothing a reader can already see.
     """
     spec = (manifest.axes.get(axis) or {}).get(level) or {}
     blocks = spec.get("blocks") or ([spec["block"]] if spec.get("block") else [])
@@ -842,17 +844,14 @@ def provenance(axis: str, level: str, manifest: Manifest) -> str:
         if declared is None:
             # a block nothing trains: descriptors, or the foundation embedding
             # taken off the shelf
-            described.append(
-                "CheMeleon foundation checkpoint, used as published"
-                if block == "chemeleon"
-                else "computed from structure"
-            )
+            # a block nothing trains: descriptors say nothing, and the
+            # foundation embedding says only that it is unmodified
+            described.append("CheMeleon checkpoint, as published" if block == "chemeleon" else "")
             continue
         target = plots.PRETTY.get(declared.target, declared.target)
         start = declared.defaults.get("from_foundation")
-        began = "from the CheMeleon checkpoint" if start else "from scratch"
-        described.append(f"Chemprop D-MPNN {began}, trained on {target}")
-    return "; ".join(described)
+        described.append(f"{'from CheMeleon' if start else 'from scratch'} on {target}")
+    return ", ".join(part for part in described if part)
 
 
 def tabular_detail(
@@ -899,15 +898,15 @@ def tabular_detail(
             known = known and native is not None
 
         if present > 1:
-            # one line a block, since a row joining three of them and saying
-            # each one's name twice is a paragraph rather than a tooltip
-            lines.append(
-                f"{name} {axis} ({source}), {width_clause}"
-                if source
-                else f"{name} {axis}, {width_clause}"
+            # the block is the key, so it takes the colon and the rest of the
+            # line carries none: a row joining three blocks and naming each
+            # twice is a paragraph rather than a tooltip
+            joined = (
+                f"{source}, {width_clause.replace('PCA: ', 'PCA ')}" if source else width_clause
             )
+            lines.append(f"{name} {axis}: {joined.replace('PCA: ', 'PCA ')}")
         else:
-            lines += [source, width_clause] if source else [width_clause]
+            lines += ([f"encoder: {source}"] if source else []) + [width_clause]
 
     if known:
         lines.append(f"ndims: {total}")

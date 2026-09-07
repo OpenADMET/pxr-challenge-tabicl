@@ -947,6 +947,19 @@ BLOCK_SPECS: dict[str, _BlockSpec] = {
         readout=False,
         defaults=_defaults(from_foundation="chemeleon", val_fraction=None),
     ),
+    # the fourth corner of what the previous generation explored: an encoder is
+    # initialised from the foundation checkpoint or from nothing, and trained
+    # on log2FC or on pEC50, and the other three combinations are above. The
+    # prior sweep ran this one and it beat the CheMeleon-initialised pEC50
+    # encoder that is here, so its absence was an omission rather than a
+    # decision
+    "chemprop_pec50_embedding": _BlockSpec(
+        version=VERSION,
+        target="pec50",
+        prefix="chemprop_pec50",
+        readout=False,
+        defaults=_defaults(from_foundation=None, val_fraction=None),
+    ),
 }
 
 

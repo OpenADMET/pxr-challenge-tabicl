@@ -125,10 +125,10 @@ def test_no_configuration_is_empty(spec):
 
 def test_the_ingredient_stage_sweeps_featuresets_at_one_regressor(spec):
     configs = spec.expand("ingredients", SETTLED)
-    # 5 embeddings x 3 readouts x (no descriptors, or the settled block), less
+    # 6 embeddings x 3 readouts x (no descriptors, or the settled block), less
     # the empty featureset. The regressor question is its own stage, so this
-    # is 29 configurations rather than 29 times seven
-    assert len(configs) == 29
+    # is 35 configurations rather than 35 times six
+    assert len(configs) == 35
     assert {c.regressor for c in configs} == {"tabpfn-v3"}
     assert len({c.slug for c in configs}) == len(configs)
 
