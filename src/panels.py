@@ -303,6 +303,13 @@ def check_held(
 ) -> None:
     """Warn when a level held is one the runs separate from the best of its axis.
 
+    Two comparisons are logged and they are not the same one. The marginal
+    averages a level over every architecture carrying it, which is the axis
+    taken as a whole. The rest are per family, a family being the cells that
+    differ in nothing but this axis, and a level can lead the margin while
+    losing inside an individual family. Each message names the family it is
+    about, since the two disagreeing is ordinary rather than a contradiction.
+
     Held is not the same as best, and does not have to be: standardising on a
     level the whole table shares is worth more than a difference the test
     cannot see. It is worth seeing when the level held is one the runs can tell
@@ -339,18 +346,21 @@ def check_held(
                 continue
             if chosen.slug in measured["indistinguishable_from_leader"]:
                 logger.info(
-                    "figure 1 holds %s at %s, which is not the best of its axis and is not "
-                    "separated from it either",
+                    "figure 1 holds %s at %s, which %s does not prefer (%s leads that family); "
+                    "the runs do not separate the two",
                     axis,
                     level,
+                    chosen.slug,
+                    measured["leader_slug"],
                 )
                 continue
             logger.warning(
-                "figure 1 holds %s at %s, which the runs separate from %s; the level held may "
-                "no longer be defensible",
+                "figure 1 holds %s at %s, which the runs separate from %s within the family %s "
+                "belongs to; the level held may no longer be defensible",
                 axis,
                 level,
                 measured["leader_slug"],
+                chosen.slug,
             )
 
 
