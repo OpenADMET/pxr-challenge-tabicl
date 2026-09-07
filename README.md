@@ -24,7 +24,7 @@ Imputation and PCA are fitted on the fit partition alone and then applied to
 every molecule, test set included. That is the one place in the pipeline where a
 leak could enter, so it is the one place the fit rows are passed explicitly
 rather than inferred. Calibration is post-hoc and never part of a sweep: every
-run carries none, and `run/07_calibrate.py` fits a map afterwards on
+run carries none, and `run/06_calibrate.py` fits a map afterwards on
 out-of-fold predictions, so nothing is calibrated on predictions the model was
 trained on.
 
@@ -83,7 +83,7 @@ only way to overwrite completed work.
 | `run/03_reduce.py` | reductions in `data/reduced/`, each fitted on the fit partition | minutes, and optional: the sweep builds any reduction it needs on demand |
 | `run/04_sweep.py` | a run directory per configuration and seed under `results/`, each holding predictions, metrics and a provenance record | the bulk of the compute |
 | `run/05_aggregate.py` | `results/results.parquet`, a coverage report, and any gate the completed stage settles | seconds |
-| `run/06_figures.py` | the manifest's figures, each measured as its own family | a minute, mostly bootstrap |
+| `run/08_figures.py` | the manifest's figures, each measured as its own family | a minute, mostly bootstrap |
 
 `run/02_featurize.py` and `run/04_sweep.py` both take `--seeds`, which is how a
 run is spread across processes. Split by seed and never by block or cell: seeds

@@ -12,7 +12,7 @@ redone. So a sweep can be interrupted and restarted at any point, and changing
 an upstream block does not silently leave stale results behind.
 
 A run is never calibrated here. Calibration is post-hoc, fitted over a
-completed configuration by run/07_calibrate.py, which reproduces the challenge
+completed configuration by run/06_calibrate.py, which reproduces the challenge
 report's method: an affine map over out-of-fold predictions spanning the whole
 fit set, weighted by a train-versus-test density ratio. What used to sit here
 was a monotone map on a single held-out slice, which is a different experiment
@@ -313,7 +313,7 @@ def run_one(
             ],
             "n_features": int(x_fit.shape[1]),
             "n_fit": int(x_fit.shape[0]),
-            # calibration is post-hoc now, applied by run/07_calibrate.py over a
+            # calibration is post-hoc now, applied by run/06_calibrate.py over a
             # completed configuration rather than inside a fit
             "calibrated": False,
             # what the library said about this fit, such as adapting its own

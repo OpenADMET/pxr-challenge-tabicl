@@ -139,7 +139,7 @@ tabular:
       - tabpfn-v3
       - tabicl
       - tabfm
-    # calibration is post-hoc and applied by run/07_calibrate.py over a
+    # calibration is post-hoc and applied by run/06_calibrate.py over a
     # completed configuration, so it is not swept and every run carries none
     calibration:
       - none
@@ -214,7 +214,7 @@ tabular:
       would read the other's results as stale.
 
   # Calibration is no longer a stage. It is post-hoc, applied by
-  # run/07_calibrate.py over a configuration that has already run, and it
+  # run/06_calibrate.py over a configuration that has already run, and it
   # reproduces the report's method rather than asking a question of our own:
   # an affine map over out-of-fold predictions spanning the whole fit set,
   # weighted per compound by the density ratio P(test|x) / (1 - P(test|x))

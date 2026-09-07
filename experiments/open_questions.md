@@ -55,7 +55,7 @@ Open: nothing to decide, but any writeup quoting both has to say it.
 ## Uncertainty has two spreads and they answer different questions
 
 A regressor's own predictive spread and the standard deviation across the five
-training seeds are both reported, and `run/08_uncertainty.py` scores both where
+training seeds are both reported, and `run/07_uncertainty.py` scores both where
 both exist. A graph-network cell has only the second, since the architecture
 reports no spread of its own.
 
@@ -66,7 +66,7 @@ models can be compared at all.
 
 ## Whether the uncertainty diagnostic should be run before calibration at all
 
-`run/08_uncertainty.py` scores the spread before and after calibration when a
+`run/07_uncertainty.py` scores the spread before and after calibration when a
 calibration exists. The affine map rescales the predictive distribution, so the
 spread is multiplied by the absolute slope rather than left alone; a slope
 above one widens the intervals and mechanically improves coverage without the
