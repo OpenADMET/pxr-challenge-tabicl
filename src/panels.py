@@ -820,15 +820,17 @@ INDENT = "\u00a0\u00a0"
 
 
 def trained_as(from_foundation: Any, target: str | None) -> str:
-    """Say where a network came from, in the words every tooltip uses.
+    """Name a network by where it started and what it was trained on.
 
-    Two facts and no more: what it started as, and what it was trained on. A
-    checkpoint used unmodified was trained on nothing here and says so instead.
+    Adjectival, so it reads as a name rather than as a history: it sits after
+    ``init:`` or ``encoder:`` without competing with the line below that says
+    what this run trained. A checkpoint used unmodified was trained on nothing
+    here and says so instead.
     """
     if target is None:
-        return "CheMeleon published checkpoint"
+        return "published CheMeleon"
     origin = "CheMeleon" if from_foundation else "Chemprop"
-    return f"{origin}, {plots.PRETTY.get(target, target)} trained"
+    return f"{plots.PRETTY.get(target, target)}-trained {origin}"
 
 
 def provenance(axis: str, level: str, manifest: Manifest) -> str:
@@ -866,60 +868,48 @@ def provenance(axis: str, level: str, manifest: Manifest) -> str:
 def tabular_detail(
     config: dict[str, Any], dims: dict[tuple[str, str], int], manifest: Manifest
 ) -> str:
-    """Describe one tabular configuration: its blocks, their widths, its total.
+    """Describe one tabular configuration: its blocks, then what reads them.
 
-    The labels carry only what varies in a figure, so everything a reader would
-    otherwise look up in a table goes here: what each block is, what produced
-    it, how many columns it contributes and how many reach the regressor.
+    Every block says the same three things in the same order, whichever figure
+    it appears in and whether it stands alone or is joined to others: what
+    produced it, how many columns it has, and what it was reduced to. A row
+    joining several says them once per block under the kind of block it is, so
+    a combination reads as the ingredients it was built from rather than as a
+    new thing.
 
-    A row joining several blocks says of each what that block says of itself
-    where it stands alone, under its own name. Compressing each source onto one
-    line saves height and costs the reader the correspondence between a
-    combination and the single ingredients it was built from.
+    The regressor comes last, after a blank line, because it reads what is
+    above it, and the total beside it is what reaches it.
     """
+    order = (("embedding", "embedding_pca"), ("readout", None), ("descriptors", "descriptor_pca"))
     present = [
-        (axis, width_axis)
-        for axis, width_axis in (
-            ("embedding", "embedding_pca"),
-            ("readout", None),
-            ("descriptors", "descriptor_pca"),
-        )
-        if str(config.get(axis, "none")) != "none"
+        (axis, width_axis) for axis, width_axis in order if str(config.get(axis, "none")) != "none"
     ]
-    regressor = config.get("regressor")
-    lines = [f"model: {plots.PRETTY.get(regressor, regressor)}"] if regressor else []
 
-    stanzas, total, known = [], 0, True
+    blocks, total, known = [], 0, True
     for axis, width_axis in present:
         level = str(config[axis])
         native = dims.get((axis, level))
         width = int(config.get(width_axis, 0)) if width_axis else 0
-        if width > 0:
-            columns = f"columns: PCA {native or '?'} \u2192 {width}"
-            total += width
-        else:
-            columns = f"columns: {native or '?'}"
-            total += native or 0
-            known = known and native is not None
+        total += width if width > 0 else (native or 0)
+        known = known and (width > 0 or native is not None)
 
-        source = provenance(axis, level, manifest)
-        body = ([f"encoder: {source}"] if source else []) + [columns]
+        if axis == "descriptors":
+            head = f"descriptor: {plots.PRETTY.get(level, level)}"
+        else:
+            head = f"encoder: {provenance(axis, level, manifest)}"
+        lines = [head, f"dims: {native or '?'}", f"PCA: {width if width > 0 else 'none'}"]
         if len(present) > 1:
-            name = plots.PRETTY.get(level, level)
-            stanzas.append(f"{name} {axis}<br>" + "<br>".join(INDENT + line for line in body))
+            blocks.append(f"{axis}:<br>" + "<br>".join(INDENT + line for line in lines))
         else:
-            stanzas.append("<br>".join(body))
+            blocks.append("<br>".join(lines))
 
-    if len(present) > 1:
-        # a blank line between stanzas, so three sources read as three things
-        for stanza in stanzas:
-            lines += ["", stanza]
-        lines.append("")
-    else:
-        lines += stanzas
-    if known:
-        lines.append(f"ndims: {total}")
-    return "<br>".join(lines)
+    detail = list(blocks) if len(present) < 2 else [b for block in blocks for b in ("", block)][1:]
+    regressor = config.get("regressor")
+    if regressor:
+        detail += ["", f"regressor: {plots.PRETTY.get(regressor, regressor)}"]
+        if known:
+            detail.append(f"ndims: {total}")
+    return "<br>".join(detail)
 
 
 def gnn_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> str:
@@ -942,15 +932,12 @@ def gnn_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> str:
     level = "chemeleon" if chemeleon else "chemprop_log2fc"
     width = dims.get(("embedding", level))
     lines = [
-        # the checkpoint this network started as, named as the label names it.
-        # A description of training would belong to the checkpoint rather than
-        # to this run, and would contradict the fine-tuned line below
-        f"model: {plots.BODY.get(str(config['encoder_init']), config['encoder_init'])}",
+        f"init: {trained_as(None, None) if chemeleon else trained_as(False, 'log2fc')}",
+        f"trained on: {plots.PRETTY.get(finetune, finetune)}",
         # released is the ordinary case and the label says frozen when it is
         # not, so only the exception is worth a word here
-        f"MPNN: {width} wide" + (", frozen" if frozen else ""),
-        f"predictor head: {config['ffn_hidden_dim']} wide",
-        f"fine-tuned on: {plots.PRETTY.get(finetune, finetune)}",
+        f"MPNN dim: {width or '?'}" + (", frozen" if frozen else ""),
+        f"FFN dim: {config['ffn_hidden_dim']}",
     ]
     if str(config.get("aux_target", "none")) != "none":
         halves = []
