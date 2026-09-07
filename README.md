@@ -6,8 +6,8 @@ regressors, including the tabular foundation models, against fine-tuned
 message-passing graph networks, and scores every configuration the way the
 leaderboard did.
 
-The tracked checklist lives on the pull request:
-<https://github.com/OpenADMET/pxr-challenge-tabicl/pull/2>.
+The previous generation's analysis is kept on the `archive` branch, which
+shares no history with this one.
 
 ## The split
 
@@ -83,6 +83,8 @@ only way to overwrite completed work.
 | `run/03_reduce.py` | reductions in `data/reduced/`, each fitted on the fit partition | minutes, and optional: the sweep builds any reduction it needs on demand |
 | `run/04_sweep.py` | a run directory per configuration and seed under `results/`, each holding predictions, metrics and a provenance record | the bulk of the compute |
 | `run/05_aggregate.py` | `results/results.parquet`, a coverage report, and any gate the completed stage settles | seconds |
+| `run/06_calibrate.py` | an out-of-fold calibration map for one configuration, applied post hoc | minutes |
+| `run/07_uncertainty.py` | the uncertainty artifacts figure 6 is drawn from | seconds |
 | `run/08_figures.py` | the manifest's figures, each measured as its own family | a minute, mostly bootstrap |
 
 `run/02_featurize.py` and `run/04_sweep.py` both take `--seeds`, which is how a
@@ -124,10 +126,11 @@ cannot be reviewed without them.
 |---|---|---|---|
 | `descriptor_width` | descriptor block against width | 60 | `canonical_descriptors` |
 | `embedding_width` | CheMeleon embedding width | 30 | `embedding_reduction` |
-| `ingredients` | which blocks, and which combination | 145 | `best_featureset` |
+| `ingredients` | which blocks, and which combination | 175 | `best_featureset` |
 | `regressor` | six regressors, on the winning featureset | 30 | `best_regressor` |
+| `tabpfn_ensemble` | TabPFN v3 at eight ensemble sizes | 40 | no gate |
 | `uncertainty` | nothing; reads runs already written | 0 | |
-| `gnn` | graph-network cells | 85 | no gate |
+| `gnn` | graph-network cells | 95 | no gate |
 
 Run order is not figure order. The two width probes run first because they need
 no trained encoder, and they are reported late.
@@ -155,6 +158,18 @@ on the mean over seeds, since the subject is a single model and the seeds are
 replicates rather than a way to build a better predictor. Cost is reported as
 three facts, blocks joined, encoders to train and columns carried, and never as
 an ordering.
+
+The figures are tested differently, and the two can disagree. A panel's
+verdicts and its comparison intervals are Tukey HSD over the five seeds,
+blocked on seed, computed in `src/tukey.py`. That is what makes overlap the
+test: the panel is balanced, so one critical distance covers every pair and
+halves between the two intervals it joins. A gate holds the fitted models fixed
+and resamples compounds; a panel holds the compounds fixed and asks what
+another seed would do. Neither answers the other's question, so a caption has
+to say which is on the page. `run/08_figures.py --no-block-by-seed` pools the
+seed block back into the error term, which is what
+`statsmodels.stats.multicomp.pairwise_tukeyhsd` computes, and `--bootstrap`
+draws the Benjamini-Hochberg verdicts instead.
 
 ## Reading the results
 
@@ -187,6 +202,7 @@ results/gates/     gate decisions (tracked)
 results/           run directories and results.parquet (ignored)
 experiments/       the manifest, the prior summary, open questions
 src/               modules, resolved without an installed package
-run/               numbered entry points
+run/               numbered entry points, in the order they run
+tools/             one-off utilities, outside the pipeline
 tests/             pytest suite
 ```
