@@ -944,9 +944,9 @@ def gnn_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> str:
     began = trained_as(None, None) if chemeleon else trained_as(False, "log2fc")
     lines = [
         "model: Chemprop",
-        f"MPNN: {began}"
-        + (f", {width} wide" if width else "")
-        + (", frozen" if frozen else ", released"),
+        # released is the ordinary case and the label says frozen when it is
+        # not, so only the exception is worth a word here
+        f"MPNN: {began}" + (f", {width} wide" if width else "") + (", frozen" if frozen else ""),
         f"predictor head: {config['ffn_hidden_dim']} wide",
         f"fine-tuned on: {plots.PRETTY.get(finetune, finetune)}",
     ]
@@ -957,9 +957,9 @@ def gnn_detail(config: dict[str, Any], dims: dict[tuple[str, str], int]) -> str:
         if config.get("aux_readout"):
             halves.append(f"readout ({dims.get(('readout', 'chemeleon_log2fc'), '?')})")
         target = plots.PRETTY.get(str(config["aux_target"]), str(config["aux_target"]))
-        lines.append(f"auxiliary {target}: {' + '.join(halves)}")
+        lines.append(f"auxiliary: {target} {' + '.join(halves)}")
     else:
-        lines.append("auxiliary encoder: none")
+        lines.append("auxiliary: none")
     return "<br>".join(lines)
 
 
