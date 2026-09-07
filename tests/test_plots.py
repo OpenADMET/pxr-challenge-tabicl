@@ -321,3 +321,48 @@ def test_a_reference_is_drawn_as_a_rule_rather_than_a_row():
 def test_an_empty_sweep_is_refused():
     with pytest.raises(plots.PlotError, match="at least one member count"):
         plots.ensemble_figure(pd.DataFrame(columns=["n_estimators", "mae"]))
+
+
+def _uncertainty_frames():
+    """Points and a coverage frame carrying both spreads at both stages."""
+    points = pd.DataFrame(
+        {
+            "abs_residual": [0.1, 0.4, 0.2],
+            "model_sigma": [0.5, 0.6, 0.4],
+            "ensemble_sigma": [0.05, 0.08, 0.06],
+        }
+    )
+    coverage = pd.DataFrame(
+        [
+            {"source": source, "stage": stage, "expected": level / 10, "observed": level / 10}
+            for source in ("model", "ensemble")
+            for stage in ("raw", "calibrated")
+            for level in range(1, 10)
+        ]
+    )
+    return points, coverage
+
+
+def test_the_coverage_panel_answers_for_the_spread_the_scatter_draws():
+    # unfiltered it drew every source crossed with every stage, four curves
+    # against a paragraph that discusses one
+    points, coverage = _uncertainty_frames()
+
+    figure = plots.uncertainty_figure(points, coverage)
+    curves = [t for t in figure.data if t.name]
+    assert [t.name for t in curves] == ["model, raw"]
+
+
+def test_another_spread_or_stage_can_be_asked_for():
+    points, coverage = _uncertainty_frames()
+
+    figure = plots.uncertainty_figure(points, coverage, source="ensemble", stage="calibrated")
+    assert [t.name for t in figure.data if t.name] == ["ensemble, calibrated"]
+
+
+def test_a_missing_coverage_curve_is_refused():
+    # drawing the scatter beside an empty panel would read as perfect coverage
+    points, coverage = _uncertainty_frames()
+
+    with pytest.raises(plots.PlotError, match="no 'model' curve"):
+        plots.uncertainty_figure(points, coverage, stage="nonexistent")

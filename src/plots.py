@@ -1051,6 +1051,7 @@ def uncertainty_figure(
     coverage: pd.DataFrame,
     *,
     source: str = "model",
+    stage: str = "raw",
     metric_label: str = "predicted standard deviation",
 ) -> go.Figure:
     """Draw whether a predicted uncertainty tracks the error it is about.
@@ -1075,8 +1076,11 @@ def uncertainty_figure(
     coverage : DataFrame
         Long form, with ``source``, ``stage``, ``expected`` and ``observed``.
     source : str, optional
-        Which spread the scatter is drawn on. The coverage panel shows every
-        source it was given, since comparing them is the point of it.
+        Which spread both panels are drawn on, the model's own or the
+        disagreement across seeds.
+    stage : str, optional
+        Which calibration stage the coverage curve is taken at. Defaults to
+        the predictions as they were made.
     metric_label : str, optional
         The scatter's x-axis label.
 
@@ -1107,6 +1111,14 @@ def uncertainty_figure(
         col=1,
     )
 
+    # the right panel answers for the same spread the left one draws, and for
+    # the predictions as they were made. Left unfiltered it drew every source
+    # crossed with every calibration stage, four curves against a paragraph
+    # that discusses one
+    curves = coverage[(coverage["source"] == source) & (coverage["stage"] == stage)]
+    if curves.empty:
+        raise PlotError(f"coverage carries no {source!r} curve at stage {stage!r}")
+
     # the diagonal first, so the curves are drawn over it
     figure.add_trace(
         go.Scatter(
@@ -1120,20 +1132,23 @@ def uncertainty_figure(
         row=1,
         col=2,
     )
-    for (curve_source, stage), group in coverage.groupby(["source", "stage"], sort=False):
+    drawn = list(curves.groupby(["source", "stage"], sort=False))
+    for (curve_source, curve_stage), group in drawn:
         ordered = group.sort_values("expected")
         figure.add_trace(
             go.Scatter(
                 x=ordered["expected"],
                 y=ordered["observed"],
                 mode="lines",
-                name=f"{curve_source}, {stage}",
+                name=f"{curve_source}, {curve_stage}",
                 line={
                     "color": SPREAD_COLOUR.get(str(curve_source), "#0969da"),
                     "width": 1.8,
-                    "dash": STAGE_DASH.get(str(stage), "solid"),
+                    "dash": STAGE_DASH.get(str(curve_stage), "solid"),
                 },
                 hovertemplate="nominal %{x:.2f}<br>actual %{y:.2f}<extra></extra>",
+                # a single curve is named by the caption, not by a key
+                showlegend=len(drawn) > 1,
             ),
             row=1,
             col=2,
