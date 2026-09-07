@@ -22,7 +22,7 @@ We evaluated several approaches that use a neural encoder rather than a tabular 
 
 *(paste `results/figures/fig1.html` here as an HTML card)*
 
-**Figure 1. Graph neural network implementation performance.** Test set mean absolute error (MAE) in ascending order for the graph-encoder configurations evaluated in this work, each point the mean across 5 random seeds. Whiskers are Tukey HSD comparison intervals, blocked on seed. Overlapping whiskers signal a pair cannot be distinguished. The shaded band spans the best row's interval. The **N283T** row is a published leaderboard value, drawn without an interval and not tested against. Hover on a point or row label to see detailed configuration information.
+**Figure 1. Graph neural network implementation performance.** Test set MAE in ascending order for the graph-encoder configurations evaluated in this work, each point the mean across 5 random seeds. Whiskers are Tukey HSD comparison intervals, blocked on seed. Overlapping whiskers signal a pair cannot be distinguished. The shaded band spans the best row's interval. The **N283T** row is a published leaderboard value, drawn without an interval and not tested against. Hover on a point or row label to see detailed configuration information.
 
 ---
 
@@ -34,7 +34,7 @@ A bit discouraged by the GNN results, we turned to the next potential source of 
 
 ## Reducing dimensionality
 
-The next sections move into tabular foundation model evaluation, which are notoriously memory intensive. Descriptor sets run to 217 dimensions for RDKit and 1,613 for Mordred, a CheMeleon embedding to 2,048, and their concatenations compose. We swept principal component analysis (PCA) dimensionality reductions over descriptors and fed them to TabPFN in isolation to see if we could safely reduce feature count without degrading performance (**Figure 2, left**). Native-dimension RDKit topped the comparison at 0.5300 MAE, but was statistically indistinguishable from PCA-reducing it to 128 (0.5309 MAE, *p* = 1.0). Mordred and RDKit+Mordred trailed in all configurations, and RDKit at 128 components separates from every one of them except the 256-component concatenation (0.5378 MAE, *p* = 0.13). We thus proceeded with RDKit descriptors PCA-reduced to 128 dimensions as our canonical descriptor set.
+The next sections move into tabular foundation model evaluation, which are notoriously memory intensive. Descriptor sets run to 217 dimensions for RDKit and 1,613 for Mordred, a CheMeleon embedding to 2,048, and their concatenations compose. We swept principal component analysis (PCA) dimensionality reductions over descriptors and fed them to TabPFN in isolation to see if we could safely reduce feature count without degrading performance (**Figure 2, left**). Native-dimension RDKit topped the comparison at 0.5300 MAE, but was statistically indistinguishable from PCA-reducing it to 128 (0.5309 MAE, *p* = 1.0). Mordred and RDKit+Mordred trailed in all configurations, and RDKit at 128 components separated from every one of them except the 256-component concatenation (0.5378 MAE, *p* = 0.13). We thus proceeded with RDKit descriptors PCA-reduced to 128 dimensions as our canonical descriptor set.
 
 We conducted a similar sweep with the 2,048-dim CheMeleon embedding (**Figure 2, right**). We could not evaluate dimensions above 512 without hitting memory limits. PCA reduction to 256, 384, and 512 were all statistically indistinguishable (0.4659, 0.4641 and 0.4703 MAE, *p* = 0.96 and *p* = 0.10 against the 384 leader), while 128 and below were separated and worse (0.4930 MAE, *p* = 6e-10), so we took the smallest as our canonical CheMeleon embedding.
 
@@ -94,7 +94,7 @@ OpenADMET's next blind challenge, modeling cytochrome P450 (CYP) inhibition acro
 
 ## Updating `openadmet-models`
 
-In order to realize PCA-transformed-CheMeleon-embeddings-concatenated-with-log<sub>2</sub>FC-predictions-input-into-tabular-foundation-model approach from a YAML specification using `openadmet-models`, we implemented several new features.
+In order to realize PCA-transformed-CheMeleon-embeddings-concatenated-with-log<sub>2</sub>FC-predictions-input-into-tabular-foundation-model (exhale) approach from a YAML specification using `openadmet-models`, we implemented several new features.
 - A `CheMeleonFeaturizer`, to produce the off-the-shelf, 2,048-dim CheMeleon embeddings.
 - A PCA transformer that can be applied to all, or groups of, features listed in the featurization section of an anvil YAML. Or pass `None` for a given featurizer to enable direct passthrough of a subset.
 - A `PretrainedModelFeaturizer` to read a trained model back in with another workflow to use that network's predictions as features. For example, train a Chemprop model on primary screen log<sub>2</sub>FC data, whose output then gets read into the main tabular foundation model as predicted log<sub>2</sub>FC features.
@@ -106,7 +106,7 @@ We have example configs up on [`optimus-prime`](https://github.com/OpenADMET/opt
 
 ## Reproducibility
 
-All supporting code lives in the [blog post repository](https://github.com/OpenADMET/pxr-challenge-tabicl). `experiments/manifest.yaml` is the spine: it declares every sweep, every gate, and every figure before anything runs, along with the axis levels this work deliberately excluded and why. `src/manifest.py` reads it, `src/gates.py` records the decisions, `src/regressors.py` and `src/encoders.py` build the models, and `src/panels.py` and `src/plots.py` produce every figure in this post. `src/tukey.py` computes the comparison intervals the figures draw. The numbered scripts in `run/` are the entry points, in the order they run.
+All supporting code lives in the [blog post repository](https://github.com/OpenADMET/pxr-challenge-tabicl). `experiments/manifest.yaml` is the spine: it declares every sweep, gate, and figure before anything runs, along with the axis levels this work deliberately excluded and why. `src/manifest.py` reads it, `src/gates.py` records the decisions, `src/regressors.py` and `src/encoders.py` build the models, and `src/panels.py` and `src/plots.py` produce every figure in this post. `src/tukey.py` computes the comparison intervals the figures draw. The numbered scripts in `run/` are the entry points, in the order they run.
 
 To reproduce, install the dependencies with [`uv`](https://docs.astral.sh/uv/) and run from the repository root:
 
