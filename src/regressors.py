@@ -113,6 +113,10 @@ TABPFN_ENSEMBLE_NAMES = tuple(f"tabpfn-v3-e{size}" for size in TABPFN_ENSEMBLE_S
 # what _predict reads the per-compound standard deviation off
 TABPFN_NAMES = TABPFN_CHECKPOINT_NAMES + TABPFN_ENSEMBLE_NAMES
 
+# how many members a swept name was held at, so a figure can read the count off
+# the configuration rather than parsing it back out of the slug
+ENSEMBLE_SIZE_OF = dict(zip(TABPFN_ENSEMBLE_NAMES, TABPFN_ENSEMBLE_SIZES, strict=True))
+
 
 class RegressorError(RuntimeError):
     """A regressor could not be built or fitted under the parameters it was given."""

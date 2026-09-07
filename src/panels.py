@@ -30,9 +30,13 @@ import pandas as pd
 import plotly.graph_objects as go
 
 import aggregate
+import evaluate
 import gates
 import plots
+import regressors
 import tukey
+import uncertainty
+from data import CANONICAL_COL
 from manifest import Manifest, Reference, TabularConfig
 
 logger = logging.getLogger(__name__)
@@ -1112,3 +1116,136 @@ def _write(figure: go.Figure, path: Path) -> Path:
     path.write_text(page.replace(closing, f"{script}\n{closing}", 1))
     logger.info("wrote %s", path)
     return path
+
+
+# the stage whose regressor levels are one checkpoint at a fixed member count
+ENSEMBLE_STAGE = "tabpfn_ensemble"
+
+
+def _member_count(slug: str, config: TabularConfig) -> int:
+    """Return how many ensemble members a configuration's regressor was held at."""
+    name = str(config.regressor)
+    size = regressors.ENSEMBLE_SIZE_OF.get(name)
+    if size is None:
+        raise PanelError(f"{slug}: regressor {name!r} names no ensemble size")
+    return size
+
+
+def ensemble_rows(
+    manifest: Manifest,
+    *,
+    results_dir: Path = aggregate.RESULTS_DIR,
+    gates_dir: Path | None = None,
+) -> pd.DataFrame:
+    """Score every ensemble size, as one model and as the seeds ensembled.
+
+    Two errors per size, because the question needs both. The seed mean is one
+    fitted model's error, averaged over the five replicates, and is what every
+    ranking in this project is read on. The seed ensemble averages those five
+    models' per-compound predictions and scores that once. The gap between them
+    is what ensembling the seeds buys on top of whatever the model's own
+    ensemble already did, which is the comparison the sweep exists to make.
+
+    The spread diagnostics follow the uncertainty stage exactly, so a number
+    here and a number in figure 6 mean the same thing: the model spread is
+    averaged over seeds rather than combined in quadrature, and both spreads
+    are scored against the residuals of the ensembled prediction.
+
+    Parameters
+    ----------
+    manifest : Manifest
+        Supplies the seeds and the stage's configurations.
+    results_dir : path-like, optional
+        Root holding the run directories.
+    gates_dir : path-like, optional
+        Where the gates this stage inherits from were recorded.
+
+    Returns
+    -------
+    DataFrame
+        One row per member count, ordered by it.
+
+    Raises
+    ------
+    PanelError
+        If a configuration has no runs on disk.
+    """
+    settled = gates.settled(manifest, ENSEMBLE_STAGE, gates_dir)
+    rows = []
+    for config in manifest.expand(ENSEMBLE_STAGE, settled):
+        run_dirs = [config.run_dir(seed, results_dir) for seed in manifest.seeds]
+        missing = [d for d in run_dirs if not (d / "predictions.csv").exists()]
+        if missing:
+            raise PanelError(
+                f"{config.slug}: {len(missing)} of {len(run_dirs)} runs missing, first {missing[0]}"
+            )
+
+        stacked, observed = aggregate.stack_predictions(run_dirs)
+        per_seed = [evaluate.metrics(observed, row)[gates.RANK_METRIC] for row in stacked]
+        ensembled = evaluate.ensemble_mean(stacked)
+
+        row = {
+            "slug": config.slug,
+            "n_estimators": _member_count(config.slug, config),
+            "mae": float(np.mean(per_seed)),
+            "seed_spread": float(np.std(per_seed, ddof=1)) if len(per_seed) > 1 else 0.0,
+            "ensemble_mae": float(evaluate.metrics(observed, ensembled)[gates.RANK_METRIC]),
+            "n_seeds": len(run_dirs),
+        }
+
+        # both spreads are scored against the same prediction, so the only
+        # thing that differs between them is what they claim to know
+        spreads = {"ensemble": uncertainty.ensemble_spread(stacked)}
+        model_spread = _model_spread(run_dirs)
+        if model_spread is not None:
+            spreads["model"] = model_spread
+        for source, sigma in spreads.items():
+            row[f"spearman_{source}"] = uncertainty.diagnose(
+                observed, ensembled, sigma, source=source
+            ).spearman
+        rows.append(row)
+
+    return pd.DataFrame(rows).sort_values("n_estimators").reset_index(drop=True)
+
+
+def _model_spread(run_dirs: list[Path]) -> np.ndarray | None:
+    """Return the per-compound model spread, averaged over seeds, or None.
+
+    Averaged rather than combined in quadrature, matching the uncertainty
+    stage: each seed's spread is that seed's statement about its own
+    prediction, and disagreement between seeds is the other spread.
+    """
+    frames = [
+        pd.read_csv(d / "predictions.csv", dtype={CANONICAL_COL: str}).sort_values(CANONICAL_COL)
+        for d in run_dirs
+    ]
+    if any("predicted_std" not in frame.columns for frame in frames):
+        return None
+    spread = np.vstack([f["predicted_std"].to_numpy(dtype=np.float64) for f in frames])
+    if not np.any(np.isfinite(spread) & (spread > 0)):
+        return None
+    return spread.mean(axis=0)
+
+
+def ensemble_figure(
+    manifest: Manifest,
+    *,
+    results_dir: Path = aggregate.RESULTS_DIR,
+    gates_dir: Path | None = None,
+) -> go.Figure:
+    """Figure 7: how much of the tabular foundation model's advantage is ensembling.
+
+    The references are the scores this project already has, drawn as rules
+    rather than as rows: nothing in the sweep is a comparison to them, and the
+    only reason they are here is to say whether a one-member model has already
+    cleared what the rest of the work achieved.
+    """
+    frame = ensemble_rows(manifest, results_dir=results_dir, gates_dir=gates_dir)
+    references = {}
+    for name in ("best_gnn", "chemeleon_baseline"):
+        if not _declared(manifest, name):
+            continue
+        config = resolve(manifest, name, gates_dir=gates_dir)
+        scored = gates.scores([config], manifest, results_dir=results_dir)
+        references[plots.spelled(name.replace("_", " "))] = scored[0][gates.RANK_METRIC]
+    return plots.ensemble_figure(frame, references=references)

@@ -1151,3 +1151,164 @@ def uncertainty_figure(
     figure.update_layout(**layout)
     return figure
 
+# the two readings of one sweep: a single fitted model, and the five seeds of
+# it averaged. They are the same two quantities the uncertainty panel names, so
+# they keep the same colours
+ENSEMBLE_COLOUR = {"single": SPREAD_COLOUR["model"], "ensemble": SPREAD_COLOUR["ensemble"]}
+
+ENSEMBLE_LABEL = {
+    "single": "one model, averaged over seeds",
+    "ensemble": "the five seeds ensembled",
+}
+
+
+def ensemble_figure(
+    frame: pd.DataFrame,
+    *,
+    references: dict[str, float] | None = None,
+    metric_label: str = METRIC_LABEL,
+) -> go.Figure:
+    """Draw error and uncertainty quality against the size of a model's own ensemble.
+
+    Drawn against member count rather than sorted by score, because the
+    question is where the curve flattens rather than which row wins. The
+    comparison panels' overlap-as-test geometry needs a categorical axis and
+    is not available here, so the verdicts belong beside the figure.
+
+    Two curves on the left, and the gap between them is the point. One is a
+    single fitted model averaged over its seeds; the other is those seeds
+    ensembled into one predictor. Where they meet, the model's internal
+    ensemble has already bought whatever ensembling the seeds would have, and
+    a reader can see that without being told.
+
+    Parameters
+    ----------
+    frame : DataFrame
+        One row per member count, with ``n_estimators``, ``mae``,
+        ``seed_spread``, ``ensemble_mae`` and a ``spearman_`` column per
+        spread source.
+    references : dict, optional
+        Name mapped to a score, drawn as a rule across the error panel. This
+        is how a sweep says where it sits against what the project already
+        measured, since nothing in it is a comparison to anything else.
+    metric_label : str, optional
+        Names the metric on the error axis.
+
+    Returns
+    -------
+    plotly.graph_objects.Figure
+
+    Raises
+    ------
+    PlotError
+        If the frame carries no rows.
+    """
+    if frame.empty:
+        raise PlotError("an ensemble sweep needs at least one member count")
+
+    ordered = frame.sort_values("n_estimators")
+    sizes = ordered["n_estimators"].tolist()
+    figure = make_subplots(
+        rows=1,
+        cols=2,
+        horizontal_spacing=0.09,
+        subplot_titles=[
+            "Error against ensemble size",
+            "Does the predicted spread rank the error?",
+        ],
+    )
+
+    figure.add_trace(
+        go.Scatter(
+            x=sizes,
+            y=ordered["mae"],
+            mode="lines+markers",
+            name=ENSEMBLE_LABEL["single"],
+            line={"color": ENSEMBLE_COLOUR["single"], "width": 2.4},
+            marker={"size": 9, "color": ENSEMBLE_COLOUR["single"]},
+            error_y={
+                "type": "data",
+                "array": ordered["seed_spread"],
+                "color": ENSEMBLE_COLOUR["single"],
+                "thickness": 1.4,
+                "width": 4,
+            },
+            hovertemplate=(
+                "%{x} members<br>MAE %{y:.4f} ± %{error_y.array:.4f} over seeds<extra></extra>"
+            ),
+        ),
+        row=1,
+        col=1,
+    )
+    figure.add_trace(
+        go.Scatter(
+            x=sizes,
+            y=ordered["ensemble_mae"],
+            mode="lines+markers",
+            name=ENSEMBLE_LABEL["ensemble"],
+            line={"color": ENSEMBLE_COLOUR["ensemble"], "width": 2.4},
+            marker={"size": 9, "symbol": "diamond", "color": ENSEMBLE_COLOUR["ensemble"]},
+            hovertemplate="%{x} members<br>seed ensemble MAE %{y:.4f}<extra></extra>",
+        ),
+        row=1,
+        col=1,
+    )
+
+    # after the curves, not before: add_hline skips a subplot that holds no
+    # traces yet, so a rule added first is dropped without a word. Drawn below
+    # so a curve crossing one stays readable
+    for name, score in (references or {}).items():
+        figure.add_hline(
+            y=score,
+            layer="below",
+            line={"color": VERDICT_COLOUR[SEPARATED], "width": 1.5, "dash": "dot"},
+            annotation_text=name,
+            annotation_position="top left",
+            annotation_font={"size": 11, "color": _LEGEND_NEUTRAL},
+            row=1,
+            col=1,
+        )
+
+    for source in ("model", "ensemble"):
+        column = f"spearman_{source}"
+        if column not in ordered:
+            continue
+        figure.add_trace(
+            go.Scatter(
+                x=sizes,
+                y=ordered[column],
+                mode="lines+markers",
+                name=f"{source} spread",
+                line={"color": SPREAD_COLOUR[source], "width": 2.4},
+                marker={"size": 9, "color": SPREAD_COLOUR[source]},
+                hovertemplate=(
+                    f"%{{x}} members<br>{source} spread, Spearman %{{y:.3f}}<extra></extra>"
+                ),
+            ),
+            row=1,
+            col=2,
+        )
+
+    # a log axis, since the sweep doubles; the ticks name the counts that were
+    # run rather than powers of ten
+    for column in (1, 2):
+        figure.update_xaxes(
+            title_text="<b>ensemble members</b>",
+            type="log",
+            tickvals=sizes,
+            ticktext=[str(size) for size in sizes],
+            tickfont=BOLD,
+            row=1,
+            col=column,
+        )
+    figure.update_yaxes(title_text=f"<b>{metric_label}</b>", tickfont=BOLD, row=1, col=1)
+    figure.update_yaxes(
+        title_text="<b>Spearman, spread against |residual|</b>", tickfont=BOLD, row=1, col=2
+    )
+
+    layout = _layout(len(sizes))
+    layout["height"] = 460
+    layout["legend"] |= {"itemclick": "toggle", "itemdoubleclick": "toggleothers"}
+    figure.update_layout(**layout)
+    figure.update_annotations(font={"size": 13})
+    return figure

@@ -14,6 +14,9 @@ import colorsys
 import itertools
 import math
 
+import pandas as pd
+import pytest
+
 import plots
 
 # Below this two colours read as one at marker size, whatever they measure.
@@ -241,3 +244,62 @@ def test_the_band_is_drawn_below_the_rows_on_every_panel():
         assert shape.layer == "below"
         # full height, so the anchor reaches every row rather than the top one
         assert (shape.y0, shape.y1) == (0, 1)
+
+
+def _ensemble_frame():
+    """Return a sweep over member counts, with both errors and both spread sources."""
+    return pd.DataFrame(
+        {
+            "n_estimators": [1, 2, 4, 8],
+            "mae": [0.4443, 0.4374, 0.4395, 0.4358],
+            "seed_spread": [0.0069, 0.0055, 0.0060, 0.0052],
+            "ensemble_mae": [0.4301, 0.4288, 0.4290, 0.4285],
+            "spearman_model": [0.21, 0.24, 0.26, 0.27],
+            "spearman_ensemble": [0.18, 0.19, 0.20, 0.21],
+        }
+    )
+
+
+def test_the_sweep_draws_both_errors_against_member_count():
+    # the gap between one model and the seeds ensembled is the comparison the
+    # figure exists to make, so both have to be on the same panel
+    figure = plots.ensemble_figure(_ensemble_frame())
+
+    on_error_panel = [t for t in figure.data if t.xaxis in (None, "x")]
+    names = {t.name for t in on_error_panel}
+    assert plots.ENSEMBLE_LABEL["single"] in names
+    assert plots.ENSEMBLE_LABEL["ensemble"] in names
+
+
+def test_the_member_axis_is_logarithmic_and_named_by_what_was_run():
+    # the sweep doubles, so the ticks are the counts rather than powers of ten
+    figure = plots.ensemble_figure(_ensemble_frame())
+
+    assert figure.layout.xaxis.type == "log"
+    assert list(figure.layout.xaxis.tickvals) == [1, 2, 4, 8]
+    assert list(figure.layout.xaxis.ticktext) == ["1", "2", "4", "8"]
+
+
+def test_a_spread_source_the_sweep_did_not_record_is_left_off():
+    # a run without a predictive spread has no model curve to draw, and an
+    # empty one would read as a measured zero
+    frame = _ensemble_frame().drop(columns=["spearman_model"])
+
+    figure = plots.ensemble_figure(frame)
+    assert "model spread" not in {t.name for t in figure.data}
+    assert "ensemble spread" in {t.name for t in figure.data}
+
+
+def test_a_reference_is_drawn_as_a_rule_rather_than_a_row():
+    # nothing in the sweep is a comparison to the reference; it is there to say
+    # whether one member already clears what the rest of the work achieved
+    figure = plots.ensemble_figure(_ensemble_frame(), references={"best gnn": 0.4902})
+
+    rules = [s for s in figure.layout.shapes if s.type == "line"]
+    assert len(rules) == 1
+    assert rules[0].y0 == rules[0].y1 == 0.4902
+
+
+def test_an_empty_sweep_is_refused():
+    with pytest.raises(plots.PlotError, match="at least one member count"):
+        plots.ensemble_figure(pd.DataFrame(columns=["n_estimators", "mae"]))
