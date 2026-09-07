@@ -1,9 +1,15 @@
 """Draw the figures from the runs on disk.
 
-Every panel is measured the same way a gate is, by the all-pairwise paired
-bootstrap under Benjamini-Hochberg, so a figure and the decision recorded
-beside it cannot disagree. What each figure shows is declared in ``panels``;
-this reads the runs, measures them, and writes a page per figure.
+Every panel is ranked and costed off the all-pairwise paired bootstrap that
+the gates decide under, and its verdicts are then re-taken under Tukey HSD,
+which is the procedure the comparison geometry belongs to. The gate records are
+not touched by this. What each figure shows is declared in ``panels``; this
+reads the runs, measures them, and writes a page per figure.
+
+``--no-block-by-seed`` drops the seed block from Tukey's error term, which is
+what ``statsmodels.stats.multicomp.pairwise_tukeyhsd`` computes, and is there so
+the two can be drawn side by side. ``--bootstrap`` keeps the Benjamini-Hochberg
+verdicts instead, which is how these figures were drawn before Tukey.
 
 The bootstrap is the expensive part, so ``--figure`` is worth using while
 iterating on one panel.
@@ -55,6 +61,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="render this figure only; repeat, or omit for all of them",
     )
     parser.add_argument(
+        "--no-block-by-seed",
+        dest="block_by_seed",
+        action="store_false",
+        help="pool the seed block back into Tukey's error term, as pairwise_tukeyhsd does",
+    )
+    parser.add_argument(
+        "--bootstrap",
+        action="store_true",
+        help="draw the Benjamini-Hochberg verdicts instead of Tukey's",
+    )
+    parser.add_argument(
         "--resamples",
         type=int,
         default=panels.DEFAULT_RESAMPLES,
@@ -73,7 +90,12 @@ def main() -> None:
 
     written = {}
     if wanted != {UNCERTAINTY}:
-        built = panels.build(spec, results_dir=args.results, n_resamples=args.resamples)
+        built = panels.build(
+            spec,
+            results_dir=args.results,
+            n_resamples=args.resamples,
+            block_by_seed=None if args.bootstrap else args.block_by_seed,
+        )
         # figure 2 is one page of two panels, so it is asked for by the page's
         # name rather than by either panel's
         if wanted:

@@ -235,8 +235,15 @@ def comparison_frame(
         raise PlotError("evidence carries no ranking")
 
     significance = evidence.get("significance") or {}
+
+    # a Tukey panel gives every row its own half width directly, since the
+    # critical distance is one number for the whole family and splits evenly
+    # between the two intervals it joins. The bootstrap has no such number and
+    # reaches the same geometry through a difference interval per row, offset
+    # by the leader's share of the closest comparison it is in
+    halfwidths = significance.get("halfwidths")
     intervals = significance.get("comparison_intervals")
-    if not intervals or "leader_halfwidth" not in significance:
+    if not halfwidths and (not intervals or "leader_halfwidth" not in significance):
         raise PlotError(
             "evidence carries no comparison intervals; re-measure the gate rather "
             "than drawing a marginal interval in their place, which would overlap "
@@ -246,7 +253,7 @@ def comparison_frame(
     against = significance.get("against_leader", [])
     separated = {row["slug"] for row in against if row["separated"]}
     p_values = {row["slug"]: row["p_value"] for row in against}
-    halfwidth = significance["leader_halfwidth"]
+    halfwidth = significance.get("leader_halfwidth", 0.0)
     leader = evidence["leader_slug"]
     best = min(row["mae"] for row in ranking)
     this_gate = home or evidence.get("gate")
@@ -266,10 +273,12 @@ def comparison_frame(
         matched = tuple(sorted(row["config"])) == signature
         identity = winner_of(row["config"], winners or {}, axes) if matched else None
         gate = named.get(slug) or identity
-        low, high = intervals[slug]
-        if slug == leader:
+        if halfwidths:
+            err_minus = err_plus = halfwidths[slug]
+        elif slug == leader:
             err_minus = err_plus = halfwidth
         else:
+            low, high = intervals[slug]
             err_minus = max(0.0, row["mae"] - (best + low + halfwidth))
             err_plus = max(0.0, (best + high + halfwidth) - row["mae"])
         is_separated = slug in separated

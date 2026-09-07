@@ -32,6 +32,7 @@ import plotly.graph_objects as go
 import aggregate
 import gates
 import plots
+import tukey
 from manifest import Manifest, Reference, TabularConfig
 
 logger = logging.getLogger(__name__)
@@ -736,6 +737,7 @@ def build(
     results_dir: Path = aggregate.RESULTS_DIR,
     gates_dir: Path | None = None,
     n_resamples: int = DEFAULT_RESAMPLES,
+    block_by_seed: bool | None = True,
 ) -> list[Panel]:
     """Measure every comparison panel, in the order the story is told.
 
@@ -747,6 +749,21 @@ def build(
 
     Figure 6 is not here: it is not a comparison of configurations and is drawn
     from the uncertainty artifacts by :func:`uncertainty_figure`.
+
+    What the panels are tested by is not what the gates decide by. Every panel
+    is measured with the paired compound bootstrap first, because that is what
+    a gate records and what the costs and the ranking are read off, and then
+    its verdicts are re-taken under Tukey HSD, which is the procedure the
+    comparison geometry belongs to. The gate records on disk are untouched. A
+    caption has to say which of the two a figure is showing, since they answer
+    different questions and disagree on some rows.
+
+    Parameters
+    ----------
+    block_by_seed : bool or None, optional
+        Whether Tukey takes its error term from the blocked model. None leaves
+        the bootstrap verdicts in place, which is how the figures were drawn
+        before Tukey and is kept for comparison rather than for use.
     """
     dims = block_dims(manifest)
     published = [anchor(manifest)]
@@ -763,7 +780,15 @@ def build(
     single = resolve(manifest, "best_single", gates_dir=gates_dir)
     singles, combinations = ingredient_panels(manifest, dims, graphs, published, **common)
     regressors = regressor_panel(manifest, dims, [*graphs, single], published, **common)
-    return [gnn, left, right, singles, combinations, regressors]
+    panels = [gnn, left, right, singles, combinations, regressors]
+    if block_by_seed is None:
+        return panels
+
+    for panel in panels:
+        panel.evidence = tukey.retest(
+            panel.evidence, list(manifest.seeds), block_by_seed=block_by_seed, label=panel.id
+        )
+    return panels
 
 
 def render(
