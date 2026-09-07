@@ -22,7 +22,7 @@ We evaluated several approaches that use a neural encoder rather than a tabular 
 
 *(paste `results/figures/fig1.html` here as an HTML card)*
 
-**Figure 1. Graph neural network implementation performance.** The panel reports test set mean absolute error (MAE) for the graph-encoder configurations evaluated in this work. The CheMeleon baseline fits the off-the-shelf CheMeleon encoder directly to pEC<sub>50</sub> in a single stage. Each point is the mean MAE across 5 random seeds. [NEEDS REWRITE: the rest of this caption describes a figure that no longer exists. The two-by-two encoder-treatment grid is gone with the primary-screen arm; the whiskers are Tukey HSD comparison intervals, not minimum-to-maximum ranges, so two intervals touch exactly when the panel does not separate the pair; the dashed divider has been replaced by a shaded band spanning the best row's interval; and there is one reference row, the N283T ensemble at 0.4113, rather than three. The caption also needs to say that position encodes score, colour encodes identity or verdict, and shape encodes whether a row was swept here, carried from another figure, or chosen.]
+**Figure 1. Graph neural network implementation performance.** The panel reports test set mean absolute error (MAE) for the graph-encoder configurations evaluated in this work. The CheMeleon baseline fits the off-the-shelf CheMeleon encoder directly to pEC<sub>50</sub> in a single stage. Each point is the mean MAE across 5 random seeds. [NEEDS REWRITE: the rest of this caption describes a figure that no longer exists. The two-by-two encoder-treatment grid is gone with the primary-screen arm; the whiskers are Tukey HSD comparison intervals, not minimum-to-maximum ranges, so two intervals touch exactly when the panel does not separate the pair; the dashed divider has been replaced by a shaded band spanning the best row's interval; and there is one reference row, N283T at 0.4113, rather than three. The caption also needs to say that position encodes score, colour encodes identity or verdict, and shape encodes whether a row was swept here, carried from another figure, or chosen.]
 
 ---
 
@@ -32,7 +32,7 @@ We then tested each candidate ingredient individually before evaluating any comb
 
 *(paste `results/figures/fig3.html` here as an HTML card)*
 
-**Figure 3. Single ingredient tabular foundation model performance.** The panel reports test set mean absolute error (MAE) for each candidate feature in isolation, fed to TabPFN v3. The RDKit block is PCA-reduced to 128 components and the CheMeleon embedding to 256 (from 217 and 2,048 columns respectively), both widths settled by the probes in Figure 2. The **Best graph network** and **CheMeleon baseline** rows repeat from Figure 1 for scale. As in Figure 1, whiskers are Tukey HSD comparison intervals across the 5 seeds; the N283T row is a published single value and has none. The **N283T ensemble** is reproduced for reference.
+**Figure 3. Single ingredient tabular foundation model performance.** The panel reports test set mean absolute error (MAE) for each candidate feature in isolation, fed to TabPFN v3. The RDKit block is PCA-reduced to 128 components and the CheMeleon embedding to 256 (from 217 and 2,048 columns respectively), both widths settled by the probes in Figure 2. The **Best graph network** and **CheMeleon baseline** rows repeat from Figure 1 for scale. As in Figure 1, whiskers are Tukey HSD comparison intervals across the 5 seeds; the N283T row is a published single value and has none. The **N283T** leaderboard entry is reproduced for reference.
 
 ---
 
@@ -42,7 +42,7 @@ We evaluated every subset of embedding, log<sub>2</sub>FC readout, and descripto
 
 *(paste `results/figures/fig4.html` here as an HTML card)*
 
-**Figure 4. Combining embedding, log<sub>2</sub>FC readout, and descriptors.** The panel reports test set MAE for every subset of the three ingredients (embedding, log<sub>2</sub>FC readout, and descriptors), all fed to TabPFN v3. The descriptor set is RDKit reduced to 128 components throughout. The **Best single ingredient**, **Best graph network**, and **CheMeleon baseline** rows repeat from earlier figures for scale. As in Figure 1, whiskers are Tukey HSD comparison intervals across the 5 seeds. The **N283T ensemble** is reproduced for reference. [NEEDS REWRITE: the caption still describes two candidate embeddings, both from one Chemprop model. The panel now carries five, and the sentence explaining that the embedding and readout come from the same model no longer holds for the rows where they come from different ones.]
+**Figure 4. Combining embedding, log<sub>2</sub>FC readout, and descriptors.** The panel reports test set MAE for every subset of the three ingredients (embedding, log<sub>2</sub>FC readout, and descriptors), all fed to TabPFN v3. The descriptor set is RDKit reduced to 128 components throughout. The **Best single ingredient**, **Best graph network**, and **CheMeleon baseline** rows repeat from earlier figures for scale. As in Figure 1, whiskers are Tukey HSD comparison intervals across the 5 seeds. The **N283T** leaderboard entry is reproduced for reference. [NEEDS REWRITE: the caption still describes two candidate embeddings, both from one Chemprop model. The panel now carries five, and the sentence explaining that the embedding and readout come from the same model no longer holds for the rows where they come from different ones.]
 
 ---
 
@@ -54,7 +54,7 @@ TabICL leads nominally, 0.4269 against 0.4358 on the seed mean, and the pair is 
 
 *(paste `results/figures/fig5.html` here as an HTML card)*
 
-**Figure 5. Tabular foundation model comparison.** The panel reports test set MAE with the featureset held fixed (CheMeleon embedding + log<sub>2</sub>FC readout, 258 columns), varying only the tabular foundation regressor. The swept rows cover two TabPFN releases (v2.6 and v3), TabICL, TabFM, and two gradient-boosted baselines (LightGBM and XGBoost). TabFM's row is not strictly comparable: its in-context set is capped at 500 rows to fit memory, while every other regressor saw all 4,392 training rows. As in Figure 1, whiskers are Tukey HSD comparison intervals across the 5 seeds. The **Best single ingredient**, **Best graph network**, and **CheMeleon baseline** rows repeat from earlier figures for scale. The **N283T ensemble** is reproduced for reference.
+**Figure 5. Tabular foundation model comparison.** The panel reports test set MAE with the featureset held fixed (CheMeleon embedding + log<sub>2</sub>FC readout, 258 columns), varying only the tabular foundation regressor. The swept rows cover two TabPFN releases (v2.6 and v3), TabICL, TabFM, and two gradient-boosted baselines (LightGBM and XGBoost). TabFM's row is not strictly comparable: its in-context set is capped at 500 rows to fit memory, while every other regressor saw all 4,392 training rows. As in Figure 1, whiskers are Tukey HSD comparison intervals across the 5 seeds. The **Best single ingredient**, **Best graph network**, and **CheMeleon baseline** rows repeat from earlier figures for scale. The **N283T** leaderboard entry is reproduced for reference.
 
 ---
 
