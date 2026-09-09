@@ -922,15 +922,23 @@ def comparison_figure(
 
         for trace in row_traces(frame):
             figure.add_trace(trace, row=1, col=column)
+        labels = frame["label"].tolist()
+
         # the y axis is pinned to the sorted labels rather than left to follow
         # trace order, which is what keeps the column sorted by score however
-        # the traces come out, and reversed so the best sits at the top
+        # the traces come out, and runs high to low so the best sits at the top
         figure.update_yaxes(
             title_text="",
             type="category",
             categoryorder="array",
-            categoryarray=frame["label"].tolist(),
-            autorange="reversed",
+            categoryarray=labels,
+            # the range is written out rather than left to autorange, which
+            # pads a category axis by a fraction of its span and so opens a gap
+            # that grows with the panel: two blank rows above the first row and
+            # below the last on a panel of forty. Half a category at each end
+            # is one row's worth of space shared between the two, which is the
+            # spacing the rows already have between themselves
+            range=[len(labels) - 0.5, -0.5],
             tickfont=BOLD,
             row=1,
             col=column,

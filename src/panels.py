@@ -45,6 +45,10 @@ logger = logging.getLogger(__name__)
 # native event for; appended to every page written
 ROW_HOVER = Path(__file__).with_name("row_hover.js")
 
+# the gap between two panels is a fraction of the figure and the labels drawn
+# in it are pixels wide, so the gap is settled in the page rather than here
+PANEL_GAP = Path(__file__).with_name("panel_gap.js")
+
 FIGURES_DIR = Path("results/figures")
 
 # the references the tabular figures carry, declared in the manifest and named
@@ -1102,18 +1106,23 @@ def _check_leader(
 def _write(figure: go.Figure, path: Path) -> Path:
     """Write one figure as a standalone page, with the row labels made hoverable.
 
-    The script is appended rather than passed as plotly's ``post_script``,
+    The page also carries the script that widens the gap between two panels to
+    fit the labels drawn in it, which does nothing to a page of one panel.
+
+    The scripts are appended rather than passed as plotly's ``post_script``,
     which formats the string it is given and would take every brace in the
     JavaScript for a placeholder.
     """
     figure.write_html(path, include_plotlyjs="cdn", full_html=True)
 
     page = path.read_text()
-    script = f"<script>{ROW_HOVER.read_text()}</script>"
+    scripts = "\n".join(
+        f"<script>{source.read_text()}</script>" for source in (ROW_HOVER, PANEL_GAP)
+    )
     closing = "</body>"
     if closing not in page:
-        raise PanelError(f"{path} has no body to attach the label hover to")
-    path.write_text(page.replace(closing, f"{script}\n{closing}", 1))
+        raise PanelError(f"{path} has no body to attach the page scripts to")
+    path.write_text(page.replace(closing, f"{scripts}\n{closing}", 1))
     logger.info("wrote %s", path)
     return path
 
