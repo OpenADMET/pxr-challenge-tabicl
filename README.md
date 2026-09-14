@@ -1,24 +1,16 @@
 # PXR challenge: are tabular foundation models all you need?
 
-A rebuild of the OpenADMET PXR (pregnane X receptor) blind-challenge analysis,
-run on the challenge's own evaluation split. It sweeps tabular featuresets and
+An analysis of the OpenADMET PXR (pregnane X receptor) blind challenge, run on
+the challenge's own evaluation split. It sweeps tabular featuresets and
 regressors, including the tabular foundation models, against fine-tuned
 message-passing graph networks, and scores every configuration the way the
 leaderboard did.
-
-The previous generation's analysis is kept on the `archive` branch, which
-shares no history with this one.
 
 ## The split
 
 Fit on the dose-response training set plus phase 1 (4,392 compounds), score on
 phase 2 alone (260 compounds). That is the split the challenge used, so a number
 produced here is comparable to what participants reported on the leaderboard.
-
-The earlier analysis scored phase 1 and phase 2 pooled (513 compounds). Those
-numbers rank configurations against each other and cannot be read against the
-leaderboard, which is why `experiments/prior_summary.csv` is kept as context and
-decides nothing about what runs.
 
 Imputation and PCA are fitted on the fit partition alone and then applied to
 every molecule, test set included. That is the one place in the pipeline where a
@@ -109,10 +101,13 @@ because the cross product is a better description than several hundred
 hand-written entries.
 
 `experiments/prior_summary.csv` sits beside it as a check that nothing was
-forgotten, and a test pins that its rows are the pooled 513-compound evaluation
-so they cannot be mistaken for numbers comparable to these. That check is read
-by hand rather than enforced: two prior configurations vary a training-data
-axis this rebuild does not have, and no cell reproduces them.
+forgotten. It summarizes an earlier sweep over the same challenge data, scored
+on phase 1 and phase 2 pooled (513 compounds), so its numbers rank
+configurations against each other but cannot be read against the leaderboard
+or against these, and a test pins that its rows are the pooled evaluation. It
+decides nothing about what runs, and the check is read by hand rather than
+enforced, because two of its configurations vary a training-data axis this
+analysis does not have and no cell reproduces them.
 
 Each stage sweeps every level of the dimensions it names and holds fixed only
 what an earlier stage settled. A stage that settles something writes a **gate**:
