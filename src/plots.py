@@ -25,14 +25,15 @@ it was chosen, not because the plot found it.
 
 Colour and position carry different things, and neither is redundant. Position
 is the score, so the best configuration is the top row and needs no marking of
-its own. Colour is either a verdict, blue for a configuration the procedure
-does not separate from the best and grey for one it does, or an identity: a
-gate's winner keeps one colour wherever it appears again. An identity colour
-says which configuration a row is, not how it stands, so a row carried into a
-figure for recognition is not making a significance claim it was not tested
-for. Shape answers a third question, which is where the row came from: the
-configuration this figure establishes is a star, one carried in from another
-family is a diamond, and one this figure's own sweep produced is a circle.
+its own. Colour is either a verdict, dark grey for a configuration the
+procedure does not separate from the best and light grey for one it does, or
+an identity: a gate's winner keeps one colour wherever it appears again. An
+identity colour says which configuration a row is, not how it stands, so a
+row carried into a figure for recognition is not making a significance claim
+it was not tested for. Shape answers a third question, which is where the row
+came from: the configuration this figure establishes is a star, one carried in
+from another family is a diamond, and one this figure's own sweep produced is
+a circle.
 """
 
 from __future__ import annotations
@@ -69,7 +70,7 @@ VERDICT_COLOUR = {TIED: "#646d7a", SEPARATED: "#c6cbd1"}
 
 # Plotly's default qualitative palette, named by position so the source of a
 # colour is legible and nothing is invented. Ten colours, of which eight are
-# spent: the assignment below is the one that leaves the closest pair inside
+# spent: the assignment below is one that leaves the closest pair inside
 # any single panel as far apart as this palette allows, which is 21.8 in
 # CIELAB, between its blue and its purple in figure 4. Those two are the
 # palette's own nearest neighbours, and no assignment separates them: pinning
@@ -84,7 +85,7 @@ PALETTE = px.colors.qualitative.Plotly
 # because a slug also names the axes a figure holds fixed and those differ
 # from stage to stage.
 GATE_COLOUR = {
-    "canonical_descriptors": PALETTE[0],
+    "canonical_descriptors": PALETTE[5],
     "embedding_reduction": PALETTE[4],
     "best_featureset": PALETTE[3],
     "best_regressor": PALETTE[9],
@@ -101,9 +102,9 @@ GATE_COLOUR = {
 NAMED_COLOUR = {
     # the published leaderboard score, which is a landmark rather than a
     # competitor: it has no per-compound predictions here to test against
-    "anchor": PALETTE[1],
+    "anchor": PALETTE[0],
     "best_gnn": PALETTE[8],
-    "chemeleon_baseline": PALETTE[5],
+    "chemeleon_baseline": PALETTE[1],
     "best_single": PALETTE[7],
 }
 

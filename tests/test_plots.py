@@ -95,8 +95,8 @@ def test_every_colour_comes_from_the_palette():
 
 
 def test_the_verdict_colours_are_not_in_any_identity_family():
-    # a reader reads blue as "not separated" and grey as "separated" wherever
-    # they appear, so no identity may borrow either reading
+    # a reader reads dark grey as "not separated" and light grey as "separated"
+    # wherever they appear, so no identity may borrow either reading
     # a grey that is faintly blue reads as an identity, which is what this
     # caught when the verdicts moved off blue and an identity moved onto it
     reserved = {family(colour) for colour in plots.VERDICT_COLOUR.values()}
