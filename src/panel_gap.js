@@ -7,6 +7,41 @@
 // the gap is wider than anything is in. So the gap is measured here, after
 // every draw, and set to what the labels in it actually need.
 (function () {
+  // the script tag running this copy, read now because it is null inside any
+  // callback; a post can carry several figures, each followed by its own copy
+  var SELF = document.currentScript;
+
+  // the figure this copy follows: the last graph before its script tag
+  function ownFigure() {
+    var graphs = document.querySelectorAll(".plotly-graph-div");
+    var mine = null;
+    for (var i = 0; i < graphs.length; i += 1) {
+      var before = SELF && (graphs[i].compareDocumentPosition(SELF) & Node.DOCUMENT_POSITION_FOLLOWING);
+      if (!SELF || before) mine = graphs[i];
+    }
+    return mine;
+  }
+
+  // run a check each time plotly finishes changing the figure. Plotly does not
+  // always emit plotly_afterplot after a redraw, so the figure's markup is
+  // watched rather than its events; the hover layer is left out, since a
+  // tooltip redraws nothing a check reads
+  function afterRedraw(gd, check) {
+    var pending = false;
+    new MutationObserver(function (records) {
+      var drawn = records.some(function (record) {
+        var node = record.target;
+        return !(node.closest && node.closest(".hoverlayer"));
+      });
+      if (!drawn || pending) return;
+      pending = true;
+      window.requestAnimationFrame(function () {
+        pending = false;
+        check();
+      });
+    }).observe(gd, { childList: true, subtree: true });
+  }
+
   // daylight between a row label and the panel it sits beside
   var SLACK = 8;
 
@@ -84,7 +119,7 @@
   // the labels are redrawn at every width, so the gap is retaken after each
   // plot rather than once
   function start() {
-    var gd = document.querySelector(".plotly-graph-div");
+    var gd = ownFigure();
     if (!gd || !window.Plotly || !gd.on) {
       window.setTimeout(start, 60);
       return;
@@ -94,7 +129,7 @@
     if (!fit(gd)) {
       console.warn("panel gap: no row labels found beside the inner panels; the gap stands");
     }
-    gd.on("plotly_afterplot", function () {
+    afterRedraw(gd, function () {
       fit(gd);
     });
   }
