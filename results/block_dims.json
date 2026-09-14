@@ -1,0 +1,18 @@
+{
+  "descriptors": {
+    "mordred": 1613,
+    "rdkit": 217,
+    "rdkit_mordred": 1830
+  },
+  "embedding": {
+    "chemeleon": 2048,
+    "chemeleon_log2fc": 2048,
+    "chemeleon_pec50": 2048,
+    "chemprop_log2fc": 256,
+    "chemprop_pec50": 256
+  },
+  "readout": {
+    "chemeleon_log2fc": 2,
+    "chemprop_log2fc": 2
+  }
+}

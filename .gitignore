@@ -34,6 +34,10 @@ results/gnn/*/*/*
 results/uncertainty/*/*
 !results/uncertainty/*/points.csv
 !results/uncertainty/*/coverage.csv
+
+# each feature block's column count, recorded where the feature caches exist, so
+# a figure built on a machine without them still names its blocks' widths
+!results/block_dims.json
 logs/
 
 # local type-checker override for a checkout whose environment is not ./.venv;

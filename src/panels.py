@@ -20,6 +20,7 @@ recorded from the runs; a panel reads those records and draws them.
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -95,6 +96,10 @@ DEFAULT_RESAMPLES = 10000
 
 # where the feature blocks are written, read for their true column counts
 FEATURES_DIR = Path("data/features")
+
+# those column counts, kept where a checkout without the feature caches can
+# still find them, so a figure built there names the same widths
+DIMS_RECORD = Path("results/block_dims.json")
 
 # the readout blocks are two predicted columns and are never reduced, so their
 # width is a property of what they are rather than of any choice
@@ -857,7 +862,9 @@ def render(
     return written
 
 
-def block_dims(manifest: Manifest, features_dir: Path = FEATURES_DIR) -> dict[tuple[str, str], int]:
+def measured_block_dims(
+    manifest: Manifest, features_dir: Path = FEATURES_DIR
+) -> dict[tuple[str, str], int]:
     """Return each block level's true column count, read off the features.
 
     The manifest declares a count for the blocks it reduces, and a figure wants
@@ -883,6 +890,63 @@ def block_dims(manifest: Manifest, features_dir: Path = FEATURES_DIR) -> dict[tu
             if all(width is not None for width in widths):
                 dims[(axis, str(level))] = sum(width for width in widths if width is not None)
     return dims
+
+
+def block_dims(
+    manifest: Manifest,
+    features_dir: Path = FEATURES_DIR,
+    record: Path = DIMS_RECORD,
+) -> dict[tuple[str, str], int]:
+    """Return each block level's column count, from its features or the record.
+
+    A level whose features are built is measured, as :func:`measured_block_dims`
+    does. One whose features are not takes the count recorded when they were,
+    which is what lets a checkout without the feature caches name the same
+    widths. A level in neither is absent rather than guessed at.
+
+    Returns
+    -------
+    dict
+        ``(axis, level)`` mapped to the block's own column count.
+    """
+    return {**read_block_dims(record), **measured_block_dims(manifest, features_dir)}
+
+
+def read_block_dims(record: Path = DIMS_RECORD) -> dict[tuple[str, str], int]:
+    """Return the column counts held in ``record``, or none if it was never written."""
+    if not record.exists():
+        return {}
+    written = json.loads(record.read_text())
+    return {
+        (axis, level): int(count)
+        for axis, levels in written.items()
+        for level, count in levels.items()
+    }
+
+
+def record_block_dims(dims: dict[tuple[str, str], int], record: Path = DIMS_RECORD) -> Path:
+    """Write column counts into ``record``, keeping any it holds for other levels.
+
+    A count measured now replaces the recorded one for its level, and a level
+    recorded earlier but not measured this time stays, since a partial set of
+    feature caches says nothing about the blocks it lacks. The file is left
+    untouched when nothing in it would change.
+
+    Returns
+    -------
+    Path
+        The record.
+    """
+    merged = {**read_block_dims(record), **dims}
+    nested: dict[str, dict[str, int]] = {}
+    for (axis, level), count in sorted(merged.items()):
+        nested.setdefault(axis, {})[level] = count
+    text = json.dumps(nested, indent=2) + "\n"
+    if not record.exists() or record.read_text() != text:
+        record.parent.mkdir(parents=True, exist_ok=True)
+        record.write_text(text)
+        logger.info("recorded block column counts in %s", record)
+    return record
 
 
 def _columns(directory: Path) -> int | None:

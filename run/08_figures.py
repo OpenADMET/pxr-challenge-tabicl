@@ -97,6 +97,11 @@ def main() -> None:
 
     written = {}
     if not wanted or wanted - set(STANDALONE):
+        # the column counts a figure names are read off the feature caches;
+        # recording them lets a checkout without the caches name the same ones
+        measured = panels.measured_block_dims(spec)
+        if measured:
+            panels.record_block_dims(measured)
         built = panels.build(
             spec,
             results_dir=args.results,
