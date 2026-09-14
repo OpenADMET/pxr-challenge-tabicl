@@ -113,7 +113,7 @@ To realize the PCA-transformed CheMeleon embeddings concatenated with log<sub>2<
 - A `PretrainedModelFeaturizer` to read a trained model back in with another workflow to use that network's predictions as features. For example, train a Chemprop model on primary screen log<sub>2</sub>FC data, whose output then gets read into the main tabular foundation model as predicted log<sub>2</sub>FC features.
 - A `TabICLRegressor` (and `TabICLClassifier`), to use TabICL for final predictions.
 
-The pipeline can now be specified with just two YAML files, with example configs up on [`optimus-prime`](https://github.com/OpenADMET/optimus-prime). [MAKE SURE THIS LINK GETS UPDATED TO TAKE THEM DIRECTLY TO THE RIGHT CONFIGS].
+The pipeline can now be specified with just two YAML files, with example configs up on [`optimus-prime`](https://github.com/OpenADMET/optimus-prime).
 
 ---
 
