@@ -49,6 +49,16 @@ ROW_HOVER = Path(__file__).with_name("row_hover.js")
 # in it are pixels wide, so the gap is settled in the page rather than here
 PANEL_GAP = Path(__file__).with_name("panel_gap.js")
 
+# a figure that widens after it is drawn leaves its legend where a narrower one
+# put it, down in the plot; appended to every page written
+LEGEND_SETTLE = Path(__file__).with_name("legend_settle.js")
+
+# a Ghost post lays its body out in a 720px column, most of which a comparison
+# panel spends on row labels; this widens the figure to a plot width every
+# figure on the post shares, centred at full window width, and keeps that size
+# while there is room
+GHOST_WIDTH = Path(__file__).with_name("ghost_width.js")
+
 FIGURES_DIR = Path("results/figures")
 
 # the references the tabular figures carry, declared in the manifest and named
@@ -1107,22 +1117,13 @@ def _write(figure: go.Figure, path: Path) -> Path:
     """Write one figure as a standalone page, with the row labels made hoverable.
 
     The page also carries the script that widens the gap between two panels to
-    fit the labels drawn in it, which does nothing to a page of one panel.
-
-    The scripts are appended rather than passed as plotly's ``post_script``,
-    which formats the string it is given and would take every brace in the
-    JavaScript for a placeholder.
+    fit the labels drawn in it, which does nothing to a page of one panel, the
+    one that puts the legend back after the figure widens, and the one that
+    places the figure when the page is pasted into a Ghost post, which does
+    nothing anywhere else.
     """
     figure.write_html(path, include_plotlyjs="cdn", full_html=True)
-
-    page = path.read_text()
-    scripts = "\n".join(
-        f"<script>{source.read_text()}</script>" for source in (ROW_HOVER, PANEL_GAP)
-    )
-    closing = "</body>"
-    if closing not in page:
-        raise PanelError(f"{path} has no body to attach the page scripts to")
-    path.write_text(page.replace(closing, f"{scripts}\n{closing}", 1))
+    _attach(path, (ROW_HOVER, PANEL_GAP, LEGEND_SETTLE, GHOST_WIDTH))
     logger.info("wrote %s", path)
     return path
 
@@ -1132,11 +1133,36 @@ def write_standalone(figure: go.Figure, path: Path) -> Path:
 
     Figures 6 and 7 have no row labels, so there is nothing for a hover on a
     tick to open and the label script is left off rather than attached and
-    left to report that it matched nothing.
+    left to report that it matched nothing. They take the legend and Ghost
+    placement scripts all the same: both legends wrap at a narrow width, and a
+    figure's place on the page is not a question about what its axes carry.
     """
     figure.write_html(path, include_plotlyjs="cdn", full_html=True)
+    _attach(path, (LEGEND_SETTLE, GHOST_WIDTH))
     logger.info("wrote %s", path)
     return path
+
+
+def _attach(path: Path, sources: tuple[Path, ...]) -> None:
+    """Append scripts to a written page, just inside its closing body tag.
+
+    Each script finds the figure it follows rather than the first on the page,
+    so a Ghost post carrying several of these pages gets every figure handled.
+    They are appended rather than passed as plotly's ``post_script``, which
+    formats the string it is given and would take every brace in the JavaScript
+    for a placeholder.
+
+    Raises
+    ------
+    PanelError
+        If the page has no closing body tag to attach them before.
+    """
+    page = path.read_text()
+    closing = "</body>"
+    if closing not in page:
+        raise PanelError(f"{path} has no body to attach the page scripts to")
+    scripts = "\n".join(f"<script>{source.read_text()}</script>" for source in sources)
+    path.write_text(page.replace(closing, f"{scripts}\n{closing}", 1))
 
 
 # the stage whose regressor levels are one checkpoint at a fixed member count
