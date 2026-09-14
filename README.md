@@ -194,7 +194,10 @@ data/features/     feature blocks, content-addressed (ignored)
 data/reduced/      reductions, content-addressed (ignored)
 data/encoders/     trained encoders and body checkpoints (ignored)
 results/gates/     gate decisions (tracked)
-results/           run directories and results.parquet (ignored)
+results/           run directories and results.parquet (ignored), apart from
+                   each run's predictions.csv, the uncertainty tables and
+                   block_dims.json, tracked so the figures can be drawn
+                   without rerunning the sweep
 experiments/       the manifest, the prior summary, open questions
 src/               modules, resolved without an installed package
 run/               numbered entry points, in the order they run
