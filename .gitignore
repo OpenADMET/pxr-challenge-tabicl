@@ -19,6 +19,21 @@ data/*
 # carries the repo commit and package versions it was decided under
 results/*
 !results/gates/
+
+# the per-compound predictions of every run, so a figure can be rebuilt on a
+# machine that never ran the sweep. run/08_figures.py draws on these and the
+# gates and on nothing else under results/, so the rest of a run directory
+# stays out
+!results/tabular/
+!results/gnn/
+!results/uncertainty/
+results/tabular/*/*/*
+!results/tabular/*/seed*/predictions.csv
+results/gnn/*/*/*
+!results/gnn/*/seed*/predictions.csv
+results/uncertainty/*/*
+!results/uncertainty/*/points.csv
+!results/uncertainty/*/coverage.csv
 logs/
 
 # local type-checker override for a checkout whose environment is not ./.venv;
