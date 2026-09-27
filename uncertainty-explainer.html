@@ -1,0 +1,1397 @@
+<title>Uncertain uncertainties</title>
+<style>
+  /* Dracula palette — single-theme, dark-only commitment */
+  :root {
+    --bg:         #282a36;
+    --bg-current: #44475a;
+    --fg:         #f8f8f2;
+    --comment:    #6272a4;
+    --cyan:       #8be9fd;
+    --green:      #50fa7b;
+    --orange:     #ffb86c;
+    --pink:       #ff79c6;
+    --purple:     #bd93f9;
+    --red:        #ff5555;
+    --yellow:     #f1fa8c;
+    --bg-deep:    #21222c;
+    --bg-card:    #313345;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 740px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 6rem;
+  }
+
+  /* ---- Type scale ---- */
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    color: var(--purple);
+    text-wrap: balance;
+    margin-bottom: 0.5rem;
+  }
+
+  .subtitle {
+    font-size: 1.05rem;
+    color: var(--comment);
+    margin-bottom: 3rem;
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--cyan);
+    margin-top: 3.5rem;
+    margin-bottom: 1rem;
+    text-wrap: balance;
+  }
+
+  h2 .step-num {
+    display: inline-block;
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    font-size: 0.8em;
+    color: var(--comment);
+    margin-right: 0.5em;
+  }
+
+  p { margin-bottom: 1.1rem; }
+
+  strong { color: var(--fg); font-weight: 600; }
+
+  em { font-style: italic; color: var(--purple); }
+
+  code {
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    font-size: 0.88em;
+    background: var(--bg-current);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    color: var(--green);
+  }
+
+  a { color: var(--purple); text-decoration: underline; text-underline-offset: 2px; }
+  a:hover { color: var(--pink); }
+
+  /* ---- Definition cards ---- */
+  .def-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1.5rem 0 2rem;
+  }
+  @media (max-width: 600px) { .def-grid { grid-template-columns: 1fr; } }
+
+  .def-card {
+    background: var(--bg-card);
+    border: 1px solid var(--bg-current);
+    border-radius: 8px;
+    padding: 1.2rem 1.3rem;
+  }
+  .def-card h3 {
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.5rem;
+  }
+  .def-card p {
+    font-size: 0.92rem;
+    color: var(--fg);
+    margin-bottom: 0;
+    line-height: 1.55;
+  }
+  .def-card.cal h3  { color: var(--cyan); }
+  .def-card.rank h3 { color: var(--pink); }
+
+  /* ---- Callout boxes ---- */
+  .callout {
+    background: var(--bg-deep);
+    border-left: 3px solid var(--purple);
+    border-radius: 0 6px 6px 0;
+    padding: 1.1rem 1.3rem;
+    margin: 1.5rem 0;
+    font-size: 0.95rem;
+  }
+  .callout.claim { border-left-color: var(--pink); }
+  .callout.question { border-left-color: var(--orange); }
+  .callout.result { border-left-color: var(--green); }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout-label {
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.4rem;
+  }
+  .callout.claim .callout-label { color: var(--pink); }
+  .callout.question .callout-label { color: var(--orange); }
+  .callout.result .callout-label { color: var(--green); }
+  .callout.analogy { border-left-color: var(--yellow); }
+  .callout.analogy .callout-label { color: var(--yellow); }
+
+
+  /* ---- Chart containers ---- */
+  .chart-panel {
+    background: var(--bg-deep);
+    border-radius: 8px;
+    padding: 1.2rem;
+    margin: 1.5rem 0;
+  }
+  .chart-title {
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--comment);
+    letter-spacing: 0.06em;
+    margin-bottom: 0.8rem;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .chart-caption {
+    font-size: 0.82rem;
+    color: var(--comment);
+    margin-top: 0.7rem;
+    line-height: 1.45;
+  }
+
+  /* ---- Sim controls ---- */
+  .sim-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+  .sim-btn {
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: var(--purple);
+    color: var(--bg);
+    border: none;
+    border-radius: 6px;
+    padding: 0.55rem 1.2rem;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .sim-btn:hover { background: var(--pink); }
+  .sim-btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .sim-btn:disabled { opacity: 0.4; cursor: default; }
+  .sim-status {
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    font-size: 0.82rem;
+    color: var(--comment);
+  }
+
+  /* ---- Stats row ---- */
+  .stats-row {
+    display: flex;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+    margin: 1rem 0;
+  }
+  .stat-box {
+    background: var(--bg-card);
+    border-radius: 6px;
+    padding: 0.7rem 1rem;
+    flex: 1;
+    min-width: 140px;
+  }
+  .stat-label {
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    font-size: 0.7rem;
+    color: var(--comment);
+    letter-spacing: 0.06em;
+    margin-bottom: 0.2rem;
+  }
+  .stat-value {
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    font-size: 1.3rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- Divider ---- */
+  hr {
+    border: none;
+    border-top: 1px solid var(--bg-current);
+    margin: 3rem 0;
+  }
+
+  /* ---- Tooltip ---- */
+  .tooltip {
+    position: fixed;
+    background: var(--bg-current);
+    border: 1px solid var(--comment);
+    border-radius: 5px;
+    padding: 0.4rem 0.65rem;
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    font-size: 0.75rem;
+    color: var(--fg);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s;
+    z-index: 100;
+    white-space: nowrap;
+  }
+
+  /* ---- Histogram legend ---- */
+  .legend-row {
+    display: flex;
+    gap: 1.2rem;
+    margin-top: 0.6rem;
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    font-size: 0.75rem;
+    color: var(--comment);
+  }
+  .legend-item { display: flex; align-items: center; gap: 0.35rem; }
+  .legend-swatch {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border-radius: 3px;
+  }
+</style>
+
+<div class="page">
+
+  <h1>Uncertain uncertainties</h1>
+  <p class="subtitle">Plotting |error| against model uncertainty and judging by Spearman rank correlation might not be the right framing. Here we separate the concepts and re-examine the evidence.</p>
+
+  <!-- ===== DEFINITIONS ===== -->
+  <h2><span class="step-num">00</span> Calibration vs. ranking</h2>
+
+  <p>Uncertainty estimates can answer two distinct questions. They sound similar but test different properties and can give opposite verdicts on the same model.</p>
+
+  <div class="def-grid">
+    <div class="def-card cal">
+      <h3>Calibration</h3>
+      <p><strong>Are the error bars the right width?</strong> If the model says "90% interval," do 90% of true values actually land inside it? This is a property of the <em>population</em>. You pool all 260 compounds and ask one question with 260 data points answering it.</p>
+    </div>
+    <div class="def-card rank">
+      <h3>Ranking / discrimination</h3>
+      <p><strong>Can the model tell you <em>which</em> compounds are hard?</strong> Do the ones with wider predicted intervals actually produce larger errors? This is a property of <em>individual compounds</em>. You need each compound's predicted uncertainty to line up with its realized error.</p>
+    </div>
+  </div>
+
+  <p>Calibration asks: <em>on average, are the intervals honest?</em> Ranking asks: <em>for each compound, does the model know where it will be wrong?</em> A model can pass one and fail the other.</p>
+
+  <hr>
+
+  <!-- ===== STEP 1: WHAT WE SAID ===== -->
+  <h2><span class="step-num">01</span> What we said in the blog post</h2>
+
+  <p>We fed our best feature set into TabICL and examined the predicted uncertainty. Figure 6 in the post had two panels. The right panel (the calibration plot) looked good: the intervals were close to the right width, with a miscalibration area of 0.04. The left panel plotted each compound's predicted standard deviation against its absolute error, and we computed the Spearman rank correlation between them.</p>
+
+  <div class="chart-panel">
+    <div class="chart-title">Reliability diagram: observed vs. nominal coverage</div>
+    <canvas id="reliability-chart" height="360"></canvas>
+    <div class="legend-row">
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--cyan)"></span> Observed coverage</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--comment)"></span> Perfect calibration</span>
+    </div>
+    <div class="chart-caption">Each point compares the predicted coverage level (x-axis) against the fraction of compounds that actually fall within that interval (y-axis). The shaded area between the curve and the diagonal is the miscalibration area (0.04). Points consistently above the diagonal indicate slight underconfidence: the model's intervals are a touch wider than necessary.</div>
+  </div>
+
+  <div class="callout claim">
+    <div class="callout-label">Our claim</div>
+    <p>"The Spearman rank correlation between predicted standard deviation and absolute residual was 0.26 ... tabular foundation models give us intervals of roughly the right width, but not a reliable ranking of which compounds are hard."</p>
+  </div>
+
+  <p>In other words: calibration passed, ranking failed. Here is that scatter plot, reconstructed from the same 260 test compounds.</p>
+
+  <div class="chart-panel">
+    <div class="chart-title">Predicted σ vs. absolute residual (our actual data)</div>
+    <canvas id="scatter" height="360"></canvas>
+    <div class="chart-caption">Each dot is one compound. Spearman ρ = 0.26. The relationship looks weak.</div>
+  </div>
+
+  <hr>
+
+  <!-- ===== STEP 2: THE QUESTION ===== -->
+  <h2><span class="step-num">02</span> The question from a commenter</h2>
+
+  <p>Jonas Landsgesell pushed back with a toy example: a well-calibrated linear model whose Spearman ρ between predicted interval width and absolute error was essentially zero. His question:</p>
+
+  <div class="callout question">
+    <div class="callout-label">The challenge</div>
+    <p>"I don't see exactly why you expect a strong correlation there. Did you investigate a data-generating process from which you would expect a different Spearman correlation?"</p>
+  </div>
+
+  <p>In plain terms: what if <strong>ρ = 0.26 is normal</strong>, even when the uncertainty estimates are perfectly calibrated? What if we declared the ranking bad without checking what "good" would look like?</p>
+
+  <hr>
+
+  <!-- ===== STEP 3: DO THE SIGMAS VARY? ===== -->
+  <h2><span class="step-num">03</span> Do the predicted uncertainties actually vary?</h2>
+
+  <p>A low ρ has at least two explanations worth checking. The first is straightforward: the model might predict nearly the same σ for every compound, leaving no ranking to detect. If so, a low ρ would be expected regardless of how many measurements we had. Before looking for subtler causes, we need to check whether the σ values spread out enough to encode a ranking in the first place.</p>
+
+  <div class="chart-panel">
+    <div class="chart-title">Distribution of predicted σ across 260 test compounds</div>
+    <canvas id="sigma-hist" height="280"></canvas>
+    <div class="chart-caption">The values span 0.32 to 1.28, a 4× ratio between narrowest and widest. The model is not returning one number for every compound.</div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="stat-label">Min σ</div>
+      <div class="stat-value" style="color:var(--cyan)">0.32</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Median σ</div>
+      <div class="stat-value" style="color:var(--cyan)">0.47</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Max σ</div>
+      <div class="stat-value" style="color:var(--cyan)">1.28</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">CV (std / mean)</div>
+      <div class="stat-value" style="color:var(--cyan)">0.34</div>
+    </div>
+  </div>
+
+  <p>The σ values vary meaningfully, so same-σ-everywhere is ruled out. Combined with calibration (miscalibration area 0.04), this means the model assigns different uncertainty to different compounds, and those assignments are approximately the right width. Because expected absolute error scales with σ under a calibrated model, these varying σ values encode a ranking. So the low ρ must have another cause.</p>
+
+  <hr>
+
+  <!-- ===== STEP 4: THE COIN FLIP ===== -->
+  <h2><span class="step-num">04</span> The one-flip problem</h2>
+
+  <p>The σ values vary and the intervals are calibrated, yet the Spearman ρ is only 0.26. One explanation is that the Spearman ρ test, computed on individual residuals, lacks the statistical power to detect the ranking when each compound contributes only one observation. The following analogy illustrates why.</p>
+
+  <div class="callout analogy">
+    <div class="callout-label">The coin analogy</div>
+    <p>Imagine each compound has a coin. Compound A's coin lands heads 60% of the time (high σ, expect large errors). Compound B's coin lands heads 40% of the time (low σ, expect small errors).</p>
+    <p>If you flip each coin <strong>a thousand times</strong>, you can easily tell which coin has the higher rate. Compound A clearly produces more heads.</p>
+    <p>But you only flip each coin <strong>once</strong>. Compound A might land tails. Compound B might land heads. From those two flips, you'd rank them backwards.</p>
+  </div>
+
+  <p>That's exactly what's happening in our scatter plot. Each compound has a predicted σ that defines a <em>distribution</em> of possible errors. The predicted mean is fixed; the true value is what varies. Each residual measures the distance between the fixed prediction and a single realization of the true value, and we observe only one realization per compound.</p>
+
+  <p>A compound with a wide predicted distribution (high σ) <em>will, on average</em>, produce larger residuals, but on any single occasion it might land close to the predicted mean and show a small error. Wide distributions still produce values near their center.</p>
+
+  <p>So we're trying to correlate a property of a <strong>distribution</strong> (its width) with a property of a <strong>single sample from that distribution</strong> (how far that one sample landed from the center). With one sample per distribution, the rank correlation is weak, even when the uncertainty estimates are correct.</p>
+
+  <p>A synthetic toy example illustrates the mechanics. Using our actual 260 predicted σ values, we simulate a perfectly calibrated model and ask: what Spearman ρ would we observe if we could measure each compound not once but <em>n</em> times, averaging the absolute residuals over replicates? At n = 1 (our real situation), ρ averages 0.28. By n = 3 it reaches 0.49. By n = 10, 0.72. More replicates average out the noise in individual draws, letting the ranking emerge.</p>
+
+  <div class="chart-panel">
+    <div class="chart-title">Spearman ρ vs. number of replicates per compound (toy simulation)</div>
+    <canvas id="replicate-chart" height="340"></canvas>
+    <div class="legend-row">
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--purple)"></span> Mean ρ (500 simulations)</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--purple);opacity:0.25"></span> 5th-95th percentile</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> n = 1 (our data)</span>
+    </div>
+    <div class="chart-caption">Each point is the mean Spearman ρ across 500 simulations at that replicate count, with the shaded band covering the 5th to 95th percentile. At n = 1, we observe ρ ≈ 0.28. The correlation is weak because one measurement per compound is not enough to reveal the underlying ranking.</div>
+  </div>
+
+  <p>This simulation draws residuals from the model's own predicted σ values, which means it assumes those σ values are correct. That assumption is partially validated by the calibration plot (miscalibration area 0.04), but it is not an independent proof. The simulation demonstrates the <em>mechanics</em> of the one-flip problem (one draw per compound limits ρ even when the ranking is real) rather than proving that our model's specific σ values are right. It also ignores real-world complications: experimental noise in the labels, non-Gaussian error distributions, and the fact that replicate measurements in a real assay would introduce their own sources of variability beyond what a simple Gaussian captures.</p>
+
+  <hr>
+
+  <!-- ===== STEP 5: SIMULATION ===== -->
+  <h2><span class="step-num">05</span> What does perfectly calibrated uncertainty produce?</h2>
+
+  <p>The replicate curve in section 04 showed that more measurements per compound would strengthen ρ toward 1 by varying the number of draws per compound. This section takes the complementary approach: holding the replicate count at 1 (matching our data), it asks what <em>distribution of ρ values</em> a model with ideal uncertainty estimates would produce. Section 04 asked how many measurements it would take to see the ranking clearly; this section asks whether ρ = 0.26 indicates a ranking deficiency or is simply the expected outcome given one measurement per compound.</p>
+
+  <p>We take the 260 predicted σ values from the real model and pretend the <strong>uncertainty estimates are perfectly calibrated</strong>: for each compound, we draw a single residual from a Gaussian with that compound's σ. The point predictions can still be wrong (they are); what's "perfect" is only the error bars. We compute Spearman ρ on those simulated residuals and repeat 2,000 times to build a distribution of ρ values.</p>
+
+  <p>To be precise: "perfectly calibrated" here means each compound's true error really is drawn from the Gaussian the model prescribes. The model is not making perfect predictions (zero error). It is making imperfect predictions and <em>correctly estimating how imperfect each one is</em>. If our observed ρ = 0.26 falls inside that distribution, the low correlation reflects the measurement setup (one residual per compound) rather than a deficiency in the model's uncertainty. If it falls below, there's a real ranking problem the measurement noise cannot explain.</p>
+
+  <div class="chart-panel">
+    <div class="chart-title">Simulated ρ distribution under perfect calibration</div>
+    <canvas id="sim-hist" height="300" style="cursor:pointer"></canvas>
+    <div class="legend-row">
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--purple)"></span> Simulated ρ</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> Observed ρ = 0.26</span>
+    </div>
+    <div class="chart-caption" id="sim-caption"></div>
+    <div class="chart-caption" style="margin-top:0.3rem; font-style:italic">Click to resample with a new seed.</div>
+  </div>
+
+  <hr>
+
+  <!-- ===== STEP 6: THE RESULT ===== -->
+  <h2><span class="step-num">06</span> The result</h2>
+
+  <p>Perfectly calibrated uncertainty with our σ distribution produces a mean Spearman ρ of about <strong>0.285</strong>. Our observed 0.26 sits at the 34th percentile of the null distribution, well within the 95% interval of [0.17, 0.40]. <strong>The ρ we observe is what we would expect even if the uncertainty estimates were ideal. The low correlation reflects the inherent noise of comparing a distribution's width to a single sample from it.</strong></p>
+
+  <p>The blog post's conclusion, "not a reliable ranking of which compounds are hard," is too strong. The σ values vary, calibration holds, and higher σ does correspond to higher expected error, so the ranking is present. Any test based on individual residuals will show a weak correlation, because each residual is one noisy draw from the distribution it's being compared against.</p>
+
+  <hr>
+
+  <!-- ===== STEP 7: SO WHAT ===== -->
+  <h2><span class="step-num">07</span> What this means in practice</h2>
+
+  <p>The calibration plot (Figure 6 right in the blog post) already told us the intervals are the right width. The σ distribution tells us the model differentiates between compounds. Together, those two facts mean the uncertainty estimates <em>are</em> useful.</p>
+
+  <p>What you <strong>can</strong> do with them: use the predicted intervals directly. If compound A has a 90% interval of [4.5, 6.5] and compound B has [5.0, 5.4], pick B when you need precision. Over a portfolio of decisions, calibrated intervals with real σ variation will outperform ignoring them.</p>
+
+  <p>What you <strong>can't</strong> do: look at one compound's error after the fact and judge whether the model "knew" it was hard. That's the one-flip problem. Confirming the ranking for any individual compound would require repeated measurements, but across a batch the ranking holds.</p>
+
+  <p>The reliability diagram in section 01 already showed calibration passing. Several evaluation tools may handle the ranking question better than Spearman ρ on individual residuals, though each comes with its own assumptions and limitations. The first two (quintile binning and CRPS) address compound-level enrichment directly. The third (NLL) is an aggregate model-comparison metric that does not support enrichment. The fourth (conformal prediction) is a method for producing intervals with coverage guarantees, rather than an evaluation tool.</p>
+
+  <p>The one-flip problem limits every evaluation tool that follows. Each method works around it (by aggregating, by scoring the full distribution, by testing calibration globally), but none eliminates it. Replicate measurements would sharpen all of them: more observations per compound would reduce the noise in per-compound error estimates, tighten the quintile bins, widen the gap between variable and constant σ in CRPS and NLL, and push the Spearman ρ curve from section 04 toward its asymptote. The evaluation tools below are the best we can do with one measurement per compound.</p>
+
+  <hr>
+
+  <h2><span class="step-num">07a</span> Quintile binning</h2>
+
+  <p>The simplest approach: sort the 260 compounds by predicted σ, split them into five equal groups (~52 each), and compute the mean |residual| in each bin. Pooling 52 compounds per group averages out the single-draw noise that makes the raw scatter plot so cloudy. If the ranking is real, mean error should increase across the bins.</p>
+
+  <div class="chart-panel">
+    <div class="chart-title">Quintile binning: mean |residual| by predicted σ group</div>
+    <canvas id="quintile-chart" height="300"></canvas>
+    <div class="chart-caption">Mean |residual| increases from 0.27 in the lowest-σ group to 0.65 in the highest. The ranking is real; pooling compounds per bin reveals the trend that individual residuals obscure.</div>
+  </div>
+
+  <p><strong>Strengths:</strong> Easy to compute and interpret. Answers the ranking question directly, without modeling assumptions. <strong>Weaknesses:</strong> The number of bins is arbitrary (5 here, but 4 or 6 would give a slightly different picture). Discretizing throws away information about the shape within each bin, and the approach gives no single comparable score to rank one model's uncertainty against another's.</p>
+
+  <hr>
+
+  <h2><span class="step-num">07b</span> Continuous ranked probability score (CRPS)</h2>
+
+  <p>CRPS evaluates the full predicted distribution against each observed value. It measures the area between the predicted cumulative distribution function (CDF) and a step function at the observed value. A prediction that concentrates probability near the true value scores well; one that spreads probability away from it scores poorly. Lower is better.</p>
+
+  <p>CRPS is a <em>proper scoring rule</em>, meaning a model scores best by reporting its true beliefs. It jointly rewards calibration (intervals the right width) and sharpness (intervals as narrow as possible while remaining calibrated). A model that predicts wide intervals for every compound will be calibrated but not sharp; CRPS penalizes the unnecessary width.</p>
+
+  <p>The decisive test: does the model's per-compound σ variation help, compared to assigning every compound the same global σ (the mean, 0.54)?</p>
+
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="stat-label">CRPS (per-compound σ)</div>
+      <div class="stat-value" style="color:var(--green)">0.312</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">CRPS (constant σ)</div>
+      <div class="stat-value" style="color:var(--orange)">0.319</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Improvement</div>
+      <div class="stat-value" style="color:var(--green)">2.4%</div>
+    </div>
+  </div>
+
+  <p>Per-compound σ beats constant σ by 2.4%. The improvement is modest, consistent with the narrow σ distribution (coefficient of variation = 0.34) and the well-calibrated intervals. Breaking CRPS down by quintile shows a monotonic increase, confirming that the model assigns higher uncertainty to compounds that genuinely score worse.</p>
+
+  <div class="chart-panel">
+    <div class="chart-title">Mean CRPS by predicted σ quintile</div>
+    <canvas id="crps-chart" height="300"></canvas>
+    <div class="chart-caption">CRPS increases monotonically from Q1 (0.18) to Q5 (0.46). Higher predicted σ corresponds to worse distributional fit, as expected when the model's uncertainty estimates track real difficulty.</div>
+  </div>
+
+  <p><strong>Strengths:</strong> Uses the full predicted distribution, as opposed to a point estimate. Proper scoring rule (a model minimizes CRPS by reporting its true predicted distribution, so there is no incentive to distort the estimate). Works per-observation without binning. Produces a single comparable number across models. <strong>Weaknesses:</strong> Less intuitive than "did the true value land in the interval?" Requires the full predicted CDF (or a closed-form assumption, as with the Gaussian here). Can be dominated by a few large-error outliers.</p>
+
+  <hr>
+
+  <h2><span class="step-num">07c</span> Negative log-likelihood (NLL)</h2>
+
+  <p>NLL answers a different question from the first two tools. Where quintile binning and CRPS ask "can the model rank which compounds are hard?", NLL asks "how good is the model's probabilistic prediction in aggregate?" It is a model-comparison metric, not a compound-level triage tool.</p>
+
+  <p>Under a Gaussian prediction with mean μ and standard deviation σ, NLL = 0.5 × log(2πσ²) + (y − μ)² / (2σ²). The first term penalizes wide intervals (wasted probability); the second penalizes narrow intervals that miss the true value. Lower is better. NLL is a proper scoring rule, and compared to CRPS, it penalizes overconfidence more harshly: a single observation far outside a narrow interval produces a very large NLL, because the squared residual is divided by a small σ².</p>
+
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="stat-label">NLL (per-compound σ)</div>
+      <div class="stat-value" style="color:var(--green)">0.935</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">NLL (constant σ)</div>
+      <div class="stat-value" style="color:var(--orange)">0.968</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Improvement</div>
+      <div class="stat-value" style="color:var(--green)">3.4%</div>
+    </div>
+  </div>
+
+  <p>Per-compound σ beats constant σ by 3.4%, a slightly larger margin than CRPS, confirming that the variable uncertainty adds value as a whole. Unlike CRPS, NLL per quintile is <em>not</em> monotonic: Q1 scores best (0.32), but Q2 and Q3 score worse than Q4. This happens because NLL penalizes both directions. A moderate-σ compound with one large residual (a bad single draw) gets hammered by the (y − μ)² / σ² term, while a high-σ compound with the same residual absorbs it more gracefully. This non-monotonicity means NLL cannot be used for enrichment: sorting compounds by NLL would not reliably separate easy from hard predictions.</p>
+
+  <div class="chart-panel">
+    <div class="chart-title">Mean NLL by predicted σ quintile</div>
+    <canvas id="nll-chart" height="300"></canvas>
+    <div class="chart-caption">NLL is not monotonic across quintiles. Q1 benefits from narrow σ and small residuals. Q2 and Q3 are penalized by a few large residuals against moderate σ values. Q5 has the highest NLL because its residuals are genuinely large. The non-monotonicity reflects NLL's sensitivity to tail events, not a calibration failure.</div>
+  </div>
+
+  <p><strong>Strengths:</strong> Proper scoring rule. The strictest aggregate test of whether σ matches the actual error distribution. Standard in probabilistic modeling; directly optimized by many training procedures. Useful for comparing one model's uncertainty against another's. <strong>Weaknesses:</strong> Does not support enrichment or compound-level triage (non-monotonic per quintile). Heavily influenced by outliers (a single large residual against a small σ dominates the average). Assumes a distributional form (Gaussian here). Harder to interpret than CRPS or binning in absolute terms.</p>
+
+  <hr>
+
+  <h2><span class="step-num">07d</span> Conformal prediction</h2>
+
+  <p>Conformal prediction is not an evaluation tool but a method for <em>producing</em> prediction intervals with a finite-sample coverage guarantee. Given a calibration set, it computes nonconformity scores (how "unusual" each observation is relative to its prediction) and uses their distribution to construct intervals. If you ask for 90% coverage, conformal prediction guarantees that at least 90% of future observations will fall within the intervals, with no distributional assumptions required, provided the calibration and test data are exchangeable (drawn from the same distribution, with no distribution shift between calibration and deployment).</p>
+
+  <p>This guarantee is <em>marginal</em>: it holds on average across all compounds, not for each compound individually. Standard conformal prediction assigns the same interval width to every compound. Adaptive variants (locally-weighted conformal prediction, conformal quantile regression) adjust the width per compound by scaling the nonconformity score, producing wider intervals where the model is less certain. These adaptive methods could wrap our TabICL predictions to provide coverage guarantees on top of the model's existing uncertainty estimates.</p>
+
+  <p>Conformal prediction does not solve the one-flip problem. Even with perfectly calibrated conformal intervals, the Spearman ρ between interval width and individual |residual| would be weak for the same reason we have been discussing: one observation per compound is not enough to reveal the ranking. What conformal prediction does offer is a coverage guarantee that requires no assumption about the error distribution (unlike the Gaussian assumption in CRPS and NLL), which makes it a useful complement when the distributional form is uncertain.</p>
+
+  <p><strong>Strengths:</strong> Distribution-free coverage guarantee (under exchangeability). No model retraining needed (applied as a post-processing wrapper). Adaptive variants produce per-compound interval widths. <strong>Weaknesses:</strong> Marginal coverage, not conditional (the guarantee is across all compounds, not for each one). Requires a held-out calibration set, reducing the data available for training. Does not address the ranking question on its own; it calibrates interval widths but does not evaluate whether those widths track difficulty.</p>
+
+</div>
+
+<!-- ===== TOOLTIP ===== -->
+<div class="tooltip" id="tip"></div>
+
+<script>
+// ===== DATA =====
+const DATA = [{"s":0.4282,"e":0.1418},{"s":0.5183,"e":0.4535},{"s":0.4895,"e":0.0767},{"s":0.498,"e":0.1101},{"s":0.5355,"e":0.7866},{"s":0.9476,"e":0.6937},{"s":0.7395,"e":0.1598},{"s":0.5101,"e":0.2591},{"s":0.4826,"e":0.2081},{"s":0.4713,"e":0.2143},{"s":0.4977,"e":0.265},{"s":0.5174,"e":0.0675},{"s":0.4615,"e":0.1428},{"s":0.4331,"e":0.1715},{"s":0.6752,"e":1.1512},{"s":0.3553,"e":0.3754},{"s":0.4593,"e":3.1177},{"s":0.3731,"e":0.1235},{"s":0.3257,"e":0.1445},{"s":0.3672,"e":0.1154},{"s":0.3918,"e":0.2165},{"s":0.586,"e":0.1695},{"s":0.4459,"e":0.2186},{"s":0.541,"e":1.492},{"s":0.4966,"e":0.3642},{"s":0.3696,"e":0.3601},{"s":0.5222,"e":0.1678},{"s":0.6735,"e":0.4899},{"s":0.4658,"e":0.081},{"s":0.4023,"e":0.5648},{"s":0.5974,"e":0.211},{"s":0.4096,"e":0.2134},{"s":0.4705,"e":0.8856},{"s":0.4068,"e":0.308},{"s":0.4018,"e":0.0532},{"s":0.8424,"e":0.0114},{"s":0.4431,"e":0.1426},{"s":0.573,"e":0.1023},{"s":0.4978,"e":0.0073},{"s":0.7902,"e":0.9984},{"s":0.6531,"e":0.2543},{"s":1.0536,"e":0.869},{"s":0.5779,"e":0.2159},{"s":1.2787,"e":2.0199},{"s":0.3911,"e":0.057},{"s":0.4549,"e":0.2755},{"s":0.4326,"e":0.0433},{"s":0.7647,"e":1.0326},{"s":1.052,"e":0.7016},{"s":0.8822,"e":0.2673},{"s":0.4371,"e":0.4353},{"s":0.4172,"e":0.5673},{"s":0.7431,"e":2.1354},{"s":0.3837,"e":0.3594},{"s":0.4781,"e":0.1185},{"s":0.4805,"e":0.5633},{"s":0.4874,"e":0.4708},{"s":0.6233,"e":0.5272},{"s":0.4392,"e":0.3009},{"s":0.9256,"e":0.5458},{"s":0.4818,"e":1.2775},{"s":0.658,"e":0.1839},{"s":0.5505,"e":0.4047},{"s":0.4351,"e":3.4054},{"s":0.6074,"e":1.1972},{"s":0.4515,"e":0.2348},{"s":0.5265,"e":0.0663},{"s":0.4231,"e":0.1421},{"s":0.3978,"e":0.1131},{"s":0.5082,"e":0.2513},{"s":0.5674,"e":0.1738},{"s":0.4076,"e":0.41},{"s":0.3815,"e":0.2034},{"s":0.4132,"e":0.2178},{"s":0.3945,"e":0.3925},{"s":0.3892,"e":0.0863},{"s":0.4197,"e":0.1431},{"s":0.361,"e":0.3288},{"s":0.4607,"e":0.0514},{"s":0.564,"e":0.0979},{"s":0.5359,"e":0.5479},{"s":0.4795,"e":0.6974},{"s":0.4173,"e":1.048},{"s":0.5204,"e":0.6722},{"s":0.5491,"e":0.4302},{"s":0.4593,"e":0.3209},{"s":0.3544,"e":0.1658},{"s":0.3626,"e":0.8183},{"s":0.5339,"e":0.063},{"s":0.4788,"e":0.6298},{"s":0.6969,"e":1.3391},{"s":0.4782,"e":0.1424},{"s":0.9013,"e":1.1471},{"s":0.4168,"e":0.4153},{"s":0.67,"e":0.1012},{"s":0.5233,"e":0.3603},{"s":0.5879,"e":0.0641},{"s":0.4672,"e":1.1641},{"s":0.5526,"e":0.5267},{"s":0.3869,"e":0.0511},{"s":0.7889,"e":0.4765},{"s":0.4273,"e":0.3288},{"s":0.3655,"e":0.143},{"s":0.4016,"e":0.0845},{"s":0.3981,"e":0.1387},{"s":0.4128,"e":0.6182},{"s":0.4611,"e":0.1409},{"s":0.336,"e":0.6181},{"s":0.4488,"e":0.1703},{"s":0.3557,"e":0.1645},{"s":0.3286,"e":0.1293},{"s":0.8456,"e":1.3285},{"s":0.3682,"e":0.1811},{"s":0.3376,"e":0.2431},{"s":0.364,"e":0.6841},{"s":0.3581,"e":0.216},{"s":0.3697,"e":0.2555},{"s":0.6767,"e":0.6158},{"s":0.7315,"e":0.0114},{"s":0.3505,"e":0.2508},{"s":0.5977,"e":0.3173},{"s":0.4554,"e":0.0222},{"s":0.4302,"e":0.6272},{"s":0.5284,"e":0.5149},{"s":0.402,"e":0.4216},{"s":0.547,"e":0.0473},{"s":0.4258,"e":0.07},{"s":0.4561,"e":0.2226},{"s":0.4492,"e":0.0416},{"s":0.562,"e":0.3928},{"s":0.396,"e":0.4457},{"s":0.4689,"e":0.1777},{"s":0.8282,"e":0.7191},{"s":0.5015,"e":0.437},{"s":0.3961,"e":0.1554},{"s":0.5623,"e":0.1955},{"s":0.3487,"e":0.4096},{"s":1.0351,"e":0.2505},{"s":0.4715,"e":0.0054},{"s":0.4432,"e":0.6685},{"s":0.6143,"e":0.2953},{"s":0.4321,"e":1.627},{"s":0.4071,"e":0.3347},{"s":0.4245,"e":0.1411},{"s":0.7055,"e":0.7015},{"s":0.6215,"e":0.1319},{"s":0.4617,"e":0.0188},{"s":0.8033,"e":0.1479},{"s":0.5229,"e":0.1255},{"s":0.481,"e":0.0273},{"s":0.471,"e":0.0496},{"s":0.7612,"e":0.1481},{"s":0.7094,"e":0.9288},{"s":0.6657,"e":0.2558},{"s":0.4072,"e":0.3874},{"s":0.4025,"e":0.9001},{"s":0.6273,"e":1.2591},{"s":0.6034,"e":0.28},{"s":0.676,"e":0.1442},{"s":0.4086,"e":0.2617},{"s":0.708,"e":0.4397},{"s":0.5194,"e":0.0904},{"s":0.4178,"e":0.2377},{"s":0.4718,"e":0.7021},{"s":0.4538,"e":0.1879},{"s":0.4593,"e":0.1293},{"s":0.4603,"e":0.8794},{"s":0.4501,"e":0.1382},{"s":0.4332,"e":0.0285},{"s":0.4667,"e":0.4497},{"s":0.386,"e":0.0906},{"s":0.8028,"e":0.7811},{"s":0.4535,"e":0.1994},{"s":0.3773,"e":0.493},{"s":0.5173,"e":0.1644},{"s":0.5048,"e":0.3448},{"s":0.7263,"e":0.1344},{"s":0.684,"e":0.0533},{"s":0.7122,"e":0.0049},{"s":0.4797,"e":0.9531},{"s":0.6747,"e":0.9291},{"s":0.7202,"e":0.2985},{"s":0.4258,"e":0.1948},{"s":0.6107,"e":0.6271},{"s":1.0741,"e":0.9374},{"s":0.5534,"e":0.1254},{"s":0.5235,"e":0.0972},{"s":0.4309,"e":0.214},{"s":0.9209,"e":0.2213},{"s":0.491,"e":0.0737},{"s":0.9266,"e":0.4759},{"s":0.4707,"e":0.9052},{"s":0.4317,"e":0.0454},{"s":0.4036,"e":0.2998},{"s":0.4313,"e":0.0329},{"s":0.42,"e":0.1871},{"s":0.4695,"e":1.0585},{"s":0.7933,"e":0.444},{"s":0.5324,"e":0.3159},{"s":0.4398,"e":0.3526},{"s":0.3173,"e":0.387},{"s":0.3251,"e":0.2217},{"s":0.3205,"e":0.0619},{"s":0.353,"e":0.0916},{"s":0.5208,"e":0.7003},{"s":0.5003,"e":0.5145},{"s":1.2646,"e":0.9646},{"s":0.7641,"e":1.4593},{"s":0.8671,"e":0.5434},{"s":0.3817,"e":0.0906},{"s":0.4293,"e":0.1461},{"s":0.5438,"e":0.4789},{"s":0.4347,"e":0.0935},{"s":0.6634,"e":2.1803},{"s":0.5609,"e":0.1479},{"s":0.5344,"e":0.3751},{"s":0.4486,"e":0.6789},{"s":1.0727,"e":0.1451},{"s":0.4312,"e":0.2285},{"s":0.3598,"e":0.2873},{"s":0.3733,"e":0.3254},{"s":0.4207,"e":0.2916},{"s":0.4521,"e":0.0685},{"s":0.876,"e":0.7171},{"s":0.3716,"e":0.1906},{"s":0.4484,"e":0.0593},{"s":0.4716,"e":0.2361},{"s":0.688,"e":0.9502},{"s":0.6217,"e":0.3972},{"s":0.6664,"e":0.4194},{"s":0.649,"e":0.156},{"s":0.951,"e":0.1923},{"s":1.2289,"e":0.9407},{"s":0.474,"e":0.5383},{"s":0.4454,"e":0.3107},{"s":0.9653,"e":1.2049},{"s":1.0499,"e":0.0542},{"s":0.7063,"e":0.7083},{"s":0.6744,"e":0.843},{"s":0.4792,"e":0.0314},{"s":0.4056,"e":0.251},{"s":0.4374,"e":1.0117},{"s":0.5652,"e":1.4561},{"s":0.3889,"e":0.2549},{"s":0.3799,"e":0.0376},{"s":0.4117,"e":0.1054},{"s":1.0219,"e":0.5948},{"s":0.5954,"e":0.319},{"s":0.4158,"e":0.1507},{"s":0.449,"e":0.5551},{"s":0.3778,"e":0.2693},{"s":0.4315,"e":0.0919},{"s":0.4045,"e":0.3198},{"s":0.4183,"e":0.794},{"s":0.4046,"e":0.1148},{"s":0.4023,"e":0.2874},{"s":0.4242,"e":0.1118},{"s":0.4098,"e":0.3827},{"s":0.7282,"e":0.6705},{"s":0.4841,"e":0.6159}];
+
+const SIGMAS = DATA.map(d => d.s);
+const OBS_RHO = 0.2616;
+
+// ===== UTILITIES =====
+const dpr = window.devicePixelRatio || 1;
+function hiDpiCanvas(canvas, w, h) {
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return ctx;
+}
+
+const C = {
+  bg: '#21222c', fg: '#f8f8f2', comment: '#6272a4',
+  cyan: '#8be9fd', green: '#50fa7b', orange: '#ffb86c',
+  pink: '#ff79c6', purple: '#bd93f9', red: '#ff5555',
+  yellow: '#f1fa8c', current: '#44475a'
+};
+
+function spearman(a, b) {
+  const n = a.length;
+  function ranks(arr) {
+    const indexed = arr.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]);
+    const r = new Float64Array(n);
+    let i = 0;
+    while (i < n) {
+      let j = i;
+      while (j < n && indexed[j][0] === indexed[i][0]) j++;
+      const avg = (i + j - 1) / 2 + 1;
+      for (let k = i; k < j; k++) r[indexed[k][1]] = avg;
+      i = j;
+    }
+    return r;
+  }
+  const ra = ranks(a), rb = ranks(b);
+  const ma = ra.reduce((s, v) => s + v, 0) / n;
+  const mb = rb.reduce((s, v) => s + v, 0) / n;
+  let num = 0, da = 0, db = 0;
+  for (let i = 0; i < n; i++) {
+    const a2 = ra[i] - ma, b2 = rb[i] - mb;
+    num += a2 * b2; da += a2 * a2; db += b2 * b2;
+  }
+  return num / Math.sqrt(da * db);
+}
+
+// Box-Muller
+function randn(rng) {
+  let u, v;
+  do { u = rng(); } while (u === 0);
+  v = rng();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+// Seeded PRNG (mulberry32)
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+const tip = document.getElementById('tip');
+
+// ===== SCATTER PLOT =====
+(function() {
+  const canvas = document.getElementById('scatter');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const W = Math.min(rect.width - 24, 690), H = 340;
+  const pad = { t: 16, r: 20, b: 44, l: 58 };
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const ctx = hiDpiCanvas(canvas, W, H);
+
+  const xMin = 0.25, xMax = 1.4, yMin = 0, yMax = 3.6;
+  const xScale = v => pad.l + (v - xMin) / (xMax - xMin) * pw;
+  const yScale = v => pad.t + ph - (v - yMin) / (yMax - yMin) * ph;
+
+  // Grid
+  ctx.strokeStyle = C.current;
+  ctx.lineWidth = 1;
+  for (let y = 0; y <= 3.5; y += 0.5) {
+    const py = yScale(y);
+    ctx.beginPath(); ctx.moveTo(pad.l, py); ctx.lineTo(pad.l + pw, py); ctx.stroke();
+  }
+  for (let x = 0.4; x <= 1.4; x += 0.2) {
+    const px = xScale(x);
+    ctx.beginPath(); ctx.moveTo(px, pad.t); ctx.lineTo(px, pad.t + ph); ctx.stroke();
+  }
+
+  // Axes
+  ctx.strokeStyle = C.comment;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph); ctx.stroke();
+
+  // Tick labels
+  ctx.fillStyle = C.comment;
+  ctx.font = '11px "SF Mono", "Fira Code", monospace';
+  ctx.textAlign = 'center';
+  for (let x = 0.4; x <= 1.4; x += 0.2) {
+    ctx.fillText(x.toFixed(1), xScale(x), pad.t + ph + 18);
+  }
+  ctx.textAlign = 'right';
+  for (let y = 0; y <= 3.5; y += 0.5) {
+    ctx.fillText(y.toFixed(1), pad.l - 8, yScale(y) + 4);
+  }
+
+  // Axis labels
+  ctx.fillStyle = C.comment;
+  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Predicted σ', pad.l + pw / 2, H - 4);
+  ctx.save();
+  ctx.translate(14, pad.t + ph / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('Absolute residual', 0, 0);
+  ctx.restore();
+
+  // Points
+  const pointPositions = [];
+  DATA.forEach(d => {
+    const x = xScale(d.s), y = yScale(d.e);
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = C.cyan + '88';
+    ctx.fill();
+    ctx.strokeStyle = C.cyan;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    pointPositions.push({ x, y, s: d.s, e: d.e });
+  });
+
+  // Hover
+  canvas.addEventListener('mousemove', ev => {
+    const r = canvas.getBoundingClientRect();
+    const mx = (ev.clientX - r.left) * (W / r.width);
+    const my = (ev.clientY - r.top) * (H / r.height);
+    let hit = null, best = 100;
+    pointPositions.forEach(p => {
+      const dist = Math.hypot(p.x - mx, p.y - my);
+      if (dist < 12 && dist < best) { best = dist; hit = p; }
+    });
+    if (hit) {
+      tip.style.opacity = 1;
+      tip.innerHTML = `σ = ${hit.s.toFixed(3)}&emsp;|err| = ${hit.e.toFixed(3)}`;
+      tip.style.left = (ev.clientX + 14) + 'px';
+      tip.style.top = (ev.clientY - 28) + 'px';
+    } else {
+      tip.style.opacity = 0;
+    }
+  });
+  canvas.addEventListener('mouseleave', () => { tip.style.opacity = 0; });
+})();
+
+// ===== SIGMA HISTOGRAM =====
+(function() {
+  const canvas = document.getElementById('sigma-hist');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const W = Math.min(rect.width - 24, 690), H = 260;
+  const pad = { t: 12, r: 20, b: 44, l: 52 };
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const ctx = hiDpiCanvas(canvas, W, H);
+
+  const binMin = 0.3, binMax = 1.35, nBins = 21;
+  const binW = (binMax - binMin) / nBins;
+  const counts = new Array(nBins).fill(0);
+  SIGMAS.forEach(s => {
+    const i = Math.min(Math.floor((s - binMin) / binW), nBins - 1);
+    if (i >= 0) counts[i]++;
+  });
+  const maxCount = Math.max(...counts);
+
+  const xScale = v => pad.l + (v - binMin) / (binMax - binMin) * pw;
+  const yScale = v => pad.t + ph - (v / maxCount) * ph;
+
+  // Grid
+  ctx.strokeStyle = C.current;
+  ctx.lineWidth = 1;
+  for (let y = 0; y <= maxCount; y += 10) {
+    const py = yScale(y);
+    ctx.beginPath(); ctx.moveTo(pad.l, py); ctx.lineTo(pad.l + pw, py); ctx.stroke();
+  }
+
+  // Bars
+  counts.forEach((c, i) => {
+    const x0 = xScale(binMin + i * binW) + 1;
+    const x1 = xScale(binMin + (i + 1) * binW) - 1;
+    const y0 = yScale(c), y1 = yScale(0);
+    ctx.fillStyle = C.purple + 'cc';
+    ctx.beginPath();
+    const r = 3;
+    ctx.moveTo(x0, y1);
+    ctx.lineTo(x0, y0 + r);
+    ctx.quadraticCurveTo(x0, y0, x0 + r, y0);
+    ctx.lineTo(x1 - r, y0);
+    ctx.quadraticCurveTo(x1, y0, x1, y0 + r);
+    ctx.lineTo(x1, y1);
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // Axes
+  ctx.strokeStyle = C.comment;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph); ctx.stroke();
+
+  // Tick labels
+  ctx.fillStyle = C.comment;
+  ctx.font = '11px "SF Mono", "Fira Code", monospace';
+  ctx.textAlign = 'center';
+  for (let x = 0.3; x <= 1.3; x += 0.1) {
+    ctx.fillText(x.toFixed(1), xScale(x), pad.t + ph + 18);
+  }
+  ctx.textAlign = 'right';
+  for (let y = 0; y <= maxCount; y += 10) {
+    ctx.fillText(y, pad.l - 8, yScale(y) + 4);
+  }
+
+  // Axis labels
+  ctx.fillStyle = C.comment;
+  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Predicted σ', pad.l + pw / 2, H - 4);
+  ctx.save();
+  ctx.translate(14, pad.t + ph / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('Count', 0, 0);
+  ctx.restore();
+})();
+
+// ===== SIMULATION =====
+(function() {
+  const canvas = document.getElementById('sim-hist');
+  const caption = document.getElementById('sim-caption');
+  let simSeed = 42;
+
+  function runSim() {
+    const N_TRIALS = 2000;
+    const rhos = [];
+    const rng = mulberry32(simSeed);
+
+    for (let t = 0; t < N_TRIALS; t++) {
+      const simResiduals = SIGMAS.map(s => Math.abs(randn(rng) * s));
+      rhos.push(spearman(SIGMAS, simResiduals));
+    }
+
+    rhos.sort((a, b) => a - b);
+    const mean = rhos.reduce((s, v) => s + v, 0) / rhos.length;
+    const p2_5 = rhos[Math.floor(0.025 * rhos.length)];
+    const p97_5 = rhos[Math.floor(0.975 * rhos.length)];
+    const pctBelow = rhos.filter(r => r <= OBS_RHO).length / rhos.length * 100;
+
+    drawSimHist(canvas, rhos);
+
+    caption.innerHTML = `Perfectly calibrated uncertainty produces a mean ρ of <strong style="color:${C.purple}">${mean.toFixed(3)}</strong> ` +
+      `(95% interval [${p2_5.toFixed(2)}, ${p97_5.toFixed(2)}]). ` +
+      `Our observed ρ = 0.26 sits at the <strong style="color:${C.pink}">${pctBelow.toFixed(0)}th percentile</strong>, ` +
+      `well within the range that ideal error bars would produce.`;
+  }
+
+  canvas.addEventListener('click', () => { simSeed += 7; runSim(); });
+  runSim();
+
+  function drawSimHist(canvas, rhos) {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const W = Math.min(rect.width - 24, 690), H = 280;
+    const pad = { t: 12, r: 20, b: 44, l: 52 };
+    const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+    const ctx = hiDpiCanvas(canvas, W, H);
+
+    const binMin = 0.05, binMax = 0.50, nBins = 30;
+    const binW = (binMax - binMin) / nBins;
+    const counts = new Array(nBins).fill(0);
+    rhos.forEach(r => {
+      const i = Math.min(Math.max(Math.floor((r - binMin) / binW), 0), nBins - 1);
+      counts[i]++;
+    });
+    const maxCount = Math.max(...counts);
+
+    const xScale = v => pad.l + (v - binMin) / (binMax - binMin) * pw;
+    const yScale = v => pad.t + ph - (v / (maxCount * 1.1)) * ph;
+
+    // Grid
+    ctx.strokeStyle = C.current;
+    ctx.lineWidth = 1;
+    const yStep = Math.ceil(maxCount / 5 / 10) * 10;
+    for (let y = 0; y <= maxCount; y += yStep) {
+      const py = yScale(y);
+      ctx.beginPath(); ctx.moveTo(pad.l, py); ctx.lineTo(pad.l + pw, py); ctx.stroke();
+    }
+
+    // Bars
+    counts.forEach((c, i) => {
+      if (c === 0) return;
+      const x0 = xScale(binMin + i * binW) + 1;
+      const x1 = xScale(binMin + (i + 1) * binW) - 1;
+      const y0 = yScale(c), y1 = yScale(0);
+      ctx.fillStyle = C.purple + 'bb';
+      ctx.beginPath();
+      const r = 3;
+      ctx.moveTo(x0, y1);
+      ctx.lineTo(x0, y0 + r);
+      ctx.quadraticCurveTo(x0, y0, x0 + r, y0);
+      ctx.lineTo(x1 - r, y0);
+      ctx.quadraticCurveTo(x1, y0, x1, y0 + r);
+      ctx.lineTo(x1, y1);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    // Observed rho line
+    const obsX = xScale(OBS_RHO);
+    ctx.strokeStyle = C.pink;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath(); ctx.moveTo(obsX, pad.t); ctx.lineTo(obsX, pad.t + ph); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Label
+    ctx.fillStyle = C.pink;
+    ctx.font = 'bold 11px "SF Mono", "Fira Code", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('ρ = 0.26', obsX + 6, pad.t + 16);
+    ctx.font = '10px "SF Mono", "Fira Code", monospace';
+    ctx.fillText('(observed)', obsX + 6, pad.t + 30);
+
+    // Axes
+    ctx.strokeStyle = C.comment;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph); ctx.stroke();
+
+    // Tick labels
+    ctx.fillStyle = C.comment;
+    ctx.font = '11px "SF Mono", "Fira Code", monospace';
+    ctx.textAlign = 'center';
+    for (let x = 0.1; x <= 0.5; x += 0.05) {
+      ctx.fillText(x.toFixed(2), xScale(x), pad.t + ph + 18);
+    }
+    ctx.textAlign = 'right';
+    for (let y = 0; y <= maxCount; y += yStep) {
+      ctx.fillText(y, pad.l - 8, yScale(y) + 4);
+    }
+
+    // Axis labels
+    ctx.fillStyle = C.comment;
+    ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Spearman ρ', pad.l + pw / 2, H - 4);
+    ctx.save();
+    ctx.translate(14, pad.t + ph / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Count', 0, 0);
+    ctx.restore();
+  }
+})();
+
+// ===== COVERAGE DATA =====
+const COVERAGE = [{"x":0.01,"y":0.0077},{"x":0.02,"y":0.0192},{"x":0.03,"y":0.0192},{"x":0.04,"y":0.0269},{"x":0.05,"y":0.0346},{"x":0.06,"y":0.0423},{"x":0.07,"y":0.0538},{"x":0.08,"y":0.0654},{"x":0.09,"y":0.0808},{"x":0.1,"y":0.0846},{"x":0.11,"y":0.1077},{"x":0.12,"y":0.1154},{"x":0.13,"y":0.1269},{"x":0.14,"y":0.1423},{"x":0.15,"y":0.1577},{"x":0.16,"y":0.1654},{"x":0.17,"y":0.1846},{"x":0.18,"y":0.2038},{"x":0.19,"y":0.2231},{"x":0.2,"y":0.2308},{"x":0.21,"y":0.2462},{"x":0.22,"y":0.2462},{"x":0.23,"y":0.2654},{"x":0.24,"y":0.2731},{"x":0.25,"y":0.2962},{"x":0.26,"y":0.3115},{"x":0.27,"y":0.3269},{"x":0.28,"y":0.3385},{"x":0.29,"y":0.3423},{"x":0.3,"y":0.3577},{"x":0.31,"y":0.3769},{"x":0.32,"y":0.3769},{"x":0.33,"y":0.3846},{"x":0.34,"y":0.3923},{"x":0.35,"y":0.4},{"x":0.36,"y":0.4154},{"x":0.37,"y":0.4231},{"x":0.38,"y":0.4385},{"x":0.39,"y":0.45},{"x":0.4,"y":0.4654},{"x":0.41,"y":0.4885},{"x":0.42,"y":0.4923},{"x":0.43,"y":0.4962},{"x":0.44,"y":0.5038},{"x":0.45,"y":0.5115},{"x":0.46,"y":0.5231},{"x":0.47,"y":0.5346},{"x":0.48,"y":0.5462},{"x":0.49,"y":0.55},{"x":0.5,"y":0.5538},{"x":0.51,"y":0.5692},{"x":0.52,"y":0.5923},{"x":0.53,"y":0.6077},{"x":0.54,"y":0.6231},{"x":0.55,"y":0.6269},{"x":0.56,"y":0.6423},{"x":0.57,"y":0.6462},{"x":0.58,"y":0.6577},{"x":0.59,"y":0.6654},{"x":0.6,"y":0.6692},{"x":0.61,"y":0.6731},{"x":0.62,"y":0.6923},{"x":0.63,"y":0.6962},{"x":0.64,"y":0.7038},{"x":0.65,"y":0.7115},{"x":0.66,"y":0.7231},{"x":0.67,"y":0.7346},{"x":0.68,"y":0.7462},{"x":0.69,"y":0.7654},{"x":0.7,"y":0.7769},{"x":0.71,"y":0.7846},{"x":0.72,"y":0.7846},{"x":0.73,"y":0.7846},{"x":0.74,"y":0.7885},{"x":0.75,"y":0.7923},{"x":0.76,"y":0.8},{"x":0.77,"y":0.8},{"x":0.78,"y":0.8038},{"x":0.79,"y":0.8154},{"x":0.8,"y":0.8269},{"x":0.81,"y":0.8385},{"x":0.82,"y":0.8423},{"x":0.83,"y":0.8538},{"x":0.84,"y":0.8654},{"x":0.85,"y":0.8654},{"x":0.86,"y":0.8769},{"x":0.87,"y":0.8923},{"x":0.88,"y":0.8923},{"x":0.89,"y":0.9},{"x":0.9,"y":0.9},{"x":0.91,"y":0.9},{"x":0.92,"y":0.9038},{"x":0.93,"y":0.9038},{"x":0.94,"y":0.9115},{"x":0.95,"y":0.9346},{"x":0.96,"y":0.9462},{"x":0.97,"y":0.9462},{"x":0.98,"y":0.9615},{"x":0.99,"y":0.9692}];
+
+// ===== QUINTILE BINNING CHART =====
+(function() {
+  const canvas = document.getElementById('quintile-chart');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const W = Math.min(rect.width - 24, 690), H = 280;
+  const pad = { t: 20, r: 20, b: 56, l: 58 };
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const ctx = hiDpiCanvas(canvas, W, H);
+
+  const sorted = DATA.slice().sort((a, b) => a.s - b.s);
+  const nBins = 5;
+  const binSize = Math.ceil(sorted.length / nBins);
+  const bins = [];
+  for (let i = 0; i < nBins; i++) {
+    const chunk = sorted.slice(i * binSize, (i + 1) * binSize);
+    const meanErr = chunk.reduce((s, d) => s + d.e, 0) / chunk.length;
+    const minS = chunk[0].s;
+    const maxS = chunk[chunk.length - 1].s;
+    bins.push({ meanErr, minS, maxS, n: chunk.length,
+      label: `${minS.toFixed(2)}–${maxS.toFixed(2)}` });
+  }
+
+  const maxErr = Math.ceil(Math.max(...bins.map(b => b.meanErr)) * 10) / 10 + 0.1;
+  const barW = pw / nBins;
+  const yScale = v => pad.t + ph - (v / maxErr) * ph;
+
+  // Grid
+  ctx.strokeStyle = C.current;
+  ctx.lineWidth = 1;
+  for (let y = 0; y <= maxErr; y += 0.1) {
+    const py = yScale(y);
+    ctx.beginPath(); ctx.moveTo(pad.l, py); ctx.lineTo(pad.l + pw, py); ctx.stroke();
+  }
+
+  // Bars
+  const barGap = 12;
+  bins.forEach((b, i) => {
+    const x0 = pad.l + i * barW + barGap;
+    const x1 = pad.l + (i + 1) * barW - barGap;
+    const y0 = yScale(b.meanErr), y1 = yScale(0);
+    const r = 4;
+    ctx.fillStyle = C.cyan + 'cc';
+    ctx.beginPath();
+    ctx.moveTo(x0, y1);
+    ctx.lineTo(x0, y0 + r);
+    ctx.quadraticCurveTo(x0, y0, x0 + r, y0);
+    ctx.lineTo(x1 - r, y0);
+    ctx.quadraticCurveTo(x1, y0, x1, y0 + r);
+    ctx.lineTo(x1, y1);
+    ctx.closePath();
+    ctx.fill();
+
+    // Value label
+    ctx.fillStyle = C.fg;
+    ctx.font = 'bold 12px "SF Mono", "Fira Code", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(b.meanErr.toFixed(2), (x0 + x1) / 2, y0 - 8);
+  });
+
+  // Axes
+  ctx.strokeStyle = C.comment;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph); ctx.stroke();
+
+  // X-axis labels
+  ctx.fillStyle = C.comment;
+  ctx.font = '10px "SF Mono", "Fira Code", monospace';
+  ctx.textAlign = 'center';
+  bins.forEach((b, i) => {
+    const cx = pad.l + (i + 0.5) * barW;
+    ctx.fillText(`Q${i + 1}`, cx, pad.t + ph + 16);
+    ctx.font = '9px "SF Mono", "Fira Code", monospace';
+    ctx.fillText(`σ: ${b.label}`, cx, pad.t + ph + 30);
+    ctx.fillText(`n = ${b.n}`, cx, pad.t + ph + 42);
+    ctx.font = '10px "SF Mono", "Fira Code", monospace';
+  });
+
+  // Y-axis labels
+  ctx.textAlign = 'right';
+  ctx.font = '11px "SF Mono", "Fira Code", monospace';
+  for (let y = 0; y <= maxErr; y += 0.2) {
+    ctx.fillText(y.toFixed(1), pad.l - 8, yScale(y) + 4);
+  }
+
+  // Axis labels
+  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Predicted σ quintile', pad.l + pw / 2, H - 2);
+  ctx.save();
+  ctx.translate(14, pad.t + ph / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('Mean |residual|', 0, 0);
+  ctx.restore();
+})();
+
+// ===== RELIABILITY DIAGRAM =====
+(function() {
+  const canvas = document.getElementById('reliability-chart');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const W = Math.min(rect.width - 24, 690), H = 340;
+  const pad = { t: 16, r: 20, b: 44, l: 58 };
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const ctx = hiDpiCanvas(canvas, W, H);
+
+  const xScale = v => pad.l + v * pw;
+  const yScale = v => pad.t + ph - v * ph;
+
+  // Grid
+  ctx.strokeStyle = C.current;
+  ctx.lineWidth = 1;
+  for (let v = 0; v <= 1; v += 0.2) {
+    const px = xScale(v), py = yScale(v);
+    ctx.beginPath(); ctx.moveTo(pad.l, py); ctx.lineTo(pad.l + pw, py); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(px, pad.t); ctx.lineTo(px, pad.t + ph); ctx.stroke();
+  }
+
+  // Miscalibration shading
+  ctx.fillStyle = C.cyan + '18';
+  ctx.beginPath();
+  ctx.moveTo(xScale(COVERAGE[0].x), yScale(COVERAGE[0].x));
+  COVERAGE.forEach(p => ctx.lineTo(xScale(p.x), yScale(p.y)));
+  ctx.lineTo(xScale(COVERAGE[COVERAGE.length - 1].x), yScale(COVERAGE[COVERAGE.length - 1].x));
+  for (let i = COVERAGE.length - 1; i >= 0; i--) {
+    ctx.lineTo(xScale(COVERAGE[i].x), yScale(COVERAGE[i].x));
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Diagonal (perfect calibration)
+  ctx.strokeStyle = C.comment;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath(); ctx.moveTo(xScale(0), yScale(0)); ctx.lineTo(xScale(1), yScale(1)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Coverage line
+  ctx.strokeStyle = C.cyan;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  COVERAGE.forEach((p, i) => {
+    const x = xScale(p.x), y = yScale(p.y);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Coverage dots at every 10th percentile
+  COVERAGE.forEach((p, i) => {
+    if (Math.round(p.x * 100) % 10 === 0 && p.x > 0) {
+      const x = xScale(p.x), y = yScale(p.y);
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = C.cyan;
+      ctx.fill();
+      ctx.strokeStyle = C.bg;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  });
+
+  // Miscalibration area label
+  ctx.fillStyle = C.cyan + 'aa';
+  ctx.font = 'italic 11px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('miscal. area = 0.04', xScale(0.08), yScale(0.58));
+
+  // Underconfident / overconfident labels, aligned to diagonal
+  const diagAngle = Math.atan2(yScale(1) - yScale(0), xScale(1) - xScale(0));
+  ctx.fillStyle = C.red + 'cc';
+  ctx.font = '13px "SF Mono", "Fira Code", monospace';
+  ctx.textAlign = 'center';
+  const perpDist = 40;
+  const perpX = Math.sin(diagAngle) * perpDist;
+  const perpY = -Math.cos(diagAngle) * perpDist;
+  ctx.save();
+  ctx.translate(xScale(0.32) + perpX, yScale(0.32) + perpY);
+  ctx.rotate(diagAngle);
+  ctx.fillText('underconfident', 0, 0);
+  ctx.restore();
+  ctx.save();
+  ctx.translate(xScale(0.68) - perpX, yScale(0.68) - perpY);
+  ctx.rotate(diagAngle);
+  ctx.fillText('overconfident', 0, 0);
+  ctx.restore();
+
+  // Axes
+  ctx.strokeStyle = C.comment;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph); ctx.stroke();
+
+  // Tick labels
+  ctx.fillStyle = C.comment;
+  ctx.font = '11px "SF Mono", "Fira Code", monospace';
+  ctx.textAlign = 'center';
+  for (let v = 0; v <= 1; v += 0.2) {
+    ctx.fillText(v.toFixed(1), xScale(v), pad.t + ph + 18);
+  }
+  ctx.textAlign = 'right';
+  for (let v = 0; v <= 1; v += 0.2) {
+    ctx.fillText(v.toFixed(1), pad.l - 8, yScale(v) + 4);
+  }
+
+  // Axis labels
+  ctx.fillStyle = C.comment;
+  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Nominal coverage', pad.l + pw / 2, H - 4);
+  ctx.save();
+  ctx.translate(14, pad.t + ph / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('Observed coverage', 0, 0);
+  ctx.restore();
+
+  // Hover
+  canvas.addEventListener('mousemove', ev => {
+    const r = canvas.getBoundingClientRect();
+    const mx = (ev.clientX - r.left) * (W / r.width);
+    let hit = null, best = 100;
+    COVERAGE.forEach(p => {
+      const px = xScale(p.x);
+      const dist = Math.abs(px - mx);
+      if (dist < 8 && dist < best) { best = dist; hit = p; }
+    });
+    if (hit) {
+      tip.style.opacity = 1;
+      const diff = ((hit.y - hit.x) * 100).toFixed(1);
+      const sign = hit.y >= hit.x ? '+' : '';
+      tip.innerHTML = `Nominal: ${(hit.x*100).toFixed(0)}%&emsp;Observed: ${(hit.y*100).toFixed(1)}%&emsp;(${sign}${diff} pp)`;
+      tip.style.left = (ev.clientX + 14) + 'px';
+      tip.style.top = (ev.clientY - 28) + 'px';
+    } else {
+      tip.style.opacity = 0;
+    }
+  });
+  canvas.addEventListener('mouseleave', () => { tip.style.opacity = 0; });
+})();
+
+// ===== CRPS AND NLL PER-QUINTILE DATA =====
+const QUINTILE_DATA = [
+  { q: 1, label: '0.32–0.41', n: 52, meanErr: 0.2653, meanCRPS: 0.1845, meanNLL: 0.3161 },
+  { q: 2, label: '0.41–0.45', n: 52, meanErr: 0.3868, meanCRPS: 0.2937, meanNLL: 1.1816 },
+  { q: 3, label: '0.45–0.51', n: 52, meanErr: 0.4008, meanCRPS: 0.3137, meanNLL: 1.1134 },
+  { q: 4, label: '0.51–0.67', n: 52, meanErr: 0.4108, meanCRPS: 0.3065, meanNLL: 0.8493 },
+  { q: 5, label: '0.67–1.28', n: 52, meanErr: 0.6508, meanCRPS: 0.4590, meanNLL: 1.2150 },
+];
+
+// ===== GENERIC QUINTILE BAR CHART FUNCTION =====
+function drawQuintileBar(canvasId, dataKey, color, yLabel) {
+  const canvas = document.getElementById(canvasId);
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const W = Math.min(rect.width - 24, 690), H = 280;
+  const pad = { t: 20, r: 20, b: 56, l: 58 };
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const ctx = hiDpiCanvas(canvas, W, H);
+
+  const vals = QUINTILE_DATA.map(d => d[dataKey]);
+  const maxVal = Math.ceil(Math.max(...vals) * 10) / 10 + 0.05;
+  const barW = pw / 5;
+
+  // Grid
+  ctx.strokeStyle = C.current;
+  ctx.lineWidth = 1;
+  const yStep = maxVal > 0.8 ? 0.2 : 0.1;
+  const yScale = v => pad.t + ph - (v / maxVal) * ph;
+  for (let y = 0; y <= maxVal; y += yStep) {
+    const py = yScale(y);
+    ctx.beginPath(); ctx.moveTo(pad.l, py); ctx.lineTo(pad.l + pw, py); ctx.stroke();
+  }
+
+  // Bars
+  const barGap = 12;
+  QUINTILE_DATA.forEach((b, i) => {
+    const x0 = pad.l + i * barW + barGap;
+    const x1 = pad.l + (i + 1) * barW - barGap;
+    const y0 = yScale(b[dataKey]), y1 = yScale(0);
+    const r = 4;
+    ctx.fillStyle = color + 'cc';
+    ctx.beginPath();
+    ctx.moveTo(x0, y1);
+    ctx.lineTo(x0, y0 + r);
+    ctx.quadraticCurveTo(x0, y0, x0 + r, y0);
+    ctx.lineTo(x1 - r, y0);
+    ctx.quadraticCurveTo(x1, y0, x1, y0 + r);
+    ctx.lineTo(x1, y1);
+    ctx.closePath();
+    ctx.fill();
+
+    // Value label
+    ctx.fillStyle = C.fg;
+    ctx.font = 'bold 12px "SF Mono", "Fira Code", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(b[dataKey].toFixed(2), (x0 + x1) / 2, y0 - 8);
+  });
+
+  // Axes
+  ctx.strokeStyle = C.comment;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph); ctx.stroke();
+
+  // X-axis labels
+  ctx.fillStyle = C.comment;
+  ctx.font = '10px "SF Mono", "Fira Code", monospace';
+  ctx.textAlign = 'center';
+  QUINTILE_DATA.forEach((b, i) => {
+    const cx = pad.l + (i + 0.5) * barW;
+    ctx.fillText('Q' + b.q, cx, pad.t + ph + 16);
+    ctx.font = '9px "SF Mono", "Fira Code", monospace';
+    ctx.fillText('σ: ' + b.label, cx, pad.t + ph + 30);
+    ctx.fillText('n = ' + b.n, cx, pad.t + ph + 42);
+    ctx.font = '10px "SF Mono", "Fira Code", monospace';
+  });
+
+  // Y-axis labels
+  ctx.textAlign = 'right';
+  ctx.font = '11px "SF Mono", "Fira Code", monospace';
+  for (let y = 0; y <= maxVal; y += yStep) {
+    ctx.fillText(y.toFixed(1), pad.l - 8, yScale(y) + 4);
+  }
+
+  // Axis labels
+  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Predicted σ quintile', pad.l + pw / 2, H - 2);
+  ctx.save();
+  ctx.translate(14, pad.t + ph / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText(yLabel, 0, 0);
+  ctx.restore();
+}
+
+// Draw CRPS chart
+drawQuintileBar('crps-chart', 'meanCRPS', C.green, 'Mean CRPS');
+
+// Draw NLL chart
+drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
+
+// ===== REPLICATE CURVE =====
+(function() {
+  const canvas = document.getElementById('replicate-chart');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const W = Math.min(rect.width - 24, 690), H = 320;
+  const pad = { t: 16, r: 20, b: 44, l: 58 };
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const ctx = hiDpiCanvas(canvas, W, H);
+
+  const REP_DATA = [
+    { n: 1, mean: 0.2847, p5: 0.1947, p95: 0.3752 },
+    { n: 2, mean: 0.4154, p5: 0.3271, p95: 0.4970 },
+    { n: 3, mean: 0.4915, p5: 0.4122, p95: 0.5669 },
+    { n: 5, mean: 0.5972, p5: 0.5377, p95: 0.6582 },
+    { n: 8, mean: 0.6817, p5: 0.6283, p95: 0.7345 },
+    { n: 10, mean: 0.7182, p5: 0.6726, p95: 0.7631 },
+    { n: 15, mean: 0.7806, p5: 0.7408, p95: 0.8159 },
+    { n: 20, mean: 0.8192, p5: 0.7846, p95: 0.8517 },
+    { n: 30, mean: 0.8638, p5: 0.8382, p95: 0.8865 },
+    { n: 50, mean: 0.9083, p5: 0.8919, p95: 0.9233 },
+    { n: 75, mean: 0.9330, p5: 0.9195, p95: 0.9441 },
+    { n: 100, mean: 0.9473, p5: 0.9368, p95: 0.9569 },
+  ];
+
+  const xMin = 0, xMax = 105, yMin = 0, yMax = 1.0;
+  const xScale = v => pad.l + (v - xMin) / (xMax - xMin) * pw;
+  const yScale = v => pad.t + ph - (v - yMin) / (yMax - yMin) * ph;
+
+  // Grid
+  ctx.strokeStyle = C.current;
+  ctx.lineWidth = 1;
+  for (let y = 0; y <= 1; y += 0.2) {
+    const py = yScale(y);
+    ctx.beginPath(); ctx.moveTo(pad.l, py); ctx.lineTo(pad.l + pw, py); ctx.stroke();
+  }
+  for (let x = 0; x <= 100; x += 20) {
+    const px = xScale(x);
+    ctx.beginPath(); ctx.moveTo(px, pad.t); ctx.lineTo(px, pad.t + ph); ctx.stroke();
+  }
+
+  // 5th-95th band
+  ctx.fillStyle = C.purple + '25';
+  ctx.beginPath();
+  REP_DATA.forEach((d, i) => {
+    const x = xScale(d.n), y = yScale(d.p95);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  for (let i = REP_DATA.length - 1; i >= 0; i--) {
+    ctx.lineTo(xScale(REP_DATA[i].n), yScale(REP_DATA[i].p5));
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Mean line
+  ctx.strokeStyle = C.purple;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  REP_DATA.forEach((d, i) => {
+    const x = xScale(d.n), y = yScale(d.mean);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Dots on mean line
+  REP_DATA.forEach(d => {
+    const x = xScale(d.n), y = yScale(d.mean);
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = C.purple;
+    ctx.fill();
+    ctx.strokeStyle = C.bg;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+
+  // n=1 marker
+  const n1 = REP_DATA[0];
+  const n1x = xScale(n1.n), n1y = yScale(n1.mean);
+  ctx.beginPath();
+  ctx.arc(n1x, n1y, 7, 0, Math.PI * 2);
+  ctx.strokeStyle = C.pink;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // n=1 label
+  ctx.fillStyle = C.pink;
+  ctx.font = 'bold 11px "SF Mono", "Fira Code", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('n = 1: ρ ≈ 0.28', n1x + 12, n1y + 4);
+
+  // Axes
+  ctx.strokeStyle = C.comment;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph); ctx.stroke();
+
+  // Tick labels
+  ctx.fillStyle = C.comment;
+  ctx.font = '11px "SF Mono", "Fira Code", monospace';
+  ctx.textAlign = 'center';
+  for (let x = 0; x <= 100; x += 20) {
+    ctx.fillText(x, xScale(x), pad.t + ph + 18);
+  }
+  ctx.textAlign = 'right';
+  for (let y = 0; y <= 1; y += 0.2) {
+    ctx.fillText(y.toFixed(1), pad.l - 8, yScale(y) + 4);
+  }
+
+  // Axis labels
+  ctx.fillStyle = C.comment;
+  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Replicates per compound', pad.l + pw / 2, H - 4);
+  ctx.save();
+  ctx.translate(14, pad.t + ph / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('Spearman ρ', 0, 0);
+  ctx.restore();
+
+  // Hover
+  canvas.addEventListener('mousemove', ev => {
+    const r = canvas.getBoundingClientRect();
+    const mx = (ev.clientX - r.left) * (W / r.width);
+    let hit = null, best = 100;
+    REP_DATA.forEach(d => {
+      const px = xScale(d.n);
+      const dist = Math.abs(px - mx);
+      if (dist < 20 && dist < best) { best = dist; hit = d; }
+    });
+    if (hit) {
+      tip.style.opacity = 1;
+      tip.innerHTML = `n = ${hit.n}&emsp;ρ = ${hit.mean.toFixed(3)}&emsp;[${hit.p5.toFixed(3)}, ${hit.p95.toFixed(3)}]`;
+      tip.style.left = (ev.clientX + 14) + 'px';
+      tip.style.top = (ev.clientY - 28) + 'px';
+    } else {
+      tip.style.opacity = 0;
+    }
+  });
+  canvas.addEventListener('mouseleave', () => { tip.style.opacity = 0; });
+})();
+</script>
