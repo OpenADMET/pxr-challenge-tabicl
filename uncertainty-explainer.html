@@ -197,6 +197,11 @@
   .sim-btn:hover { background: var(--pink); }
   .sim-btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
   .sim-btn:disabled { opacity: 0.4; cursor: default; }
+  select.sim-btn {
+    appearance: auto;
+    -webkit-appearance: menulist;
+    padding-right: 0.6rem;
+  }
   .sim-status {
     font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
     font-size: 0.82rem;
@@ -389,6 +394,41 @@
 
   <p>That's exactly what's happening in our scatter plot. Each compound has a predicted σ that defines a <em>distribution</em> of possible errors. The predicted mean is fixed; the true value is what varies. Each residual measures the distance between the fixed prediction and a single realization of the true value, and we observe only one realization per compound.</p>
 
+  <div class="chart-panel" style="margin-top:1.5rem">
+    <div class="chart-title">A single experimental draw can misrepresent the true residual</div>
+    <div class="sim-controls">
+      <select id="oneflip-scenario" class="sim-btn">
+        <option value="lucky">Lucky draw</option>
+        <option value="typical" selected>Typical draw</option>
+        <option value="unlucky">Unlucky draw</option>
+      </select>
+      <button class="sim-btn" id="oneflip-random">Random draw</button>
+    </div>
+    <canvas id="oneflip-chart" height="340"></canvas>
+    <div class="stats-row" id="oneflip-stats">
+      <div class="stat-box">
+        <div class="stat-label">Draw percentile</div>
+        <div class="stat-value" style="color:var(--orange)" id="oneflip-pct">&mdash;</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Observed |residual|</div>
+        <div class="stat-value" style="color:var(--orange)" id="oneflip-obs">&mdash;</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">True |residual|</div>
+        <div class="stat-value" style="color:var(--orange)" id="oneflip-true">&mdash;</div>
+      </div>
+    </div>
+    <div class="legend-row" style="flex-wrap:wrap">
+      <span class="legend-item" style="white-space:nowrap"><span class="legend-swatch" style="background:var(--purple);opacity:0.4"></span> True dist.</span>
+      <span class="legend-item" style="white-space:nowrap"><span class="legend-swatch" style="background:var(--cyan);opacity:0.6"></span> Prediction</span>
+      <span class="legend-item" style="white-space:nowrap"><span class="legend-swatch" style="background:var(--orange)"></span> True |resid.|</span>
+      <span class="legend-item" style="white-space:nowrap"><span class="legend-swatch" style="background:var(--green)"></span> Lucky</span>
+      <span class="legend-item" style="white-space:nowrap"><span class="legend-swatch" style="background:var(--red)"></span> Unlucky</span>
+    </div>
+    <div class="chart-caption">We define an oracle-derived "true distribution," only obtainable through repeat experiments but granted here (purple). A single experiment yields one draw from this underlying distribution (orange), with probability according to the idealized Gaussian we impose. The model's prediction (cyan) has a separate center and width. Below the axis, the dashed orange bracket is the true residual (fixed); the solid green or red appendage shows where the draw fell relative to it. Green means the observed residual is shorter than reality (lucky); red means it is longer (unlucky). Click <strong>Random draw</strong> repeatedly to see how much the observed residual jumps around.</div>
+  </div>
+
   <p>A compound with a wide predicted distribution (high σ) <em>will, on average</em>, produce larger residuals, but on any single occasion it might land close to the predicted mean and show a small error. Wide distributions still produce values near their center.</p>
 
   <p>So we're trying to correlate a property of a <strong>distribution</strong> (its width) with a property of a <strong>single sample from that distribution</strong> (how far that one sample landed from the center). With one sample per distribution, the rank correlation is weak, even when the uncertainty estimates are correct.</p>
@@ -450,7 +490,7 @@
 
   <p>What you <strong>can't</strong> do: look at one compound's error after the fact and judge whether the model "knew" it was hard. That's the one-flip problem. Confirming the ranking for any individual compound would require repeated measurements, but across a batch the ranking holds.</p>
 
-  <p>The reliability diagram in section 01 already showed calibration passing. Several evaluation tools may handle the ranking question better than Spearman ρ on individual residuals, though each comes with its own assumptions and limitations. The first two (quintile binning and CRPS) address compound-level enrichment directly. The third (NLL) is an aggregate model-comparison metric that does not support enrichment. The fourth (conformal prediction) is a method for producing intervals with coverage guarantees, rather than an evaluation tool.</p>
+  <p>The reliability diagram in section 01 already showed calibration passing. Several evaluation tools may handle the ranking question better than Spearman ρ on individual residuals, though each comes with its own assumptions and limitations. The first two (quintile binning and CRPS) address compound-level enrichment directly. The third (NLL) is an aggregate model-comparison metric that does not support enrichment.</p>
 
   <p>The one-flip problem limits every evaluation tool that follows. Each method works around it (by aggregating, by scoring the full distribution, by testing calibration globally), but none eliminates it. Replicate measurements would sharpen all of them: more observations per compound would reduce the noise in per-compound error estimates, tighten the quintile bins, widen the gap between variable and constant σ in CRPS and NLL, and push the Spearman ρ curve from section 04 toward its asymptote. The evaluation tools below are the best we can do with one measurement per compound.</p>
 
@@ -536,17 +576,6 @@
 
   <p><strong>Strengths:</strong> Proper scoring rule. The strictest aggregate test of whether σ matches the actual error distribution. Standard in probabilistic modeling; directly optimized by many training procedures. Useful for comparing one model's uncertainty against another's. <strong>Weaknesses:</strong> Does not support enrichment or compound-level triage (non-monotonic per quintile). Heavily influenced by outliers (a single large residual against a small σ dominates the average). Assumes a distributional form (Gaussian here). Harder to interpret than CRPS or binning in absolute terms.</p>
 
-  <hr>
-
-  <h2><span class="step-num">07d</span> Conformal prediction</h2>
-
-  <p>Conformal prediction is not an evaluation tool but a method for <em>producing</em> prediction intervals with a finite-sample coverage guarantee. Given a calibration set, it computes nonconformity scores (how "unusual" each observation is relative to its prediction) and uses their distribution to construct intervals. If you ask for 90% coverage, conformal prediction guarantees that at least 90% of future observations will fall within the intervals, with no distributional assumptions required, provided the calibration and test data are exchangeable (drawn from the same distribution, with no distribution shift between calibration and deployment).</p>
-
-  <p>This guarantee is <em>marginal</em>: it holds on average across all compounds, not for each compound individually. Standard conformal prediction assigns the same interval width to every compound. Adaptive variants (locally-weighted conformal prediction, conformal quantile regression) adjust the width per compound by scaling the nonconformity score, producing wider intervals where the model is less certain. These adaptive methods could wrap our TabICL predictions to provide coverage guarantees on top of the model's existing uncertainty estimates.</p>
-
-  <p>Conformal prediction does not solve the one-flip problem. Even with perfectly calibrated conformal intervals, the Spearman ρ between interval width and individual |residual| would be weak for the same reason we have been discussing: one observation per compound is not enough to reveal the ranking. What conformal prediction does offer is a coverage guarantee that requires no assumption about the error distribution (unlike the Gaussian assumption in CRPS and NLL), which makes it a useful complement when the distributional form is uncertain.</p>
-
-  <p><strong>Strengths:</strong> Distribution-free coverage guarantee (under exchangeability). No model retraining needed (applied as a post-processing wrapper). Adaptive variants produce per-compound interval widths. <strong>Weaknesses:</strong> Marginal coverage, not conditional (the guarantee is across all compounds, not for each one). Requires a held-out calibration set, reducing the data available for training. Does not address the ranking question on its own; it calibrates interval widths but does not evaluate whether those widths track difficulty.</p>
 
 </div>
 
@@ -1393,5 +1422,261 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
     }
   });
   canvas.addEventListener('mouseleave', () => { tip.style.opacity = 0; });
+})();
+
+// ===== ONE-FLIP CONCEPTUAL CHART =====
+(function() {
+  const canvas = document.getElementById('oneflip-chart');
+  const select = document.getElementById('oneflip-scenario');
+  const randomBtn = document.getElementById('oneflip-random');
+  const pctEl = document.getElementById('oneflip-pct');
+  const obsEl = document.getElementById('oneflip-obs');
+  const trueEl = document.getElementById('oneflip-true');
+
+  const MU_TRUE = 0;
+  const MU_PRED = 0.8;
+  const SIGMA_NOISE = 0.35;
+  const SIGMA_PRED = 0.55;
+  const TRUE_RESIDUAL = Math.abs(MU_PRED - MU_TRUE);
+
+  const SCENARIOS = {
+    lucky:   0.50,
+    typical: 0.05,
+    unlucky: -0.55,
+  };
+
+  let flipRng = mulberry32(99);
+
+  function erfApprox(x) {
+    const a1 =  0.254829592, a2 = -0.284496736, a3 =  1.421413741;
+    const a4 = -1.453152027, a5 =  1.061405429, p  =  0.3275911;
+    const sign = x < 0 ? -1 : 1;
+    x = Math.abs(x);
+    const t = 1 / (1 + p * x);
+    const y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+    return sign * y;
+  }
+
+  function gaussPDF(x, mu, sigma) {
+    const z = (x - mu) / sigma;
+    return Math.exp(-0.5 * z * z) / (sigma * Math.sqrt(2 * Math.PI));
+  }
+
+  function gaussCDF(x, mu, sigma) {
+    return 0.5 * (1 + erfApprox((x - mu) / (sigma * Math.sqrt(2))));
+  }
+
+  function ordinal(n) {
+    const s = Math.round(n);
+    const j = s % 10, k = s % 100;
+    if (j === 1 && k !== 11) return s + 'st';
+    if (j === 2 && k !== 12) return s + 'nd';
+    if (j === 3 && k !== 13) return s + 'rd';
+    return s + 'th';
+  }
+
+  function render(drawValue) {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const W = Math.min(rect.width - 24, 690), H = 340;
+    const pad = { t: 20, r: 30, b: 90, l: 30 };
+    const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+    const ctx = hiDpiCanvas(canvas, W, H);
+
+    const xMin = -1.5, xMax = 2.3;
+    const xScale = v => pad.l + (v - xMin) / (xMax - xMin) * pw;
+
+    // Y scale based on tallest PDF
+    const pdfMax = gaussPDF(MU_TRUE, MU_TRUE, SIGMA_NOISE) * 1.15;
+    const axisY = pad.t + ph;
+    const yScale = v => axisY - (v / pdfMax) * ph;
+
+    // Vertical grid
+    ctx.strokeStyle = C.current;
+    ctx.lineWidth = 1;
+    for (let x = -1; x <= 2; x += 0.5) {
+      const px = xScale(x);
+      ctx.beginPath(); ctx.moveTo(px, pad.t); ctx.lineTo(px, axisY); ctx.stroke();
+    }
+
+    // True distribution fill
+    const nPts = 200;
+    ctx.beginPath();
+    ctx.moveTo(xScale(xMin), axisY);
+    for (let i = 0; i <= nPts; i++) {
+      const x = xMin + (xMax - xMin) * i / nPts;
+      ctx.lineTo(xScale(x), yScale(gaussPDF(x, MU_TRUE, SIGMA_NOISE)));
+    }
+    ctx.lineTo(xScale(xMax), axisY);
+    ctx.closePath();
+    ctx.fillStyle = C.purple + '18';
+    ctx.fill();
+
+    // True distribution outline (dashed)
+    ctx.beginPath();
+    for (let i = 0; i <= nPts; i++) {
+      const x = xMin + (xMax - xMin) * i / nPts;
+      const px = xScale(x), py = yScale(gaussPDF(x, MU_TRUE, SIGMA_NOISE));
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.strokeStyle = C.purple + '88';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Prediction distribution fill
+    ctx.beginPath();
+    ctx.moveTo(xScale(xMin), axisY);
+    for (let i = 0; i <= nPts; i++) {
+      const x = xMin + (xMax - xMin) * i / nPts;
+      ctx.lineTo(xScale(x), yScale(gaussPDF(x, MU_PRED, SIGMA_PRED)));
+    }
+    ctx.lineTo(xScale(xMax), axisY);
+    ctx.closePath();
+    ctx.fillStyle = C.cyan + '20';
+    ctx.fill();
+
+    // Prediction distribution outline (solid)
+    ctx.beginPath();
+    for (let i = 0; i <= nPts; i++) {
+      const x = xMin + (xMax - xMin) * i / nPts;
+      const px = xScale(x), py = yScale(gaussPDF(x, MU_PRED, SIGMA_PRED));
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.strokeStyle = C.cyan + 'aa';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Curve peak labels
+    ctx.font = '11px "SF Mono", "Fira Code", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = C.purple;
+    const truePeakY = yScale(gaussPDF(MU_TRUE, MU_TRUE, SIGMA_NOISE));
+    ctx.fillText('True distribution', xScale(MU_TRUE), truePeakY - 10);
+    ctx.fillStyle = C.cyan;
+    const predPeakY = yScale(gaussPDF(MU_PRED, MU_PRED, SIGMA_PRED));
+    ctx.fillText('Model prediction', xScale(MU_PRED), predPeakY - 10);
+
+    // Vertical center lines
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = C.purple + 'aa';
+    ctx.beginPath();
+    ctx.moveTo(xScale(MU_TRUE), truePeakY + 6);
+    ctx.lineTo(xScale(MU_TRUE), axisY);
+    ctx.stroke();
+    ctx.strokeStyle = C.cyan + 'aa';
+    ctx.beginPath();
+    ctx.moveTo(xScale(MU_PRED), predPeakY + 6);
+    ctx.lineTo(xScale(MU_PRED), axisY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // X-axis
+    ctx.strokeStyle = C.comment;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, axisY);
+    ctx.lineTo(pad.l + pw, axisY);
+    ctx.stroke();
+
+    // Center tick marks and labels below axis
+    ctx.fillStyle = C.purple;
+    ctx.font = '10px "SF Mono", "Fira Code", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('True value', xScale(MU_TRUE), axisY + 14);
+    ctx.fillStyle = C.cyan;
+    ctx.fillText('Prediction', xScale(MU_PRED), axisY + 14);
+
+    // Draw point on the true distribution curve
+    const drawX = xScale(drawValue);
+    const drawPdfVal = gaussPDF(drawValue, MU_TRUE, SIGMA_NOISE);
+    const drawCurveY = yScale(drawPdfVal);
+
+    // Vertical connector from x-axis up to the curve
+    ctx.strokeStyle = C.orange;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(drawX, axisY);
+    ctx.lineTo(drawX, drawCurveY);
+    ctx.stroke();
+
+    // Draw dot on the curve
+    ctx.beginPath();
+    ctx.arc(drawX, drawCurveY, 5, 0, Math.PI * 2);
+    ctx.fillStyle = C.orange;
+    ctx.fill();
+    ctx.strokeStyle = C.bg;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Unified residual line below center labels
+    const predCX = xScale(MU_PRED);
+    const trueCX = xScale(MU_TRUE);
+    const lineY = axisY + 42;
+    const serifH = 6;
+    const obsResidual = Math.abs(MU_PRED - drawValue);
+    const isLucky = obsResidual < TRUE_RESIDUAL;
+    const appendColor = isLucky ? C.green : C.red;
+
+    // Dashed orange core: prediction center to true center
+    ctx.strokeStyle = C.orange;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(predCX, lineY);
+    ctx.lineTo(trueCX, lineY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Solid colored appendage: prediction center to draw (= observed residual)
+    ctx.strokeStyle = appendColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(predCX, lineY);
+    ctx.lineTo(drawX, lineY);
+    ctx.stroke();
+
+    // Serifs: orange at pred and truth, colored at draw
+    ctx.strokeStyle = C.orange;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(predCX, lineY - serifH); ctx.lineTo(predCX, lineY + serifH);
+    ctx.moveTo(trueCX, lineY - serifH); ctx.lineTo(trueCX, lineY + serifH);
+    ctx.stroke();
+    ctx.strokeStyle = appendColor;
+    ctx.beginPath();
+    ctx.moveTo(drawX, lineY - serifH); ctx.lineTo(drawX, lineY + serifH);
+    ctx.stroke();
+
+    // Labels
+    ctx.font = '10px "SF Mono", "Fira Code", monospace';
+    ctx.textAlign = 'center';
+    // True |residual| above dashed core
+    ctx.fillStyle = C.orange + 'cc';
+    ctx.fillText('True |residual|', (predCX + trueCX) / 2, lineY - 9);
+    // Observed |residual| below, in matching color
+    ctx.fillStyle = appendColor;
+    ctx.fillText('Observed |residual|', (predCX + drawX) / 2, lineY + serifH + 14);
+
+    // Update stat boxes
+    const pctile = gaussCDF(drawValue, MU_TRUE, SIGMA_NOISE) * 100;
+    pctEl.textContent = ordinal(pctile);
+    obsEl.textContent = obsResidual.toFixed(2);
+    obsEl.style.color = appendColor;
+    trueEl.textContent = TRUE_RESIDUAL.toFixed(2);
+  }
+
+  select.addEventListener('change', () => {
+    const val = SCENARIOS[select.value];
+    if (val !== undefined) render(val);
+  });
+
+  randomBtn.addEventListener('click', () => {
+    const drawValue = MU_TRUE + SIGMA_NOISE * randn(flipRng);
+    render(drawValue);
+  });
+
+  render(SCENARIOS.typical);
 })();
 </script>
