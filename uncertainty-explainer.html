@@ -285,9 +285,6 @@
     background: var(--bg-current);
     white-space: nowrap;
   }
-  .tag.model { color: var(--cyan); }
-  .tag.fig { color: var(--fg); }
-  .tag.q { color: var(--fg); }
   .tag.lucky { color: var(--green); }
   .tag.unlucky { color: var(--red); }
 
@@ -312,13 +309,12 @@
   .eqtable .grp td { font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace; font-size: 0.72rem; font-weight: 700; color: var(--fg); letter-spacing: 0.04em; padding-top: 0.9rem; white-space: normal; }
   .symtable tr[data-sym], .eqtable tr[data-eq] { scroll-margin-top: 30vh; }
   .src { display: inline-block; font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace; font-size: 0.66rem; line-height: 1.5; padding: 0 0.45em; border: 1px solid currentColor; border-radius: 999px; white-space: nowrap; vertical-align: 0.1em; }
-  .src-model { color: var(--green); }
+  .src-predicted { color: var(--green); }
   .src-measured { color: var(--cyan); }
   .src-computed { color: var(--purple); }
   .src-toy { color: var(--yellow); }
   .src-simulated { color: var(--pink); }
   .src-notation { color: var(--comment); }
-  .src-data { color: var(--fg); }
 
   /* ---- Definition tooltips ---- */
   .has-def { cursor: pointer; text-decoration: underline dotted; text-decoration-thickness: 1px; text-underline-offset: 3px; }
@@ -360,11 +356,11 @@
   <!-- ===== STEP 1: WHAT WE SAID ===== -->
   <h2><span class="step-num">01</span> What we said in the blog post</h2>
 
-  <p>We fed our best feature set into <span class="tag model">TabICL</span> and examined the predicted uncertainty. <span class="tag fig">Figure 6</span> in the post had two panels. The right panel (the calibration plot) looked good: the intervals were close to the right width, with a miscalibration area of 0.04. The left panel plotted each compound's predicted standard deviation against its absolute error, and we computed the Spearman rank correlation between them.</p>
+  <p>We fed our best feature set into TabICL and examined the predicted uncertainty. Figure 6 in the post had two panels. The right panel (the calibration plot) looked good: the intervals were close to the right width, with a miscalibration area of 0.04. The left panel plotted each compound's predicted standard deviation against its absolute error, and we computed the Spearman rank correlation between them.</p>
 
-  <p>Every equation and symbol hereafter is defined on hover, and in full in the <a href="#reference">equations and symbols reference</a> at the end. Clicking a symbol or name jumps to its entry.</p>
+  <p>Every equation and symbol on this page shows its definition on hover and has an entry in the <a href="#reference">equations and symbols reference</a> (section 08). Clicking a symbol jumps to its entry.</p>
 
-  <p>For each test compound <code>i</code>, <span class="tag model">TabICL</span> predicts a mean <code>μ<sub>i</sub></code> and a standard deviation <code>σ<sub>i</sub></code>, and the measured value is <code>y<sub>i</sub></code>. The absolute residual is <code data-eq="eq-resid">e<sub>i</sub> = |y<sub>i</sub> − μ<sub>i</sub>|</code>, and <code>ρ</code> is the Spearman rank correlation between <code>σ<sub>i</sub></code> and <code>e<sub>i</sub></code> across all <code>N</code> = 260 compounds.</p>
+  <p>For each test compound <code>i</code>, TabICL predicts a value <code>ŷ<sub>i</sub></code> and a standard deviation <code>σ<sub>i</sub></code>, and the measured value is <code>y<sub>i</sub></code>. The absolute residual is <code data-eq="eq-resid">e<sub>i</sub> = |y<sub>i</sub> − ŷ<sub>i</sub>|</code>, written |residual| in the text and charts, and <code data-eq="eq-spearman">ρ = Spearman(σ<sub>i</sub>, e<sub>i</sub>)</code> is the rank correlation across all <code>n</code> = 260 test compounds.</p>
 
   <div class="chart-panel">
     <div class="chart-title">Reliability diagram: observed vs. nominal coverage</div>
@@ -408,7 +404,7 @@
   <!-- ===== STEP 3: DO THE SIGMAS VARY? ===== -->
   <h2><span class="step-num">03</span> Do the predicted uncertainties actually vary?</h2>
 
-  <p>A low <code>ρ</code> has at least two explanations worth checking. The first is straightforward: the model might predict nearly the same <code>σ<sub>i</sub></code> for every compound, leaving no ranking to detect. If so, a low <code>ρ</code> would be expected regardless of how many measurements we had. Before looking for subtler causes, we need to check whether the <code>σ<sub>i</sub></code> values spread out enough to encode a ranking in the first place.</p>
+  <p>A low <code>ρ</code> has at least two explanations worth checking. The first is straightforward: the model might predict nearly the same <code>σ</code> for every compound, leaving no ranking to detect. If so, a low <code>ρ</code> would be expected regardless of how many measurements we had. Before looking for subtler causes, we need to check whether the <code>σ</code> values spread out enough to encode a ranking in the first place.</p>
 
   <div class="chart-panel">
     <div class="chart-title">Distribution of predicted σ across 260 test compounds</div>
@@ -418,15 +414,15 @@
 
   <div class="stats-row">
     <div class="stat-box">
-      <div class="stat-label">Min <code>σ<sub>i</sub></code></div>
+      <div class="stat-label">Min <code>σ</code></div>
       <div class="stat-value" style="color:var(--cyan)">0.32</div>
     </div>
     <div class="stat-box">
-      <div class="stat-label">Median <code>σ<sub>i</sub></code></div>
+      <div class="stat-label">Median <code>σ</code></div>
       <div class="stat-value" style="color:var(--cyan)">0.47</div>
     </div>
     <div class="stat-box">
-      <div class="stat-label">Max <code>σ<sub>i</sub></code></div>
+      <div class="stat-label">Max <code>σ</code></div>
       <div class="stat-value" style="color:var(--cyan)">1.28</div>
     </div>
     <div class="stat-box">
@@ -435,23 +431,23 @@
     </div>
   </div>
 
-  <p>The <code>σ<sub>i</sub></code> values vary meaningfully, so same-σ-everywhere is ruled out. Combined with calibration (miscalibration area 0.04), this means the model assigns different uncertainty to different compounds, and those assignments are approximately the right width. Because expected absolute error scales with σ under a calibrated model (<code data-eq="eq-expected-err">E[e<sub>i</sub>] = σ<sub>i</sub> · √(2/π)</code>), these varying <code>σ<sub>i</sub></code> values encode a ranking. So the low <code>ρ</code> must have another cause.</p>
+  <p>The <code>σ</code> values vary meaningfully, so same-σ-everywhere is ruled out. Combined with calibration (miscalibration area 0.04), this means the model assigns different uncertainty to different compounds, and those assignments are approximately the right width. Because expected absolute error scales with σ under a calibrated model (<code data-eq="eq-expected-err">E[e<sub>i</sub>] = σ<sub>i</sub> · √(2/π)</code>), these varying <code>σ</code> values encode a ranking. So the low <code>ρ</code> must have another cause.</p>
 
   <hr>
 
   <!-- ===== STEP 4: THE COIN FLIP ===== -->
   <h2><span class="step-num">04</span> The one-flip problem</h2>
 
-  <p>The <code>σ<sub>i</sub></code> values vary and the intervals are calibrated, yet the Spearman <code>ρ</code> is only 0.26. One explanation is that the Spearman <code>ρ</code> test, computed on individual residuals, lacks the statistical power to detect the ranking when each compound contributes only one observation. The following analogy illustrates why.</p>
+  <p>The <code>σ</code> values vary and the intervals are calibrated, yet the Spearman <code>ρ</code> is only 0.26. One explanation is that the Spearman <code>ρ</code> test, computed on individual residuals, lacks the statistical power to detect the ranking when each compound contributes only one observation. The following analogy illustrates why.</p>
 
   <div class="callout analogy">
     <div class="callout-label">The coin analogy</div>
-    <p>Imagine each compound has a coin. Compound A's coin lands heads 60% of the time (high <code>σ<sub>i</sub></code>, expect large errors). Compound B's coin lands heads 40% of the time (low <code>σ<sub>i</sub></code>, expect small errors).</p>
+    <p>Imagine each compound has a coin. Compound A's coin lands heads 60% of the time (high <code>σ</code>, expect large errors). Compound B's coin lands heads 40% of the time (low <code>σ</code>, expect small errors).</p>
     <p>If you flip each coin <strong>a thousand times</strong>, you can easily tell which coin has the higher rate. Compound A clearly produces more heads.</p>
     <p>But you only flip each coin <strong>once</strong>. Compound A might land tails. Compound B might land heads. From those two flips, you'd rank them backwards.</p>
   </div>
 
-  <p>That's exactly what's happening in our scatter plot. Each compound has a predicted <code>σ<sub>i</sub></code> that defines a <em>distribution</em> of possible errors. The predicted mean is fixed; the true value is what varies. Each residual measures the distance between the fixed prediction and a single realization of the true value, and we observe only one realization per compound.</p>
+  <p>That's exactly what's happening in our scatter plot. Each compound has a predicted <code>σ</code> that defines a <em>distribution</em> of possible errors. The predicted mean is fixed; the true value is what varies. Each residual measures the distance between the fixed prediction and a single realization of the true value, and we observe only one realization per compound.</p>
 
   <div class="chart-panel" style="margin-top:1.5rem">
     <div class="chart-title">A single experimental draw can misrepresent the true residual</div>
@@ -485,14 +481,14 @@
       <span class="legend-item" style="white-space:nowrap"><span class="legend-swatch" style="background:var(--green)"></span> Lucky</span>
       <span class="legend-item" style="white-space:nowrap"><span class="legend-swatch" style="background:var(--red)"></span> Unlucky</span>
     </div>
-    <div class="chart-caption">We define an oracle-derived "true distribution," only obtainable through repeat experiments but granted here (purple): <code data-eq="eq-draw">x ~ 𝒩(μ<sub>true</sub>, σ<sub>noise</sub>²)</code>. A single experiment yields one draw <code>x</code> from this underlying distribution (orange), with probability according to the idealized Gaussian we impose. The model's prediction (cyan) has a separate center <code>μ<sub>pred</sub></code> and width <code>σ<sub>pred</sub></code>. Below the axis, the dashed orange bracket is the true residual, <code data-eq="eq-true-resid">|μ<sub>pred</sub> − μ<sub>true</sub>|</code> (fixed); the solid green or red appendage shows where the draw fell relative to it, and its length is the observed residual, <code data-eq="eq-obs-resid">|μ<sub>pred</sub> − x|</code>. Green means the observed residual is shorter than reality (<span class="tag lucky">lucky</span>); red means it is longer (<span class="tag unlucky">unlucky</span>). The draw percentile is <code data-eq="eq-draw-pct">Φ((x − μ<sub>true</sub>) / σ<sub>noise</sub>)</code>. Click <strong>Random draw</strong> repeatedly to see how much the observed residual jumps around.</div>
+    <div class="chart-caption">We define an oracle-derived "true distribution," only obtainable through repeat experiments but granted here (purple). A single experiment yields one draw from this underlying distribution (orange), with probability according to the idealized Gaussian we impose. The model's prediction (cyan) has a separate center and width. Below the axis, the dashed orange bracket is the true residual (fixed), and the solid green or red appendage runs from the prediction to the draw, so its length is the observed residual. Green means the observed residual is shorter than reality (<span class="tag lucky">lucky</span>); red means it is longer (<span class="tag unlucky">unlucky</span>). The draw percentile is the share of the true distribution below the draw. Click <strong>Random draw</strong> repeatedly to see how much the observed residual jumps around.</div>
   </div>
 
-  <p>A compound with a wide predicted distribution (high <code>σ<sub>i</sub></code>) <em>will, on average</em>, produce larger residuals, but on any single occasion it might land close to the predicted mean and show a small error. Wide distributions still produce values near their center.</p>
+  <p>A compound with a wide predicted distribution (high <code>σ</code>) <em>will, on average</em>, produce larger residuals, but on any single occasion it might land close to the predicted mean and show a small error. Wide distributions still produce values near their center.</p>
 
   <p>So we're trying to correlate a property of a <strong>distribution</strong> (its width) with a property of a <strong>single sample from that distribution</strong> (how far that one sample landed from the center). With one sample per distribution, the rank correlation is weak, even when the uncertainty estimates are correct.</p>
 
-  <p>A synthetic toy example illustrates the mechanics. Using our actual 260 predicted <code>σ<sub>i</sub></code> values, we simulate a perfectly calibrated model and ask: what Spearman <code>ρ</code> would we observe if we could measure each compound not once but <code>n</code> times, averaging the absolute residuals over replicates (<code data-eq="eq-rep">m<sub>i</sub> = (1/n) · Σ<sub>k</sub> e<sub>ik</sub></code>)? At <code>n</code> = 1 (our real situation), <code>ρ</code> averages 0.28. By <code>n</code> = 3 it reaches 0.49. By <code>n</code> = 10, 0.72. More replicates average out the noise in individual draws, letting the ranking emerge.</p>
+  <p>A synthetic toy example illustrates the mechanics. Using our actual 260 predicted <code>σ</code> values, we simulate a perfectly calibrated model and ask: what Spearman <code>ρ</code> would we observe if we could measure each compound not once but <code>R</code> times, averaging the absolute residuals over replicates (<code data-eq="eq-rep">m<sub>i</sub> = (1/R) · Σ<sub>k</sub> e<sub>ik</sub></code>)? At <code>R</code> = 1 (our real situation), <code>ρ</code> averages 0.28. By <code>R</code> = 3 it reaches 0.49. By <code>R</code> = 10, 0.72. More replicates average out the noise in individual draws, letting the ranking emerge.</p>
 
   <div class="chart-panel">
     <div class="chart-title">Spearman ρ vs. number of replicates per compound (toy simulation)</div>
@@ -500,12 +496,12 @@
     <div class="legend-row">
       <span class="legend-item"><span class="legend-swatch" style="background:var(--purple)"></span> Mean <code>ρ</code> (500 simulations)</span>
       <span class="legend-item"><span class="legend-swatch" style="background:var(--purple);opacity:0.25"></span> 5th-95th percentile</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> <code>n</code> = 1 (our data)</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> <code>R</code> = 1 (our data)</span>
     </div>
-    <div class="chart-caption">Each point is the mean Spearman <code>ρ</code> across 500 simulations at that replicate count, with the shaded band covering the 5th to 95th percentile. At <code>n</code> = 1, we observe <code>ρ</code> ≈ 0.28. The correlation is weak because one measurement per compound is not enough to reveal the underlying ranking.</div>
+    <div class="chart-caption">Each point is the mean Spearman <code>ρ</code> across 500 simulations at that replicate count, with the shaded band covering the 5th to 95th percentile. At <code>R</code> = 1, we observe <code>ρ</code> ≈ 0.28. The correlation is weak because one measurement per compound is not enough to reveal the underlying ranking.</div>
   </div>
 
-  <p>This simulation draws residuals from the model's own predicted <code>σ<sub>i</sub></code> values, which means it assumes those <code>σ<sub>i</sub></code> values are correct. That assumption is partially validated by the calibration plot (miscalibration area 0.04), but it is not an independent proof. The simulation demonstrates the <em>mechanics</em> of the one-flip problem (one draw per compound limits <code>ρ</code> even when the ranking is real) rather than proving that our model's specific <code>σ<sub>i</sub></code> values are right. It also ignores real-world complications: experimental noise in the labels, non-Gaussian error distributions, and the fact that replicate measurements in a real assay would introduce their own sources of variability beyond what a simple Gaussian captures.</p>
+  <p>This simulation draws residuals from the model's own predicted <code>σ</code> values, which means it assumes those <code>σ</code> values are correct. That assumption is partially validated by the calibration plot (miscalibration area 0.04), but it is not an independent proof. The simulation demonstrates the <em>mechanics</em> of the one-flip problem (one draw per compound limits <code>ρ</code> even when the ranking is real) rather than proving that our model's specific <code>σ</code> values are right. It also ignores real-world complications: experimental noise in the labels, non-Gaussian error distributions, and the fact that replicate measurements in a real assay would introduce their own sources of variability beyond what a simple Gaussian captures.</p>
 
   <hr>
 
@@ -514,16 +510,16 @@
 
   <p>The replicate curve in section 04 showed that more measurements per compound would strengthen <code>ρ</code> toward 1 by varying the number of draws per compound. This section takes the complementary approach: holding the replicate count at 1 (matching our data), it asks what <em>distribution of <code>ρ</code> values</em> a model with ideal uncertainty estimates would produce. Section 04 asked how many measurements it would take to see the ranking clearly; this section asks whether <code>ρ</code> = 0.26 indicates a ranking deficiency or is simply the expected outcome given one measurement per compound.</p>
 
-  <p>We take the 260 predicted <code>σ<sub>i</sub></code> values from the real model and pretend the <strong>uncertainty estimates are perfectly calibrated</strong>: for each compound, we draw a single residual from a Gaussian with that compound's <code>σ<sub>i</sub></code>, <code data-eq="eq-sim">e<sub>i</sub> = |z<sub>i</sub>| · σ<sub>i</sub></code> with <code>z<sub>i</sub></code> drawn from a standard normal. The point predictions can still be wrong (they are); what's "perfect" is only the error bars. We compute Spearman <code>ρ<sub>sim</sub></code> on those simulated residuals and repeat <code>S</code> = 2,000 times to build a distribution of <code>ρ<sub>sim</sub></code> values.</p>
+  <p>We take the 260 predicted <code>σ</code> values from the real model and pretend the <strong>uncertainty estimates are perfectly calibrated</strong>: for each compound, we draw a single residual from a Gaussian with that compound's <code>σ</code>, <code data-eq="eq-sim">e<sub>i</sub> = |z<sub>i</sub>| · σ<sub>i</sub></code> with <code>z</code> drawn from a standard normal. The point predictions can still be wrong (they are); what's "perfect" is only the error bars. We compute Spearman <code>ρ<sub>null</sub></code> on those simulated residuals and repeat 2,000 times to build a distribution of <code>ρ<sub>null</sub></code> values.</p>
 
-  <p>To be precise: "perfectly calibrated" here means each compound's true error really is drawn from the Gaussian the model prescribes. The model is not making perfect predictions (zero error). It is making imperfect predictions and <em>correctly estimating how imperfect each one is</em>. If our observed <code>ρ<sub>obs</sub></code> = 0.26 falls inside that distribution, the low correlation reflects the measurement setup (one residual per compound) rather than a deficiency in the model's uncertainty. If it falls below, there's a real ranking problem the measurement noise cannot explain.</p>
+  <p>To be precise: "perfectly calibrated" here means each compound's true error really is drawn from the Gaussian the model prescribes. The model is not making perfect predictions (zero error). It is making imperfect predictions and <em>correctly estimating how imperfect each one is</em>. If our observed <code>ρ</code> = 0.26 falls inside that distribution, the low correlation reflects the measurement setup (one residual per compound) rather than a deficiency in the model's uncertainty. If it falls below, there's a real ranking problem the measurement noise cannot explain.</p>
 
   <div class="chart-panel">
     <div class="chart-title">Simulated ρ distribution under perfect calibration</div>
     <canvas id="sim-hist" height="300" style="cursor:pointer"></canvas>
     <div class="legend-row">
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--purple)"></span> Simulated <code>ρ<sub>sim</sub></code></span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> Observed <code>ρ<sub>obs</sub></code> = 0.26</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--purple)"></span> Simulated <code>ρ<sub>null</sub></code></span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> Observed <code>ρ</code> = 0.26</span>
     </div>
     <div class="chart-caption" id="sim-caption"></div>
     <div class="chart-caption" style="margin-top:0.3rem; font-style:italic">Click to resample with a new seed.</div>
@@ -534,9 +530,9 @@
   <!-- ===== STEP 6: THE RESULT ===== -->
   <h2><span class="step-num">06</span> The result</h2>
 
-  <p>Perfectly calibrated uncertainty with our <code>σ<sub>i</sub></code> distribution produces a mean Spearman <code>ρ<sub>sim</sub></code> of about <strong>0.285</strong>. Our observed 0.26 sits at the 34th percentile of the null distribution (<code data-eq="eq-percentile">percentile = (1/S) · Σ<sub>s</sub> 𝟙[ρ<sub>sim,s</sub> ≤ ρ<sub>obs</sub>]</code>), well within the 95% interval of [0.17, 0.40]. <strong>The <code>ρ</code> we observe is what we would expect even if the uncertainty estimates were ideal. The low correlation reflects the inherent noise of comparing a distribution's width to a single sample from it.</strong></p>
+  <p>Perfectly calibrated uncertainty with our <code>σ</code> distribution produces a mean Spearman <code>ρ<sub>null</sub></code> of about <strong>0.285</strong>. Our observed 0.26 sits at the 34th percentile of the null distribution, well within the 95% interval of [0.17, 0.40]. <strong>The <code>ρ</code> we observe is what we would expect even if the uncertainty estimates were ideal. The low correlation reflects the inherent noise of comparing a distribution's width to a single sample from it.</strong></p>
 
-  <p>The blog post's conclusion, "not a reliable ranking of which compounds are hard," is too strong. The <code>σ<sub>i</sub></code> values vary, calibration holds, and higher σ does correspond to higher expected error, so the ranking is present. Any test based on individual residuals will show a weak correlation, because each residual is one noisy draw from the distribution it's being compared against.</p>
+  <p>The blog post's conclusion, "not a reliable ranking of which compounds are hard," is too strong. The <code>σ</code> values vary, calibration holds, and higher σ does correspond to higher expected error, so the ranking is present. Any test based on individual residuals will show a weak correlation, because each residual is one noisy draw from the distribution it's being compared against.</p>
 
   <hr>
 
@@ -545,24 +541,24 @@
 
   <p>The calibration plot (Figure 6 right in the blog post) already told us the intervals are the right width. The σ distribution tells us the model differentiates between compounds. Together, those two facts mean the uncertainty estimates <em>are</em> useful.</p>
 
-  <p>What you <strong>can</strong> do with them: use the predicted intervals directly. If compound A has a 90% interval (<code data-eq="eq-interval">μ<sub>i</sub> ± 1.645 · σ<sub>i</sub></code>) of [4.5, 6.5] and compound B has [5.0, 5.4], pick B when you need precision. Over a portfolio of decisions, calibrated intervals with real <code>σ<sub>i</sub></code> variation will outperform ignoring them.</p>
+  <p>What you <strong>can</strong> do with them: use the predicted intervals directly. If compound A has a 90% interval of [4.5, 6.5] and compound B has [5.0, 5.4], pick B when you need precision. Over a portfolio of decisions, calibrated intervals with real <code>σ</code> variation will outperform ignoring them.</p>
 
   <p>What you <strong>can't</strong> do: look at one compound's error after the fact and judge whether the model "knew" it was hard. That's the one-flip problem. Confirming the ranking for any individual compound would require repeated measurements, but across a batch the ranking holds.</p>
 
   <p>The reliability diagram in section 01 already showed calibration passing. Several evaluation tools may handle the ranking question better than Spearman <code>ρ</code> on individual residuals, though each comes with its own assumptions and limitations. The first two (quintile binning and CRPS) address compound-level enrichment directly. The third (NLL) is an aggregate model-comparison metric that does not support enrichment.</p>
 
-  <p>The one-flip problem limits every evaluation tool that follows. Each method works around it (by aggregating, by scoring the full distribution, by testing calibration globally), but none eliminates it. Replicate measurements would sharpen all of them: more observations per compound would reduce the noise in per-compound error estimates, tighten the quintile bins, widen the gap between per-compound <code>σ<sub>i</sub></code> and constant <code>σ<sub>const</sub></code> in CRPS and NLL, and push the Spearman <code>ρ</code> curve from section 04 toward its asymptote. The evaluation tools below are the best we can do with one measurement per compound.</p>
+  <p>The one-flip problem limits every evaluation tool that follows. Each method works around it (by aggregating, by scoring the full distribution, by testing calibration globally), but none eliminates it. Replicate measurements would sharpen all of them: more observations per compound would reduce the noise in per-compound error estimates, tighten the quintile bins, widen the gap between per-compound <code>σ</code> and constant <code>σ<sub>const</sub></code> in CRPS and NLL, and push the Spearman <code>ρ</code> curve from section 04 toward its asymptote. The evaluation tools below are the best we can do with one measurement per compound.</p>
 
   <hr>
 
   <h2><span class="step-num">07a</span> Quintile binning</h2>
 
-  <p>The simplest approach: sort the 260 compounds by predicted <code>σ<sub>i</sub></code>, split them into five equal groups (<span class="tag q">Q1</span> to <span class="tag q">Q5</span>, ~52 each), and compute the mean absolute residual in each bin, <code data-eq="eq-quintile">m<sub>Q</sub> = (1/|Q|) · Σ<sub>i∈Q</sub> e<sub>i</sub></code>. Pooling 52 compounds per group averages out the single-draw noise that makes the raw scatter plot so cloudy. If the ranking is real, mean error should increase across the bins.</p>
+  <p>The simplest approach: sort the 260 compounds by predicted <code>σ</code>, split them into five equal groups (Q1 to Q5, ~52 each), and compute the mean absolute residual in each bin. Pooling 52 compounds per group averages out the single-draw noise that makes the raw scatter plot so cloudy. If the ranking is real, mean error should increase across the bins.</p>
 
   <div class="chart-panel">
     <div class="chart-title">Quintile binning: mean |residual| by predicted σ group</div>
     <canvas id="quintile-chart" height="300"></canvas>
-    <div class="chart-caption">Mean absolute residual <code>m<sub>Q</sub></code> increases from 0.27 in the lowest-σ group (<span class="tag q">Q1</span>) to 0.65 in the highest (<span class="tag q">Q5</span>). The ranking is real; pooling compounds per bin reveals the trend that individual residuals obscure.</div>
+    <div class="chart-caption">Mean absolute residual increases from 0.27 in the lowest-σ group (Q1) to 0.65 in the highest (Q5). The ranking is real; pooling compounds per bin reveals the trend that individual residuals obscure.</div>
   </div>
 
   <p><strong>Strengths:</strong> Easy to compute and interpret. Answers the ranking question directly, without modeling assumptions. <strong>Weaknesses:</strong> The number of bins is arbitrary (5 here, but 4 or 6 would give a slightly different picture). Discretizing throws away information about the shape within each bin, and the approach gives no single comparable score to rank one model's uncertainty against another's.</p>
@@ -571,15 +567,15 @@
 
   <h2><span class="step-num">07b</span> Continuous ranked probability score (CRPS)</h2>
 
-  <p>CRPS evaluates the full predicted distribution against each observed value. It measures the area between the predicted cumulative distribution function (CDF) <code>F<sub>i</sub></code> and a step function at the observed value: <code data-eq="eq-crps">CRPS = ∫ (F<sub>i</sub>(u) − 𝟙[u ≥ y<sub>i</sub>])² du</code>. A prediction that concentrates probability near the true value scores well; one that spreads probability away from it scores poorly. Lower is better.</p>
+  <p>CRPS evaluates the full predicted distribution against each observed value. It measures the area between the predicted cumulative distribution function (CDF) <code>F</code> and a step function at the observed value: <code data-eq="eq-crps">CRPS = ∫ (F<sub>i</sub>(u) − 𝟙[u ≥ y<sub>i</sub>])² du</code>. A prediction that concentrates probability near the true value scores well; one that spreads probability away from it scores poorly. Lower is better.</p>
 
   <p>CRPS is a <em>proper scoring rule</em>, meaning a model scores best by reporting its true beliefs. It jointly rewards calibration (intervals the right width) and sharpness (intervals as narrow as possible while remaining calibrated). A model that predicts wide intervals for every compound will be calibrated but not sharp; CRPS penalizes the unnecessary width.</p>
 
-  <p>The decisive test: does the model's per-compound <code>σ<sub>i</sub></code> variation help, compared to assigning every compound the same global <code>σ<sub>const</sub></code> (the mean of <code>σ<sub>i</sub></code>, 0.54)?</p>
+  <p>The decisive test: does the model's per-compound <code>σ</code> variation help, compared to assigning every compound the same global <code>σ<sub>const</sub></code> (the mean of <code>σ</code>, 0.54)?</p>
 
   <div class="stats-row">
     <div class="stat-box">
-      <div class="stat-label"><code>CRPS</code> (per-compound <code>σ<sub>i</sub></code>)</div>
+      <div class="stat-label"><code>CRPS</code> (per-compound <code>σ</code>)</div>
       <div class="stat-value" style="color:var(--green)">0.312</div>
     </div>
     <div class="stat-box">
@@ -592,15 +588,15 @@
     </div>
   </div>
 
-  <p>Per-compound <code>σ<sub>i</sub></code> beats constant <code>σ<sub>const</sub></code> by 2.4% (<code data-eq="eq-improve">1 − CRPS(σ<sub>i</sub>) / CRPS(σ<sub>const</sub>)</code>). The improvement is modest, consistent with the narrow σ distribution (coefficient of variation <code>CV</code> = 0.34) and the well-calibrated intervals. Breaking CRPS down by quintile shows a monotonic increase, confirming that the model assigns higher uncertainty to compounds that genuinely score worse.</p>
+  <p>Per-compound <code>σ</code> beats constant <code>σ<sub>const</sub></code> by 2.4%. The improvement is modest, consistent with the narrow σ distribution (coefficient of variation <code>CV</code> = 0.34) and the well-calibrated intervals. Breaking CRPS down by quintile shows a monotonic increase, confirming that the model assigns higher uncertainty to compounds that genuinely score worse.</p>
 
   <div class="chart-panel">
     <div class="chart-title">Mean CRPS by predicted σ quintile</div>
     <canvas id="crps-chart" height="300"></canvas>
-    <div class="chart-caption">CRPS increases monotonically from <span class="tag q">Q1</span> (0.18) to <span class="tag q">Q5</span> (0.46). Higher predicted <code>σ<sub>i</sub></code> corresponds to worse distributional fit, as expected when the model's uncertainty estimates track real difficulty.</div>
+    <div class="chart-caption">CRPS increases monotonically from Q1 (0.18) to Q5 (0.46). Higher predicted <code>σ</code> corresponds to worse distributional fit, as expected when the model's uncertainty estimates track real difficulty.</div>
   </div>
 
-  <p><strong>Strengths:</strong> Uses the full predicted distribution, as opposed to a point estimate. Proper scoring rule (a model minimizes CRPS by reporting its true predicted distribution, so there is no incentive to distort the estimate). Works per-observation without binning. Produces a single comparable number across models. <strong>Weaknesses:</strong> Less intuitive than "did the true value land in the interval?" Requires the full predicted CDF (or a closed-form assumption, as with the Gaussian here: <code data-eq="eq-crps-gauss">CRPS = σ<sub>i</sub> · [z<sub>i</sub> · (2Φ(z<sub>i</sub>) − 1) + 2φ(z<sub>i</sub>) − 1/√π]</code>). Can be dominated by a few large-error outliers.</p>
+  <p><strong>Strengths:</strong> Uses the full predicted distribution, as opposed to a point estimate. Proper scoring rule (a model minimizes CRPS by reporting its true predicted distribution, so there is no incentive to distort the estimate). Works per-observation without binning. Produces a single comparable number across models. <strong>Weaknesses:</strong> Less intuitive than "did the true value land in the interval?" Requires the full predicted CDF (or a closed-form assumption, as with the Gaussian here). Can be dominated by a few large-error outliers.</p>
 
   <hr>
 
@@ -608,11 +604,11 @@
 
   <p>NLL answers a different question from the first two tools. Where quintile binning and CRPS ask "can the model rank which compounds are hard?", NLL asks "how good is the model's probabilistic prediction in aggregate?" It is a model-comparison metric, not a compound-level triage tool.</p>
 
-  <p>Under a Gaussian prediction with mean <code>μ<sub>i</sub></code> and standard deviation <code>σ<sub>i</sub></code>, <code data-eq="eq-nll">NLL = 0.5 × log(2πσ<sub>i</sub>²) + (y<sub>i</sub> − μ<sub>i</sub>)² / (2σ<sub>i</sub>²)</code>. The first term penalizes wide intervals (wasted probability); the second penalizes narrow intervals that miss the true value. Lower is better. NLL is a proper scoring rule, and compared to CRPS, it penalizes overconfidence more harshly: a single observation far outside a narrow interval produces a very large NLL, because the squared residual is divided by a small <code>σ<sub>i</sub>²</code>.</p>
+  <p>Under a Gaussian prediction with mean <code>ŷ</code> and standard deviation <code>σ</code>, <code data-eq="eq-nll">NLL = 0.5 × log(2πσ<sub>i</sub>²) + (y<sub>i</sub> − ŷ<sub>i</sub>)² / (2σ<sub>i</sub>²)</code>. The first term penalizes wide intervals (wasted probability); the second penalizes narrow intervals that miss the true value. Lower is better. NLL is a proper scoring rule, and compared to CRPS, it penalizes overconfidence more harshly: a single observation far outside a narrow interval produces a very large NLL, because the squared residual is divided by a small <code>σ²</code>.</p>
 
   <div class="stats-row">
     <div class="stat-box">
-      <div class="stat-label"><code>NLL</code> (per-compound <code>σ<sub>i</sub></code>)</div>
+      <div class="stat-label"><code>NLL</code> (per-compound <code>σ</code>)</div>
       <div class="stat-value" style="color:var(--green)">0.935</div>
     </div>
     <div class="stat-box">
@@ -625,54 +621,38 @@
     </div>
   </div>
 
-  <p>Per-compound <code>σ<sub>i</sub></code> beats constant <code>σ<sub>const</sub></code> by 3.4% (<code data-eq="eq-improve">1 − NLL(σ<sub>i</sub>) / NLL(σ<sub>const</sub>)</code>), a slightly larger margin than CRPS, confirming that the variable uncertainty adds value as a whole. Unlike CRPS, NLL per quintile is <em>not</em> monotonic: <span class="tag q">Q1</span> scores best (0.32), but <span class="tag q">Q2</span> and <span class="tag q">Q3</span> score worse than <span class="tag q">Q4</span>. This happens because NLL penalizes both directions. A moderate-σ compound with one large residual (a bad single draw) gets hammered by the <code data-eq="eq-nll">(y<sub>i</sub> − μ<sub>i</sub>)² / σ<sub>i</sub>²</code> term, while a high-σ compound with the same residual absorbs it more gracefully. This non-monotonicity means NLL cannot be used for enrichment: sorting compounds by NLL would not reliably separate easy from hard predictions.</p>
+  <p>Per-compound <code>σ</code> beats constant <code>σ<sub>const</sub></code> by 3.4%, a slightly larger margin than CRPS, confirming that the variable uncertainty adds value as a whole. Unlike CRPS, NLL per quintile is <em>not</em> monotonic: Q1 scores best (0.32), but Q2 and Q3 score worse than Q4. This happens because NLL penalizes both directions. A moderate-σ compound with one large residual (a bad single draw) gets hammered by the <code data-eq="eq-nll">(y<sub>i</sub> − ŷ<sub>i</sub>)² / σ<sub>i</sub>²</code> term, while a high-σ compound with the same residual absorbs it more gracefully. This non-monotonicity means NLL cannot be used for enrichment: sorting compounds by NLL would not reliably separate easy from hard predictions.</p>
 
   <div class="chart-panel">
     <div class="chart-title">Mean NLL by predicted σ quintile</div>
     <canvas id="nll-chart" height="300"></canvas>
-    <div class="chart-caption">NLL is not monotonic across quintiles. <span class="tag q">Q1</span> benefits from narrow <code>σ<sub>i</sub></code> and small residuals. <span class="tag q">Q2</span> and <span class="tag q">Q3</span> are penalized by a few large residuals against moderate <code>σ<sub>i</sub></code> values. <span class="tag q">Q5</span> has the highest NLL because its residuals are genuinely large. The non-monotonicity reflects NLL's sensitivity to tail events, not a calibration failure.</div>
+    <div class="chart-caption">NLL is not monotonic across quintiles. Q1 benefits from narrow <code>σ</code> and small residuals. Q2 and Q3 are penalized by a few large residuals against moderate <code>σ</code> values. Q5 has the highest NLL because its residuals are genuinely large. The non-monotonicity reflects NLL's sensitivity to tail events, not a calibration failure.</div>
   </div>
 
-  <p><strong>Strengths:</strong> Proper scoring rule. The strictest aggregate test of whether σ matches the actual error distribution. Standard in probabilistic modeling; directly optimized by many training procedures. Useful for comparing one model's uncertainty against another's. <strong>Weaknesses:</strong> Does not support enrichment or compound-level triage (non-monotonic per quintile). Heavily influenced by outliers (a single large residual against a small <code>σ<sub>i</sub></code> dominates the average). Assumes a distributional form (Gaussian here). Harder to interpret than CRPS or binning in absolute terms.</p>
+  <p><strong>Strengths:</strong> Proper scoring rule. The strictest aggregate test of whether σ matches the actual error distribution. Standard in probabilistic modeling; directly optimized by many training procedures. Useful for comparing one model's uncertainty against another's. <strong>Weaknesses:</strong> Does not support enrichment or compound-level triage (non-monotonic per quintile). Heavily influenced by outliers (a single large residual against a small <code>σ</code> dominates the average). Assumes a distributional form (Gaussian here). Harder to interpret than CRPS or binning in absolute terms.</p>
 
 
   <hr>
 
   <h2 id="reference"><span class="step-num">08</span> Equations and symbols</h2>
 
-  <p>Every formula used on the page, and every symbol and name it contains, with where each value comes from.</p>
+  <p>The equations the argument depends on, and every symbol they contain, with where each value comes from.</p>
 
   <div class="table-wrap">
   <table class="eqtable">
     <tbody>
-    <tr class="grp"><td colspan="4">Residuals and intervals</td></tr>
-    <tr data-eq="eq-resid"><td class="lbl">Absolute residual of compound <code>i</code></td><td class="lhs"><span class="sym" data-key="e_i">e<sub>i</sub></span></td><td class="op">=</td><td class="rhs">|<span class="sym" data-key="y_i">y<sub>i</sub></span> − <span class="sym" data-key="μ_i">μ<sub>i</sub></span>|</td></tr>
-    <tr data-eq="eq-z"><td class="lbl">Standardized residual</td><td class="lhs"><span class="sym" data-key="z_i">z<sub>i</sub></span></td><td class="op">=</td><td class="rhs"><span class="frac"><span><span class="sym" data-key="y_i">y<sub>i</sub></span> − <span class="sym" data-key="μ_i">μ<sub>i</sub></span></span><span><span class="sym" data-key="σ_i">σ<sub>i</sub></span></span></span></td></tr>
-    <tr data-eq="eq-cdf"><td class="lbl">Predicted cumulative distribution function</td><td class="lhs"><span class="sym" data-key="F_i">F<sub>i</sub></span>(<span class="sym" data-key="u">u</span>)</td><td class="op">=</td><td class="rhs"><span class="sym" data-key="Φ">Φ</span>((<span class="sym" data-key="u">u</span> − <span class="sym" data-key="μ_i">μ<sub>i</sub></span>) / <span class="sym" data-key="σ_i">σ<sub>i</sub></span>)</td></tr>
-    <tr data-eq="eq-interval"><td class="lbl">Central interval at coverage <code>p</code> (1.645 for 90%)</td><td class="lhs">interval</td><td class="op">=</td><td class="rhs"><span class="sym" data-key="μ_i">μ<sub>i</sub></span> ± <span class="sym" data-key="Φ">Φ</span><sup>−1</sup>((1 + <span class="sym" data-key="p">p</span>) / 2) · <span class="sym" data-key="σ_i">σ<sub>i</sub></span></td></tr>
-    <tr data-eq="eq-expected-err"><td class="lbl">Expected absolute residual under calibration</td><td class="lhs"><span class="sym" data-key="E">E</span>[<span class="sym" data-key="e_i">e<sub>i</sub></span>]</td><td class="op">=</td><td class="rhs"><span class="sym" data-key="σ_i">σ<sub>i</sub></span> · √(2/π)</td></tr>
-    <tr class="grp"><td colspan="4">Calibration</td></tr>
-    <tr data-eq="eq-coverage"><td class="lbl">Observed coverage at nominal level <code>p</code></td><td class="lhs"><span class="sym" data-key="p_obs">p<sub>obs</sub></span>(<span class="sym" data-key="p">p</span>)</td><td class="op">=</td><td class="rhs">(1/<span class="sym" data-key="N">N</span>) · Σ<sub><span class="sym" data-key="i">i</span></sub> <span class="sym" data-key="𝟙">𝟙</span>[<span class="sym" data-key="e_i">e<sub>i</sub></span> ≤ <span class="sym" data-key="Φ">Φ</span><sup>−1</sup>((1 + <span class="sym" data-key="p">p</span>) / 2) · <span class="sym" data-key="σ_i">σ<sub>i</sub></span>]</td></tr>
+    <tr class="grp"><td colspan="4">Residuals and calibration</td></tr>
+    <tr data-eq="eq-resid"><td class="lbl">Absolute residual, written |residual| in text</td><td class="lhs"><span class="sym" data-key="e_i">e<sub>i</sub></span></td><td class="op">=</td><td class="rhs">|<span class="sym" data-key="y_i">y<sub>i</sub></span> − <span class="sym" data-key="ŷ_i">ŷ<sub>i</sub></span>|</td></tr>
+    <tr data-eq="eq-expected-err"><td class="lbl">Expected absolute residual under perfect calibration</td><td class="lhs">E[<span class="sym" data-key="e_i">e<sub>i</sub></span>]</td><td class="op">=</td><td class="rhs"><span class="sym" data-key="σ_i">σ<sub>i</sub></span> · √(2/π)</td></tr>
+    <tr data-eq="eq-coverage"><td class="lbl">Observed coverage at nominal level <code>p</code></td><td class="lhs"><span class="sym" data-key="p_obs">p<sub>obs</sub></span>(<span class="sym" data-key="p">p</span>)</td><td class="op">=</td><td class="rhs">(1/<span class="sym" data-key="n">n</span>) · Σ<sub>i</sub> <span class="sym" data-key="𝟙">𝟙</span>[<span class="sym" data-key="e_i">e<sub>i</sub></span> ≤ <span class="sym" data-key="Φ">Φ</span><sup>−1</sup>((1 + <span class="sym" data-key="p">p</span>) / 2) · <span class="sym" data-key="σ_i">σ<sub>i</sub></span>]</td></tr>
     <tr data-eq="eq-miscal"><td class="lbl">Miscalibration area</td><td class="lhs"><span class="sym" data-key="A_mis">A<sub>mis</sub></span></td><td class="op">=</td><td class="rhs">∫<sub>0</sub><sup>1</sup> |<span class="sym" data-key="p_obs">p<sub>obs</sub></span>(<span class="sym" data-key="p">p</span>) − <span class="sym" data-key="p">p</span>| d<span class="sym" data-key="p">p</span></td></tr>
-    <tr class="grp"><td colspan="4">Spread of the predicted standard deviations</td></tr>
-    <tr data-eq="eq-sigma-const"><td class="lbl">Constant baseline: mean predicted standard deviation</td><td class="lhs"><span class="sym" data-key="σ_const">σ<sub>const</sub></span></td><td class="op">=</td><td class="rhs">(1/<span class="sym" data-key="N">N</span>) · Σ<sub><span class="sym" data-key="i">i</span></sub> <span class="sym" data-key="σ_i">σ<sub>i</sub></span></td></tr>
-    <tr data-eq="eq-cv"><td class="lbl">Coefficient of variation</td><td class="lhs"><span class="sym" data-key="CV">CV</span></td><td class="op">=</td><td class="rhs">sd(<span class="sym" data-key="σ_i">σ<sub>i</sub></span>) / <span class="sym" data-key="σ_const">σ<sub>const</sub></span></td></tr>
     <tr class="grp"><td colspan="4">Ranking and simulation</td></tr>
-    <tr data-eq="eq-spearman"><td class="lbl">Spearman rank correlation</td><td class="lhs"><span class="sym" data-key="ρ">ρ</span></td><td class="op">=</td><td class="rhs">corr(rank(<span class="sym" data-key="σ_i">σ<sub>i</sub></span>), rank(<span class="sym" data-key="e_i">e<sub>i</sub></span>))</td></tr>
-    <tr data-eq="eq-sim"><td class="lbl">Residual simulated under perfect calibration</td><td class="lhs"><span class="sym" data-key="e_i">e<sub>i</sub></span></td><td class="op">=</td><td class="rhs">|<span class="sym" data-key="z_i">z<sub>i</sub></span>| · <span class="sym" data-key="σ_i">σ<sub>i</sub></span>,&ensp;<span class="sym" data-key="z_i">z<sub>i</sub></span> ~ <span class="sym" data-key="𝒩">𝒩</span>(0, 1)</td></tr>
-    <tr data-eq="eq-rep"><td class="lbl">Mean residual over <code>n</code> replicates</td><td class="lhs"><span class="sym" data-key="m_i">m<sub>i</sub></span></td><td class="op">=</td><td class="rhs">(1/<span class="sym" data-key="n">n</span>) · Σ<sub><span class="sym" data-key="k">k</span></sub> <span class="sym" data-key="e_ik">e<sub>ik</sub></span></td></tr>
-    <tr data-eq="eq-percentile"><td class="lbl">Percentile of the observed correlation in the null distribution</td><td class="lhs">percentile</td><td class="op">=</td><td class="rhs">(1/<span class="sym" data-key="S">S</span>) · Σ<sub>s</sub> <span class="sym" data-key="𝟙">𝟙</span>[<span class="sym" data-key="ρ_sim">ρ<sub>sim,s</sub></span> ≤ <span class="sym" data-key="ρ_obs">ρ<sub>obs</sub></span>]</td></tr>
-    <tr data-eq="eq-quintile"><td class="lbl">Mean residual in quintile <code>Q</code></td><td class="lhs"><span class="sym" data-key="m_Q">m<sub>Q</sub></span></td><td class="op">=</td><td class="rhs">(1/|<span class="sym" data-key="Q">Q</span>|) · Σ<sub><span class="sym" data-key="i">i</span> ∈ <span class="sym" data-key="Q">Q</span></sub> <span class="sym" data-key="e_i">e<sub>i</sub></span></td></tr>
-    <tr class="grp"><td colspan="4">One-flip example</td></tr>
-    <tr data-eq="eq-draw"><td class="lbl">Single experimental draw</td><td class="lhs"><span class="sym" data-key="x">x</span></td><td class="op">~</td><td class="rhs"><span class="sym" data-key="𝒩">𝒩</span>(<span class="sym" data-key="μ_true">μ<sub>true</sub></span>, <span class="sym" data-key="σ_noise">σ<sub>noise</sub></span>²)</td></tr>
-    <tr data-eq="eq-true-resid"><td class="lbl">True residual</td><td class="lhs">true |residual|</td><td class="op">=</td><td class="rhs">|<span class="sym" data-key="μ_pred">μ<sub>pred</sub></span> − <span class="sym" data-key="μ_true">μ<sub>true</sub></span>|</td></tr>
-    <tr data-eq="eq-obs-resid"><td class="lbl">Observed residual</td><td class="lhs">observed |residual|</td><td class="op">=</td><td class="rhs">|<span class="sym" data-key="μ_pred">μ<sub>pred</sub></span> − <span class="sym" data-key="x">x</span>|</td></tr>
-    <tr data-eq="eq-draw-pct"><td class="lbl">Draw percentile</td><td class="lhs">percentile</td><td class="op">=</td><td class="rhs"><span class="sym" data-key="Φ">Φ</span>((<span class="sym" data-key="x">x</span> − <span class="sym" data-key="μ_true">μ<sub>true</sub></span>) / <span class="sym" data-key="σ_noise">σ<sub>noise</sub></span>)</td></tr>
+    <tr data-eq="eq-spearman"><td class="lbl">Ranking metric</td><td class="lhs"><span class="sym" data-key="ρ">ρ</span></td><td class="op">=</td><td class="rhs">Spearman(<span class="sym" data-key="σ_i">σ<sub>i</sub></span>, <span class="sym" data-key="e_i">e<sub>i</sub></span>)</td></tr>
+    <tr data-eq="eq-sim"><td class="lbl">Residual simulated under perfect calibration</td><td class="lhs"><span class="sym" data-key="e_i">e<sub>i</sub></span></td><td class="op">=</td><td class="rhs">|<span class="sym" data-key="z_i">z<sub>i</sub></span>| · <span class="sym" data-key="σ_i">σ<sub>i</sub></span>,&ensp;<span class="sym" data-key="z_i">z<sub>i</sub></span> ~ <span class="sym" data-key="N">N</span>(0, 1)</td></tr>
+    <tr data-eq="eq-rep"><td class="lbl">Mean residual over <code>R</code> replicates</td><td class="lhs"><span class="sym" data-key="m_i">m<sub>i</sub></span></td><td class="op">=</td><td class="rhs">(1/<span class="sym" data-key="R">R</span>) · Σ<sub>k</sub> <span class="sym" data-key="e_ik">e<sub>ik</sub></span></td></tr>
     <tr class="grp"><td colspan="4">Scoring rules</td></tr>
     <tr data-eq="eq-crps"><td class="lbl">CRPS, general definition</td><td class="lhs"><span class="sym" data-key="CRPS">CRPS</span></td><td class="op">=</td><td class="rhs">∫ (<span class="sym" data-key="F_i">F<sub>i</sub></span>(<span class="sym" data-key="u">u</span>) − <span class="sym" data-key="𝟙">𝟙</span>[<span class="sym" data-key="u">u</span> ≥ <span class="sym" data-key="y_i">y<sub>i</sub></span>])² d<span class="sym" data-key="u">u</span></td></tr>
-    <tr data-eq="eq-crps-gauss"><td class="lbl">CRPS for a Gaussian prediction</td><td class="lhs"><span class="sym" data-key="CRPS">CRPS</span></td><td class="op">=</td><td class="rhs"><span class="sym" data-key="σ_i">σ<sub>i</sub></span> · [ <span class="sym" data-key="z_i">z<sub>i</sub></span> · (2<span class="sym" data-key="Φ">Φ</span>(<span class="sym" data-key="z_i">z<sub>i</sub></span>) − 1)<br>&emsp;+ 2<span class="sym" data-key="φ">φ</span>(<span class="sym" data-key="z_i">z<sub>i</sub></span>) − 1/√π ]</td></tr>
-    <tr data-eq="eq-nll"><td class="lbl">NLL for a Gaussian prediction</td><td class="lhs"><span class="sym" data-key="NLL">NLL</span></td><td class="op">=</td><td class="rhs">0.5 · log(2π<span class="sym" data-key="σ_i">σ<sub>i</sub></span>²) + <span class="frac"><span>(<span class="sym" data-key="y_i">y<sub>i</sub></span> − <span class="sym" data-key="μ_i">μ<sub>i</sub></span>)²</span><span>2<span class="sym" data-key="σ_i">σ<sub>i</sub></span>²</span></span></td></tr>
-    <tr data-eq="eq-improve"><td class="lbl">Improvement of per-compound <code>σ<sub>i</sub></code> over constant <code>σ<sub>const</sub></code> (CRPS shown; NLL alike)</td><td class="lhs">improvement</td><td class="op">=</td><td class="rhs">1 − <span class="sym" data-key="CRPS">CRPS</span>(<span class="sym" data-key="σ_i">σ<sub>i</sub></span>) / <span class="sym" data-key="CRPS">CRPS</span>(<span class="sym" data-key="σ_const">σ<sub>const</sub></span>)</td></tr>
+    <tr data-eq="eq-nll"><td class="lbl">NLL for a Gaussian prediction</td><td class="lhs"><span class="sym" data-key="NLL">NLL</span></td><td class="op">=</td><td class="rhs">0.5 · log(2π<span class="sym" data-key="σ_i">σ<sub>i</sub></span>²) + <span class="frac"><span>(<span class="sym" data-key="y_i">y<sub>i</sub></span> − <span class="sym" data-key="ŷ_i">ŷ<sub>i</sub></span>)²</span><span>2<span class="sym" data-key="σ_i">σ<sub>i</sub></span>²</span></span></td></tr>
     </tbody>
   </table>
   </div>
@@ -681,55 +661,37 @@
   <table class="symtable">
     <thead><tr><th>Symbol</th><th>Meaning</th><th>Source</th><th class="num">Default</th></tr></thead>
     <tbody>
-    <tr class="grp"><td colspan="4">Model, figure, and groups</td></tr>
-    <tr data-sym="TabICL" data-src="Data"><td><span class="tag model">TabICL</span></td><td>Tabular foundation model that predicts <code>μ<sub>i</sub></code> and <code>σ<sub>i</sub></code> for every test compound</td><td><span class="src src-data">Data</span></td><td class="num"></td></tr>
-    <tr data-sym="Figure 6" data-src="Data"><td><span class="tag fig">Figure 6</span></td><td>Two-panel uncertainty figure in the blog post: <code>σ<sub>i</sub></code> against <code>e<sub>i</sub></code> (left) and the calibration plot (right)</td><td><span class="src src-data">Data</span></td><td class="num"></td></tr>
-    <tr data-sym="Q1,Q2,Q3,Q4,Q5,Q" data-src="Data"><td><span class="tag q">Q1</span> to <span class="tag q">Q5</span>, <code>Q</code></td><td>Quintiles: five groups of 52 compounds sorted by <code>σ<sub>i</sub></code>, from lowest (Q1) to highest (Q5)</td><td><span class="src src-data">Data</span></td><td class="num"></td></tr>
-    <tr data-sym="lucky,Lucky" data-src="Data"><td><span class="tag lucky">lucky</span></td><td>A draw whose observed residual is shorter than the true residual</td><td><span class="src src-data">Data</span></td><td class="num"></td></tr>
-    <tr data-sym="unlucky,Unlucky" data-src="Data"><td><span class="tag unlucky">unlucky</span></td><td>A draw whose observed residual is longer than the true residual</td><td><span class="src src-data">Data</span></td><td class="num"></td></tr>
     <tr class="grp"><td colspan="4">Per-compound quantities</td></tr>
-    <tr data-sym="i,k" data-src="Notation"><td><code>i</code>, <code>k</code></td><td>Compound index and replicate index</td><td><span class="src src-notation">Notation</span></td><td class="num"></td></tr>
-    <tr data-sym="N" data-src="Data"><td><code>N</code></td><td>Number of test compounds</td><td><span class="src src-data">Data</span></td><td class="num">260</td></tr>
+    <tr data-sym="n" data-src="Measured"><td><code>n</code></td><td>Number of test compounds</td><td><span class="src src-measured">Measured</span></td><td class="num">260</td></tr>
     <tr data-sym="y_i,y" data-src="Measured"><td><code>y<sub>i</sub></code></td><td>Measured value of compound <code>i</code></td><td><span class="src src-measured">Measured</span></td><td class="num"></td></tr>
-    <tr data-sym="μ_i,μ" data-src="Model output"><td><code>μ<sub>i</sub></code></td><td>Mean predicted by TabICL for compound <code>i</code></td><td><span class="src src-model">Model output</span></td><td class="num"></td></tr>
-    <tr data-sym="σ_i,σ" data-src="Model output"><td><code>σ<sub>i</sub></code></td><td>Standard deviation predicted by TabICL for compound <code>i</code>: 0.32 to 1.28, median 0.47</td><td><span class="src src-model">Model output</span></td><td class="num"></td></tr>
-    <tr data-sym="F_i,F" data-src="Model output"><td><code>F<sub>i</sub></code></td><td>Predicted cumulative distribution function of compound <code>i</code>, <code data-eq="eq-cdf">Φ((u − μ<sub>i</sub>) / σ<sub>i</sub>)</code></td><td><span class="src src-model">Model output</span></td><td class="num"></td></tr>
-    <tr data-sym="e_i,e,e_ik" data-src="Computed"><td><code>e<sub>i</sub></code></td><td>Absolute residual of compound <code>i</code>, <code data-eq="eq-resid">|y<sub>i</sub> − μ<sub>i</sub>|</code>; <code>e<sub>ik</sub></code> is replicate <code>k</code> in the replicate simulation</td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
-    <tr data-sym="z_i,z" data-src="Computed"><td><code>z<sub>i</sub></code></td><td>Standardized residual, <code data-eq="eq-z">(y<sub>i</sub> − μ<sub>i</sub>) / σ<sub>i</sub></code>; drawn from <code>𝒩</code>(0, 1) in the simulations</td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
+    <tr data-sym="ŷ_i,ŷ" data-src="Predicted"><td><code>ŷ<sub>i</sub></code></td><td>Value predicted by TabICL for compound <code>i</code></td><td><span class="src src-predicted">Predicted</span></td><td class="num"></td></tr>
+    <tr data-sym="σ_i,σ" data-src="Predicted"><td><code>σ<sub>i</sub></code></td><td>Standard deviation predicted by TabICL for compound <code>i</code>: 0.32 to 1.28, median 0.47</td><td><span class="src src-predicted">Predicted</span></td><td class="num"></td></tr>
+    <tr data-sym="F_i,F" data-src="Predicted"><td><code>F<sub>i</sub></code></td><td>Predicted cumulative distribution function of compound <code>i</code>, Φ((u − ŷ<sub>i</sub>) / σ<sub>i</sub>)</td><td><span class="src src-predicted">Predicted</span></td><td class="num"></td></tr>
+    <tr data-sym="e_i,e,e_ik" data-src="Computed"><td><code>e<sub>i</sub></code></td><td>Absolute residual of compound <code>i</code>, written |residual| in text; <code>e<sub>ik</sub></code> is replicate <code>k</code> in the replicate simulation</td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
+    <tr data-sym="z_i,z" data-src="Simulated"><td><code>z<sub>i</sub></code></td><td>A standard normal draw</td><td><span class="src src-simulated">Simulated</span></td><td class="num"></td></tr>
     <tr class="grp"><td colspan="4">Calibration</td></tr>
     <tr data-sym="p" data-src="Notation"><td><code>p</code></td><td>Nominal coverage level of a central interval, from 0 to 1</td><td><span class="src src-notation">Notation</span></td><td class="num"></td></tr>
-    <tr data-sym="p_obs" data-src="Computed"><td><code>p<sub>obs</sub></code></td><td>Observed coverage: fraction of compounds whose <code>y<sub>i</sub></code> falls inside the central interval at level <code>p</code></td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
+    <tr data-sym="p_obs" data-src="Computed"><td><code>p<sub>obs</sub></code></td><td>Observed coverage: the share of test compounds whose measured value falls inside the central interval at level <code>p</code></td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
     <tr data-sym="A_mis" data-src="Computed"><td><code>A<sub>mis</sub></code></td><td>Miscalibration area between the observed coverage curve and the diagonal</td><td><span class="src src-computed">Computed</span></td><td class="num">0.04</td></tr>
     <tr class="grp"><td colspan="4">Spread and ranking</td></tr>
-    <tr data-sym="σ_const" data-src="Computed"><td><code>σ<sub>const</sub></code></td><td>Mean of <code>σ<sub>i</sub></code>, assigned to every compound in the constant baseline, <code data-eq="eq-sigma-const">(1/N) · Σ<sub>i</sub> σ<sub>i</sub></code></td><td><span class="src src-computed">Computed</span></td><td class="num">0.54</td></tr>
-    <tr data-sym="CV" data-src="Computed"><td><code>CV</code></td><td>Coefficient of variation of <code>σ<sub>i</sub></code>, <code data-eq="eq-cv">sd(σ<sub>i</sub>) / σ<sub>const</sub></code></td><td><span class="src src-computed">Computed</span></td><td class="num">0.34</td></tr>
-    <tr data-sym="ρ" data-src="Computed"><td><code>ρ</code></td><td>Spearman rank correlation between <code>σ<sub>i</sub></code> and <code>e<sub>i</sub></code> (or <code>m<sub>i</sub></code> with replicates), <code data-eq="eq-spearman">corr(rank(σ<sub>i</sub>), rank(e<sub>i</sub>))</code></td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
-    <tr data-sym="ρ_obs" data-src="Computed"><td><code>ρ<sub>obs</sub></code></td><td><code>ρ</code> observed on the 260 test compounds</td><td><span class="src src-computed">Computed</span></td><td class="num">0.26</td></tr>
-    <tr data-sym="ρ_sim" data-src="Simulated"><td><code>ρ<sub>sim</sub></code></td><td><code>ρ</code> for one simulated dataset of residuals drawn under perfect calibration; <code>ρ<sub>sim,s</sub></code> is the value for dataset <code>s</code></td><td><span class="src src-simulated">Simulated</span></td><td class="num"></td></tr>
-    <tr data-sym="m_i" data-src="Simulated"><td><code>m<sub>i</sub></code></td><td>Mean absolute residual of compound <code>i</code> over <code>n</code> simulated replicates</td><td><span class="src src-simulated">Simulated</span></td><td class="num"></td></tr>
-    <tr data-sym="m_Q" data-src="Computed"><td><code>m<sub>Q</sub></code></td><td>Mean absolute residual over the compounds in quintile <code>Q</code>: 0.27 in Q1 to 0.65 in Q5</td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
-    <tr data-sym="n" data-src="Toy setting"><td><code>n</code></td><td>Replicate measurements per compound in the replicate simulation; 1 matches the real data</td><td><span class="src src-toy">Toy setting</span></td><td class="num">1</td></tr>
-    <tr data-sym="S,s" data-src="Toy setting"><td><code>S</code>, <code>s</code></td><td>Number of simulated datasets (2,000 for the <code>ρ<sub>sim</sub></code> distribution, 500 per point on the replicate curve) and the dataset index</td><td><span class="src src-toy">Toy setting</span></td><td class="num">2000</td></tr>
-    <tr class="grp"><td colspan="4">One-flip example</td></tr>
-    <tr data-sym="μ_true" data-src="Toy setting"><td><code>μ<sub>true</sub></code></td><td>Center of the true distribution: the true value</td><td><span class="src src-toy">Toy setting</span></td><td class="num">0</td></tr>
-    <tr data-sym="σ_noise" data-src="Toy setting"><td><code>σ<sub>noise</sub></code></td><td>Spread of the true distribution: experimental noise in one measurement</td><td><span class="src src-toy">Toy setting</span></td><td class="num">0.35</td></tr>
-    <tr data-sym="μ_pred" data-src="Toy setting"><td><code>μ<sub>pred</sub></code></td><td>Center of the model's prediction</td><td><span class="src src-toy">Toy setting</span></td><td class="num">0.80</td></tr>
-    <tr data-sym="σ_pred" data-src="Toy setting"><td><code>σ<sub>pred</sub></code></td><td>Width of the model's prediction</td><td><span class="src src-toy">Toy setting</span></td><td class="num">0.55</td></tr>
-    <tr data-sym="x" data-src="Simulated"><td><code>x</code></td><td>One experimental draw from the true distribution: 0.50 (lucky), 0.05 (typical), −0.55 (unlucky), or random</td><td><span class="src src-simulated">Simulated</span></td><td class="num">0.05</td></tr>
+    <tr data-sym="σ_const" data-src="Computed"><td><code>σ<sub>const</sub></code></td><td>Mean of σ<sub>i</sub> over the test set, assigned to every compound in the constant baseline</td><td><span class="src src-computed">Computed</span></td><td class="num">0.54</td></tr>
+    <tr data-sym="CV" data-src="Computed"><td><code>CV</code></td><td>Coefficient of variation of σ across the test set, SD(σ<sub>i</sub>) / mean(σ<sub>i</sub>)</td><td><span class="src src-computed">Computed</span></td><td class="num">0.34</td></tr>
+    <tr data-sym="ρ" data-src="Computed"><td><code>ρ</code></td><td>Spearman rank correlation between σ and |residual| (or <code>m<sub>i</sub></code> with replicates) over the test set</td><td><span class="src src-computed">Computed</span></td><td class="num">0.26</td></tr>
+    <tr data-sym="ρ_null" data-src="Simulated"><td><code>ρ<sub>null</sub></code></td><td>ρ for one simulated dataset in which every residual is drawn under perfect calibration; 2,000 datasets give the null distribution in section 05, and 500 give each point on the replicate curve</td><td><span class="src src-simulated">Simulated</span></td><td class="num"></td></tr>
+    <tr data-sym="m_i" data-src="Simulated"><td><code>m<sub>i</sub></code></td><td>Mean absolute residual of compound <code>i</code> over <code>R</code> simulated replicates</td><td><span class="src src-simulated">Simulated</span></td><td class="num"></td></tr>
+    <tr data-sym="R" data-src="Toy setting"><td><code>R</code></td><td>Replicate measurements per compound in the replicate simulation; 1 matches the real data</td><td><span class="src src-toy">Toy setting</span></td><td class="num">1</td></tr>
     <tr class="grp"><td colspan="4">Scoring rules</td></tr>
-    <tr data-sym="CRPS" data-src="Computed"><td><code>CRPS</code></td><td>Continuous ranked probability score of one prediction; lower is better. Mean over the test set: 0.312 with <code>σ<sub>i</sub></code>, 0.319 with <code>σ<sub>const</sub></code></td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
-    <tr data-sym="NLL" data-src="Computed"><td><code>NLL</code></td><td>Negative log-likelihood of one prediction; lower is better. Mean over the test set: 0.935 with <code>σ<sub>i</sub></code>, 0.968 with <code>σ<sub>const</sub></code></td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
+    <tr data-sym="CRPS" data-src="Computed"><td><code>CRPS</code></td><td>Continuous ranked probability score of one prediction; lower is better. Mean over the test set: 0.312 with σ<sub>i</sub>, 0.319 with σ<sub>const</sub></td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
+    <tr data-sym="NLL" data-src="Computed"><td><code>NLL</code></td><td>Negative log-likelihood of one prediction; lower is better. Mean over the test set: 0.935 with σ<sub>i</sub>, 0.968 with σ<sub>const</sub></td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
     <tr class="grp"><td colspan="4">Other notation</td></tr>
     <tr data-sym="u" data-src="Notation"><td><code>u</code></td><td>Integration variable over possible measured values</td><td><span class="src src-notation">Notation</span></td><td class="num"></td></tr>
     <tr data-sym="Φ" data-src="Notation"><td><code>Φ</code></td><td>Standard normal cumulative distribution function; Φ<sup>−1</sup> is its inverse</td><td><span class="src src-notation">Notation</span></td><td class="num"></td></tr>
-    <tr data-sym="φ" data-src="Notation"><td><code>φ</code></td><td>Standard normal probability density function</td><td><span class="src src-notation">Notation</span></td><td class="num"></td></tr>
-    <tr data-sym="𝒩" data-src="Notation"><td><code>𝒩</code></td><td>Normal distribution with the given mean and variance</td><td><span class="src src-notation">Notation</span></td><td class="num"></td></tr>
+    <tr data-sym="N" data-src="Notation"><td><code>N</code></td><td>Normal distribution, written N(mean, variance)</td><td><span class="src src-notation">Notation</span></td><td class="num"></td></tr>
     <tr data-sym="𝟙" data-src="Notation"><td><code>𝟙</code></td><td>Indicator: 1 when the bracketed condition is true, 0 otherwise</td><td><span class="src src-notation">Notation</span></td><td class="num"></td></tr>
-    <tr data-sym="E" data-src="Notation"><td><code>E</code></td><td>Expected value</td><td><span class="src src-notation">Notation</span></td><td class="num"></td></tr>
     </tbody>
   </table>
   </div>
-  <p class="chart-caption" style="margin-top:-0.8rem"><span class="src src-model">Model output</span> values are TabICL's predictions for the test set. <span class="src src-measured">Measured</span> values are the experimental values of the test compounds. <span class="src src-computed">Computed</span> values are calculated from the predictions and measurements. <span class="src src-toy">Toy setting</span> values are chosen for the one-flip example and the simulations. <span class="src src-simulated">Simulated</span> terms are drawn fresh in every simulated dataset. <span class="src src-notation">Notation</span> entries are mathematical conventions. <span class="src src-data">Data</span> entries identify the model, the figure, and groups of compounds or draws.</p>
+  <p class="chart-caption" style="margin-top:-0.8rem"><span class="src src-predicted">Predicted</span> values are TabICL's predictions for the test set. <span class="src src-measured">Measured</span> values are the experimental values of the test compounds. <span class="src src-computed">Computed</span> values are calculated from the predictions and measurements. <span class="src src-toy">Toy setting</span> values are chosen for the simulations. <span class="src src-simulated">Simulated</span> terms are drawn fresh in every simulated dataset. <span class="src src-notation">Notation</span> entries are mathematical conventions.</p>
 
 </div>
 
@@ -826,19 +788,6 @@ function hideChartTip() {
   if (!defEl) tip.style.opacity = 0;
 }
 
-// Draw text with "_word" segments as subscripts, honoring the current alignment
-function subText(ctx, s, x, y) {
-  const parts = s.split(/_([A-Za-z0-9]+)/), font = ctx.font, align = ctx.textAlign;
-  const size = parseFloat((font.match(/([\d.]+)px/) || [])[1] || '11');
-  const small = font.replace(/[\d.]+px/, `${Math.round(size * 0.75)}px`);
-  const widths = parts.map((t, i) => { ctx.font = i % 2 ? small : font; return ctx.measureText(t).width; });
-  const total = widths.reduce((a, b) => a + b, 0);
-  let cx = align === 'center' ? x - total / 2 : align === 'right' ? x - total : x;
-  ctx.textAlign = 'left';
-  parts.forEach((t, i) => { ctx.font = i % 2 ? small : font; ctx.fillText(t, cx, y + (i % 2 ? size * 0.3 : 0)); cx += widths[i]; });
-  ctx.font = font; ctx.textAlign = align;
-}
-
 // ===== SCATTER PLOT =====
 (function() {
   const canvas = document.getElementById('scatter');
@@ -885,11 +834,11 @@ function subText(ctx, s, x, y) {
   ctx.fillStyle = C.comment;
   ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
   ctx.textAlign = 'center';
-  subText(ctx, 'Predicted σ_i', pad.l + pw / 2, H - 4);
+  ctx.fillText('Predicted σ', pad.l + pw / 2, H - 4);
   ctx.save();
   ctx.translate(14, pad.t + ph / 2);
   ctx.rotate(-Math.PI / 2);
-  subText(ctx, 'Absolute residual e_i', 0, 0);
+  ctx.fillText('Absolute residual', 0, 0);
   ctx.restore();
 
   // Points
@@ -917,7 +866,7 @@ function subText(ctx, s, x, y) {
       if (dist < 12 && dist < best) { best = dist; hit = p; }
     });
     if (hit) {
-      showChartTip(`σ<sub>i</sub> = ${hit.s.toFixed(3)}&emsp;e<sub>i</sub> = ${hit.e.toFixed(3)}`, ev);
+      showChartTip(`σ = ${hit.s.toFixed(3)}&emsp;|residual| = ${hit.e.toFixed(3)}`, ev);
     } else {
       hideChartTip();
     }
@@ -993,7 +942,7 @@ function subText(ctx, s, x, y) {
   ctx.fillStyle = C.comment;
   ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
   ctx.textAlign = 'center';
-  subText(ctx, 'Predicted σ_i', pad.l + pw / 2, H - 4);
+  ctx.fillText('Predicted σ', pad.l + pw / 2, H - 4);
   ctx.save();
   ctx.translate(14, pad.t + ph / 2);
   ctx.rotate(-Math.PI / 2);
@@ -1025,9 +974,9 @@ function subText(ctx, s, x, y) {
 
     drawSimHist(canvas, rhos);
 
-    caption.innerHTML = `Perfectly calibrated uncertainty produces a mean <code>ρ<sub>sim</sub></code> of <strong style="color:${C.purple}">${mean.toFixed(3)}</strong> ` +
+    caption.innerHTML = `Perfectly calibrated uncertainty produces a mean <code>ρ<sub>null</sub></code> of <strong style="color:${C.purple}">${mean.toFixed(3)}</strong> ` +
       `(95% interval [${p2_5.toFixed(2)}, ${p97_5.toFixed(2)}]). ` +
-      `Our observed <code>ρ<sub>obs</sub></code> = 0.26 sits at the <strong style="color:${C.pink}">${pctBelow.toFixed(0)}th percentile</strong>, ` +
+      `Our observed <code>ρ</code> = 0.26 sits at the <strong style="color:${C.pink}">${pctBelow.toFixed(0)}th percentile</strong>, ` +
       `well within the range that ideal error bars would produce.`;
   }
 
@@ -1093,7 +1042,7 @@ function subText(ctx, s, x, y) {
     ctx.fillStyle = C.pink;
     ctx.font = 'bold 11px "SF Mono", "Fira Code", monospace';
     ctx.textAlign = 'left';
-    subText(ctx, 'ρ_obs = 0.26', obsX + 6, pad.t + 16);
+    ctx.fillText('ρ = 0.26', obsX + 6, pad.t + 16);
     ctx.font = '10px "SF Mono", "Fira Code", monospace';
     ctx.fillText('(observed)', obsX + 6, pad.t + 30);
 
@@ -1217,11 +1166,11 @@ const COVERAGE = [{"x":0.01,"y":0.0077},{"x":0.02,"y":0.0192},{"x":0.03,"y":0.01
   // Axis labels
   ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
   ctx.textAlign = 'center';
-  subText(ctx, 'Predicted σ_i quintile', pad.l + pw / 2, H - 2);
+  ctx.fillText('Predicted σ quintile', pad.l + pw / 2, H - 2);
   ctx.save();
   ctx.translate(14, pad.t + ph / 2);
   ctx.rotate(-Math.PI / 2);
-  subText(ctx, 'Mean residual m_Q', 0, 0);
+  ctx.fillText('Mean |residual|', 0, 0);
   ctx.restore();
 })();
 
@@ -1449,7 +1398,7 @@ function drawQuintileBar(canvasId, dataKey, color, yLabel) {
   // Axis labels
   ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
   ctx.textAlign = 'center';
-  subText(ctx, 'Predicted σ_i quintile', pad.l + pw / 2, H - 2);
+  ctx.fillText('Predicted σ quintile', pad.l + pw / 2, H - 2);
   ctx.save();
   ctx.translate(14, pad.t + ph / 2);
   ctx.rotate(-Math.PI / 2);
@@ -1551,7 +1500,7 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
   ctx.fillStyle = C.pink;
   ctx.font = 'bold 11px "SF Mono", "Fira Code", monospace';
   ctx.textAlign = 'left';
-  ctx.fillText('n = 1: ρ ≈ 0.28', n1x + 12, n1y + 4);
+  ctx.fillText('R = 1: ρ ≈ 0.28', n1x + 12, n1y + 4);
 
   // Axes
   ctx.strokeStyle = C.comment;
@@ -1592,7 +1541,7 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
       if (dist < 20 && dist < best) { best = dist; hit = d; }
     });
     if (hit) {
-      showChartTip(`n = ${hit.n}&emsp;ρ = ${hit.mean.toFixed(3)}&emsp;[${hit.p5.toFixed(3)}, ${hit.p95.toFixed(3)}]`, ev);
+      showChartTip(`R = ${hit.n}&emsp;ρ = ${hit.mean.toFixed(3)}&emsp;[${hit.p5.toFixed(3)}, ${hit.p95.toFixed(3)}]`, ev);
     } else {
       hideChartTip();
     }
@@ -1860,8 +1809,8 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
   // Collect definitions and their reference rows from the symbol table
   const DEFS = {};
   const symKey = el => el.innerHTML.replace(/<sub>(.*?)<\/sub>/g, '_$1').replace(/<[^>]+>/g, '').replace(/²/g, '').trim();
-  const ASCII = { 'σ': 'sigma', 'μ': 'mu', 'ρ': 'rho', 'Φ': 'Phi', 'φ': 'phi', '𝒩': 'normal', '𝟙': 'indicator' };
-  const toAscii = k => k.replace(/𝒩|𝟙|[σμρΦφ]/g, c => ASCII[c]);
+  const ASCII = { 'σ': 'sigma', 'ŷ': 'yhat', 'ρ': 'rho', 'Φ': 'Phi', 'φ': 'phi', '𝒩': 'normal', '𝟙': 'indicator' };
+  const toAscii = k => k.replace(/𝒩|𝟙|[σŷρΦφ]/g, c => ASCII[c]);
   for (const tr of document.querySelectorAll('.symtable tr[data-sym]')) {
     const [sym, meaning, src, dflt] = tr.children, d = dflt.textContent.trim(), keys = tr.dataset.sym.split(',');
     tr.id = 'ref-' + toAscii(keys[0]).replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -1877,7 +1826,7 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
   }
 
   // List the definitions for a name, a symbol, or a formula, putting a formula's equation before its symbols
-  const TOKEN = /(?<![A-Za-z])(?:CRPS|NLL|CV|A_mis|𝒩|𝟙|[σμρyezxnpNSFuEimkQΦφ](?:_[A-Za-z0-9]+)?)(?![A-Za-z])/g;
+  const TOKEN = /(?<![A-Za-z])(?:CRPS|NLL|CV|A_mis|𝒩|𝟙|[σŷρyezpnNRFumkΦ](?:_[A-Za-z0-9]+)?)(?![A-Za-z])/g;
   function defsFor(el) {
     if (el.classList.contains('sym')) {
       const d = DEFS[el.dataset.key] || DEFS[el.dataset.key.split('_')[0]];
