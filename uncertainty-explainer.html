@@ -358,7 +358,7 @@
 
   <p>We fed our best feature set into TabICL and examined the predicted uncertainty. Figure 6 in the post had two panels. The right panel (the calibration plot) looked good: the intervals were close to the right width, with a miscalibration area of 0.04. The left panel plotted each compound's predicted standard deviation against its absolute error, and we computed the Spearman rank correlation between them.</p>
 
-  <p>Every equation and symbol on this page shows its definition on hover and has an entry in the <a href="#reference">equations and symbols reference</a> (section 08). Clicking a symbol jumps to its entry.</p>
+  <p>Every equation and symbol on this page shows its definition on hover and has an entry in the <a href="#reference">equations and symbols reference</a> (section 09). Clicking a symbol jumps to its entry.</p>
 
   <p>For each test compound <code>i</code>, TabICL predicts a value <code>ŷ<sub>i</sub></code> and a standard deviation <code>σ<sub>i</sub></code>, and the measured value is <code>y<sub>i</sub></code>. The absolute residual is <code data-eq="eq-resid">e<sub>i</sub> = |y<sub>i</sub> − ŷ<sub>i</sub>|</code>, written |residual| in the text and charts, and <code data-eq="eq-spearman">ρ = Spearman(σ<sub>i</sub>, e<sub>i</sub>)</code> is the rank correlation across all <code>n</code> = 260 test compounds.</p>
 
@@ -634,7 +634,34 @@
 
   <hr>
 
-  <h2 id="reference"><span class="step-num">08</span> Equations and symbols</h2>
+  <h2 id="reproducibility"><span class="step-num">08</span> Reproducibility</h2>
+
+  <div class="repro">
+  <p>The code and data are in the <a href="https://github.com/OpenADMET/pxr-challenge-tabicl">pxr-challenge-tabicl repository</a>. Install the environment with <code>uv sync</code>, then run the scripts below from the repository root, in order. Steps 00 to 05 train every configuration and select the model this page analyzes, TabICL on 256-dimensional CheMeleon embeddings. Step 07 writes the two files the data on this page comes from, in <code>results/uncertainty/emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabicl__cal-none/</code>.</p>
+
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Script</th><th>What it does</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>run/00_fetch_data.py</code></td><td>Downloads the challenge data from Hugging Face</td></tr>
+      <tr><td><code>run/01_build_split.py</code></td><td>Builds the train and test splits</td></tr>
+      <tr><td><code>run/02_featurize.py</code></td><td>Computes the feature blocks, including the CheMeleon embeddings (the encoder-derived blocks need a GPU)</td></tr>
+      <tr><td><code>run/03_reduce.py</code></td><td>Reduces the embeddings by PCA (optional, since the sweep builds any reduction it needs)</td></tr>
+      <tr><td><code>run/04_sweep.py</code></td><td>Trains every configuration in <code>experiments/manifest.yaml</code>, one stage at a time, for five seeds (most of the compute)</td></tr>
+      <tr><td><code>run/05_aggregate.py</code></td><td>Collects the results and confirms the featureset and regressor each stage selected, in <code>results/gates/</code></td></tr>
+      <tr><td><code>run/07_uncertainty.py</code></td><td>Writes the predicted <code>σ</code> and <code>|residual|</code> of each test compound (<code>points.csv</code>) and the coverage curve (<code>coverage.csv</code>) for the selected model</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Step 06 fits a post hoc calibration, which this page does not use. The page computes everything else from the two files. The scatter plot, the quintile bars and the CRPS and NLL values use the <code>model_sigma</code> and <code>abs_residual</code> columns of <code>points.csv</code> for the 260 test compounds, and the reliability curve plots <code>coverage.csv</code>. The replicate curve in section 04 simulates a correct <code>σ</code> from the same <code>σ</code> values (500 simulations per value of <code>R</code>), and the simulated distribution of <code>ρ<sub>null</sub></code> in section 05 is computed in the browser from them with a seeded random number generator.</p>
+  </div>
+
+  <hr>
+
+  <h2 id="reference"><span class="step-num">09</span> Equations and symbols</h2>
 
   <p>The equations the argument depends on, and every symbol they contain, with where each value comes from.</p>
 
@@ -1841,7 +1868,7 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
   }
   function defTarget(node) {
     const el = node && node.closest && node.closest('code, .tag, .eqtable .sym');
-    if (!el || el.closest('.symtable td:first-child, .tooltip')) return null;
+    if (!el || el.closest('.symtable td:first-child, .tooltip, .repro td:first-child')) return null;
     return defsFor(el).length ? el : null;
   }
 
