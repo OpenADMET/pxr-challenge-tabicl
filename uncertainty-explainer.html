@@ -637,7 +637,7 @@
   <h2 id="reproducibility"><span class="step-num">08</span> Reproducibility</h2>
 
   <div class="repro">
-  <p>The code and data are in the <a href="https://github.com/OpenADMET/pxr-challenge-tabicl">pxr-challenge-tabicl repository</a>. Install the environment with <code>uv sync</code>, then run the scripts below from the repository root, in order. Steps 00 to 05 train every configuration and select the model this page analyzes, TabICL on 256-dimensional CheMeleon embeddings. Step 07 writes the two files the data on this page comes from, in <code>results/uncertainty/emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabicl__cal-none/</code>.</p>
+  <p>The code and data are in the <a href="https://github.com/OpenADMET/pxr-challenge-tabicl">pxr-challenge-tabicl repository</a>. Install the environment with <code>uv sync</code>, then run the scripts below from the repository root, in order. Steps 00 to 05 train every configuration and select the model this page analyzes, TabICL on 256-dimensional CheMeleon embeddings. Steps 07 and 09 write the three files the data on this page comes from, in <code>results/uncertainty/emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabicl__cal-none/</code>.</p>
 
   <div class="table-wrap">
   <table>
@@ -652,11 +652,12 @@
       <tr><td><code>run/04_sweep.py</code></td><td>Trains every configuration in <code>experiments/manifest.yaml</code>, one stage at a time, for five seeds (most of the compute)</td></tr>
       <tr><td><code>run/05_aggregate.py</code></td><td>Collects the results and confirms the featureset and regressor each stage selected, in <code>results/gates/</code></td></tr>
       <tr><td><code>run/07_uncertainty.py</code></td><td>Writes the predicted <code>σ</code> and <code>|residual|</code> of each test compound (<code>points.csv</code>) and the coverage curve (<code>coverage.csv</code>) for the selected model</td></tr>
+      <tr><td><code>run/09_replicates.py</code></td><td>Simulates a correct <code>σ</code> from the predicted <code>σ</code> in <code>points.csv</code>, 500 times for each value of <code>R</code>, and writes the replicate curve in section 04 (<code>replicates.csv</code>)</td></tr>
     </tbody>
   </table>
   </div>
 
-  <p>Step 06 fits a post hoc calibration, which this page does not use. The page computes everything else from the two files. The scatter plot, the quintile bars and the CRPS and NLL values use the <code>model_sigma</code> and <code>abs_residual</code> columns of <code>points.csv</code> for the 260 test compounds, and the reliability curve plots <code>coverage.csv</code>. The replicate curve in section 04 simulates a correct <code>σ</code> from the same <code>σ</code> values (500 simulations per value of <code>R</code>), and the simulated distribution of <code>ρ<sub>null</sub></code> in section 05 is computed in the browser from them with a seeded random number generator.</p>
+  <p>Steps 06 and 08 (post hoc calibration and the blog post figures) are not needed for this page. The page draws its other figures from these files. The scatter plot, the quintile bars and the CRPS and NLL values use the <code>model_sigma</code> and <code>abs_residual</code> columns of <code>points.csv</code> for the 260 test compounds, and the reliability curve plots <code>coverage.csv</code>. The simulated distribution of <code>ρ<sub>null</sub></code> in section 05 is computed in the browser from the same <code>σ</code> values, with a seeded random number generator.</p>
   </div>
 
   <hr>
@@ -1449,18 +1450,18 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
   const ctx = hiDpiCanvas(canvas, W, H);
 
   const REP_DATA = [
-    { n: 1, mean: 0.2847, p5: 0.1947, p95: 0.3752 },
-    { n: 2, mean: 0.4154, p5: 0.3271, p95: 0.4970 },
-    { n: 3, mean: 0.4915, p5: 0.4122, p95: 0.5669 },
-    { n: 5, mean: 0.5972, p5: 0.5377, p95: 0.6582 },
-    { n: 8, mean: 0.6817, p5: 0.6283, p95: 0.7345 },
-    { n: 10, mean: 0.7182, p5: 0.6726, p95: 0.7631 },
-    { n: 15, mean: 0.7806, p5: 0.7408, p95: 0.8159 },
-    { n: 20, mean: 0.8192, p5: 0.7846, p95: 0.8517 },
-    { n: 30, mean: 0.8638, p5: 0.8382, p95: 0.8865 },
-    { n: 50, mean: 0.9083, p5: 0.8919, p95: 0.9233 },
-    { n: 75, mean: 0.9330, p5: 0.9195, p95: 0.9441 },
-    { n: 100, mean: 0.9473, p5: 0.9368, p95: 0.9569 },
+    { n: 1, mean: 0.2850, p5: 0.1885, p95: 0.3773 },
+    { n: 2, mean: 0.4106, p5: 0.3315, p95: 0.4913 },
+    { n: 3, mean: 0.4933, p5: 0.4160, p95: 0.5720 },
+    { n: 5, mean: 0.5937, p5: 0.5254, p95: 0.6538 },
+    { n: 8, mean: 0.6831, p5: 0.6315, p95: 0.7368 },
+    { n: 10, mean: 0.7208, p5: 0.6715, p95: 0.7673 },
+    { n: 15, mean: 0.7823, p5: 0.7425, p95: 0.8178 },
+    { n: 20, mean: 0.8205, p5: 0.7895, p95: 0.8515 },
+    { n: 30, mean: 0.8629, p5: 0.8387, p95: 0.8858 },
+    { n: 50, mean: 0.9068, p5: 0.8899, p95: 0.9233 },
+    { n: 75, mean: 0.9327, p5: 0.9190, p95: 0.9453 },
+    { n: 100, mean: 0.9475, p5: 0.9371, p95: 0.9572 },
   ];
 
   const xMin = 0, xMax = 105, yMin = 0, yMax = 1.0;
