@@ -308,6 +308,7 @@
   .symtable .grp td { font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace; font-size: 0.72rem; font-weight: 700; color: var(--fg); letter-spacing: 0.04em; padding-top: 0.9rem; }
   .eqtable .grp td { font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace; font-size: 0.72rem; font-weight: 700; color: var(--fg); letter-spacing: 0.04em; padding-top: 0.9rem; white-space: normal; }
   .symtable tr[data-sym], .eqtable tr[data-eq] { scroll-margin-top: 30vh; }
+h2[id] { scroll-margin-top: 1.5rem; }
   .src { display: inline-block; font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace; font-size: 0.66rem; line-height: 1.5; padding: 0 0.45em; border: 1px solid currentColor; border-radius: 999px; white-space: nowrap; vertical-align: 0.1em; }
   .src-predicted { color: var(--green); }
   .src-measured { color: var(--cyan); }
@@ -334,7 +335,7 @@
   <p class="subtitle">Plotting |error| against model uncertainty and judging by Spearman rank correlation might not be the right framing. Here we separate the concepts and re-examine the evidence.</p>
 
   <!-- ===== DEFINITIONS ===== -->
-  <h2><span class="step-num">00</span> Calibration vs. ranking</h2>
+  <h2 id="s00"><span class="step-num">00</span> Calibration vs. ranking</h2>
 
   <p>Uncertainty estimates can answer two distinct questions. They sound similar but test different properties and can give opposite verdicts on the same model.</p>
 
@@ -354,11 +355,11 @@
   <hr>
 
   <!-- ===== STEP 1: WHAT WE SAID ===== -->
-  <h2><span class="step-num">01</span> What we said in the blog post</h2>
+  <h2 id="s01"><span class="step-num">01</span> What we said in the blog post</h2>
 
   <p>We fed our best feature set into TabICL and examined the predicted uncertainty. Figure 6 in the post had two panels. The right panel (the calibration plot) looked good: the intervals were close to the right width, with a miscalibration area of 0.04. The left panel plotted each compound's predicted standard deviation against its absolute error, and we computed the Spearman rank correlation between them.</p>
 
-  <p>Every equation and symbol on this page shows its definition on hover and has an entry in the <a href="#reference">equations and symbols reference</a> (section 09). Clicking a symbol jumps to its entry.</p>
+  <p>Every equation and symbol on this page shows its definition on hover and has an entry in the equations and symbols reference (<a href="#reference">section 09</a>). Clicking a symbol jumps to its entry.</p>
 
   <p>For each test compound <code>i</code>, TabICL predicts a value <code>ŷ<sub>i</sub></code> and a standard deviation <code>σ<sub>i</sub></code>, and the measured value is <code>y<sub>i</sub></code>. The absolute residual is <code data-eq="eq-resid">e<sub>i</sub> = |y<sub>i</sub> − ŷ<sub>i</sub>|</code>, written |residual| in the text and charts, and <code data-eq="eq-spearman">ρ = Spearman(σ<sub>i</sub>, e<sub>i</sub>)</code> is the rank correlation across all <code>n</code> = 260 test compounds.</p>
 
@@ -388,7 +389,7 @@
   <hr>
 
   <!-- ===== STEP 2: THE QUESTION ===== -->
-  <h2><span class="step-num">02</span> The question from a commenter</h2>
+  <h2 id="s02"><span class="step-num">02</span> The question from a commenter</h2>
 
   <p>Jonas Landsgesell pushed back with a toy example: a well-calibrated linear model whose Spearman <code>ρ</code> between predicted interval width and absolute error was essentially zero. His question:</p>
 
@@ -402,7 +403,7 @@
   <hr>
 
   <!-- ===== STEP 3: DO THE SIGMAS VARY? ===== -->
-  <h2><span class="step-num">03</span> Do the predicted uncertainties actually vary?</h2>
+  <h2 id="s03"><span class="step-num">03</span> Do the predicted uncertainties actually vary?</h2>
 
   <p>A low <code>ρ</code> has at least two explanations worth checking. The first is straightforward: the model might predict nearly the same <code>σ</code> for every compound, leaving no ranking to detect. If so, a low <code>ρ</code> would be expected regardless of how many measurements we had. Before looking for subtler causes, we need to check whether the <code>σ</code> values spread out enough to encode a ranking in the first place.</p>
 
@@ -436,7 +437,7 @@
   <hr>
 
   <!-- ===== STEP 4: THE COIN FLIP ===== -->
-  <h2><span class="step-num">04</span> The one-flip problem</h2>
+  <h2 id="s04"><span class="step-num">04</span> The one-flip problem</h2>
 
   <p>The <code>σ</code> values vary and the intervals are calibrated, yet the Spearman <code>ρ</code> is only 0.26. One explanation is that the Spearman <code>ρ</code> test, computed on individual residuals, lacks the statistical power to detect the ranking when each compound contributes only one observation. The following analogy illustrates why.</p>
 
@@ -506,9 +507,9 @@
   <hr>
 
   <!-- ===== STEP 5: SIMULATION ===== -->
-  <h2><span class="step-num">05</span> What does perfectly calibrated uncertainty produce?</h2>
+  <h2 id="s05"><span class="step-num">05</span> What does perfectly calibrated uncertainty produce?</h2>
 
-  <p>The replicate curve in section 04 showed that more measurements per compound would strengthen <code>ρ</code> toward 1 by varying the number of draws per compound. This section takes the complementary approach: holding the replicate count at 1 (matching our data), it asks what <em>distribution of <code>ρ</code> values</em> a model with ideal uncertainty estimates would produce. Section 04 asked how many measurements it would take to see the ranking clearly; this section asks whether <code>ρ</code> = 0.26 indicates a ranking deficiency or is simply the expected outcome given one measurement per compound.</p>
+  <p>The replicate curve in <a href="#s04">section 04</a> showed that more measurements per compound would strengthen <code>ρ</code> toward 1 by varying the number of draws per compound. This section takes the complementary approach: holding the replicate count at 1 (matching our data), it asks what <em>distribution of <code>ρ</code> values</em> a model with ideal uncertainty estimates would produce. <a href="#s04">Section 04</a> asked how many measurements it would take to see the ranking clearly; this section asks whether <code>ρ</code> = 0.26 indicates a ranking deficiency or is simply the expected outcome given one measurement per compound.</p>
 
   <p>We take the 260 predicted <code>σ</code> values from the real model and pretend the <strong>uncertainty estimates are perfectly calibrated</strong>: for each compound, we draw a single residual from a Gaussian with that compound's <code>σ</code>, <code data-eq="eq-sim">e<sub>i</sub> = |z<sub>i</sub>| · σ<sub>i</sub></code> with <code>z</code> drawn from a standard normal. The point predictions can still be wrong (they are); what's "perfect" is only the error bars. We compute Spearman <code>ρ<sub>null</sub></code> on those simulated residuals and repeat 2,000 times to build a distribution of <code>ρ<sub>null</sub></code> values.</p>
 
@@ -528,7 +529,7 @@
   <hr>
 
   <!-- ===== STEP 6: THE RESULT ===== -->
-  <h2><span class="step-num">06</span> The result</h2>
+  <h2 id="s06"><span class="step-num">06</span> The result</h2>
 
   <p>Perfectly calibrated uncertainty with our <code>σ</code> distribution produces a mean Spearman <code>ρ<sub>null</sub></code> of about <strong>0.285</strong>. Our observed 0.26 sits at the 34th percentile of the null distribution, well within the 95% interval of [0.17, 0.40]. <strong>The <code>ρ</code> we observe is what we would expect even if the uncertainty estimates were ideal. The low correlation reflects the inherent noise of comparing a distribution's width to a single sample from it.</strong></p>
 
@@ -537,7 +538,7 @@
   <hr>
 
   <!-- ===== STEP 7: SO WHAT ===== -->
-  <h2><span class="step-num">07</span> What this means in practice</h2>
+  <h2 id="s07"><span class="step-num">07</span> What this means in practice</h2>
 
   <p>The calibration plot (Figure 6 right in the blog post) already told us the intervals are the right width. The σ distribution tells us the model differentiates between compounds. Together, those two facts mean the uncertainty estimates <em>are</em> useful.</p>
 
@@ -545,13 +546,13 @@
 
   <p>What you <strong>can't</strong> do: look at one compound's error after the fact and judge whether the model "knew" it was hard. That's the one-flip problem. Confirming the ranking for any individual compound would require repeated measurements, but across a batch the ranking holds.</p>
 
-  <p>The reliability diagram in section 01 already showed calibration passing. Several evaluation tools may handle the ranking question better than Spearman <code>ρ</code> on individual residuals, though each comes with its own assumptions and limitations. The first two (quintile binning and CRPS) address compound-level enrichment directly. The third (NLL) is an aggregate model-comparison metric that does not support enrichment.</p>
+  <p>The reliability diagram in <a href="#s01">section 01</a> already showed calibration passing. Several evaluation tools may handle the ranking question better than Spearman <code>ρ</code> on individual residuals, though each comes with its own assumptions and limitations. The first two (quintile binning and CRPS) address compound-level enrichment directly. The third (NLL) is an aggregate model-comparison metric that does not support enrichment.</p>
 
-  <p>The one-flip problem limits every evaluation tool that follows. Each method works around it (by aggregating, by scoring the full distribution, by testing calibration globally), but none eliminates it. Replicate measurements would sharpen all of them: more observations per compound would reduce the noise in per-compound error estimates, tighten the quintile bins, widen the gap between per-compound <code>σ</code> and constant <code>σ<sub>const</sub></code> in CRPS and NLL, and push the Spearman <code>ρ</code> curve from section 04 toward its asymptote. The evaluation tools below are the best we can do with one measurement per compound.</p>
+  <p>The one-flip problem limits every evaluation tool that follows. Each method works around it (by aggregating, by scoring the full distribution, by testing calibration globally), but none eliminates it. Replicate measurements would sharpen all of them: more observations per compound would reduce the noise in per-compound error estimates, tighten the quintile bins, widen the gap between per-compound <code>σ</code> and constant <code>σ<sub>const</sub></code> in CRPS and NLL, and push the Spearman <code>ρ</code> curve from <a href="#s04">section 04</a> toward its asymptote. The evaluation tools below are the best we can do with one measurement per compound.</p>
 
   <hr>
 
-  <h2><span class="step-num">07a</span> Quintile binning</h2>
+  <h2 id="s07a"><span class="step-num">07a</span> Quintile binning</h2>
 
   <p>The simplest approach: sort the 260 compounds by predicted <code>σ</code>, split them into five equal groups (Q1 to Q5, ~52 each), and compute the mean absolute residual in each bin. Pooling 52 compounds per group averages out the single-draw noise that makes the raw scatter plot so cloudy. If the ranking is real, mean error should increase across the bins.</p>
 
@@ -565,7 +566,7 @@
 
   <hr>
 
-  <h2><span class="step-num">07b</span> Continuous ranked probability score (CRPS)</h2>
+  <h2 id="s07b"><span class="step-num">07b</span> Continuous ranked probability score (CRPS)</h2>
 
   <p>CRPS evaluates the full predicted distribution against each observed value. It measures the area between the predicted cumulative distribution function (CDF) <code>F</code> and a step function at the observed value: <code data-eq="eq-crps">CRPS = ∫ (F<sub>i</sub>(u) − 𝟙[u ≥ y<sub>i</sub>])² du</code>. A prediction that concentrates probability near the true value scores well; one that spreads probability away from it scores poorly. Lower is better.</p>
 
@@ -600,7 +601,7 @@
 
   <hr>
 
-  <h2><span class="step-num">07c</span> Negative log-likelihood (NLL)</h2>
+  <h2 id="s07c"><span class="step-num">07c</span> Negative log-likelihood (NLL)</h2>
 
   <p>NLL answers a different question from the first two tools. Where quintile binning and CRPS ask "can the model rank which compounds are hard?", NLL asks "how good is the model's probabilistic prediction in aggregate?" It is a model-comparison metric, not a compound-level triage tool.</p>
 
@@ -652,12 +653,12 @@
       <tr><td><code>run/04_sweep.py</code></td><td>Trains every configuration in <code>experiments/manifest.yaml</code>, one stage at a time, for five seeds (most of the compute)</td></tr>
       <tr><td><code>run/05_aggregate.py</code></td><td>Collects the results and confirms the featureset and regressor each stage selected, in <code>results/gates/</code></td></tr>
       <tr><td><code>run/07_uncertainty.py</code></td><td>Writes the predicted <code>σ</code> and <code>|residual|</code> of each test compound (<code>points.csv</code>) and the coverage curve (<code>coverage.csv</code>) for the selected model</td></tr>
-      <tr><td><code>run/09_replicates.py</code></td><td>Simulates a correct <code>σ</code> from the predicted <code>σ</code> in <code>points.csv</code>, 500 times for each value of <code>R</code>, and writes the replicate curve in section 04 (<code>replicates.csv</code>)</td></tr>
+      <tr><td><code>run/09_replicates.py</code></td><td>Simulates a correct <code>σ</code> from the predicted <code>σ</code> in <code>points.csv</code>, 500 times for each value of <code>R</code>, and writes the replicate curve in <a href="#s04">section 04</a> (<code>replicates.csv</code>)</td></tr>
     </tbody>
   </table>
   </div>
 
-  <p>Steps 06 and 08 (post hoc calibration and the blog post figures) are not needed for this page. The page draws its other figures from these files. The scatter plot, the quintile bars and the CRPS and NLL values use the <code>model_sigma</code> and <code>abs_residual</code> columns of <code>points.csv</code> for the 260 test compounds, and the reliability curve plots <code>coverage.csv</code>. The simulated distribution of <code>ρ<sub>null</sub></code> in section 05 is computed in the browser from the same <code>σ</code> values, with a seeded random number generator.</p>
+  <p>Steps 06 and 08 (post hoc calibration and the blog post figures) are not needed for this page. The page draws its other figures from these files. The scatter plot, the quintile bars and the CRPS and NLL values use the <code>model_sigma</code> and <code>abs_residual</code> columns of <code>points.csv</code> for the 260 test compounds, and the reliability curve plots <code>coverage.csv</code>. The simulated distribution of <code>ρ<sub>null</sub></code> in <a href="#s05">section 05</a> is computed in the browser from the same <code>σ</code> values, with a seeded random number generator.</p>
   </div>
 
   <hr>
@@ -705,7 +706,7 @@
     <tr data-sym="σ_const" data-src="Computed"><td><code>σ<sub>const</sub></code></td><td>Mean of σ<sub>i</sub> over the test set, assigned to every compound in the constant baseline</td><td><span class="src src-computed">Computed</span></td><td class="num">0.54</td></tr>
     <tr data-sym="CV" data-src="Computed"><td><code>CV</code></td><td>Coefficient of variation of σ across the test set, SD(σ<sub>i</sub>) / mean(σ<sub>i</sub>)</td><td><span class="src src-computed">Computed</span></td><td class="num">0.34</td></tr>
     <tr data-sym="ρ" data-src="Computed"><td><code>ρ</code></td><td>Spearman rank correlation between σ and |residual| (or <code>m<sub>i</sub></code> with replicates) over the test set</td><td><span class="src src-computed">Computed</span></td><td class="num">0.26</td></tr>
-    <tr data-sym="ρ_null" data-src="Simulated"><td><code>ρ<sub>null</sub></code></td><td>ρ for one simulated dataset in which every residual is drawn under perfect calibration; 2,000 datasets give the null distribution in section 05, and 500 give each point on the replicate curve</td><td><span class="src src-simulated">Simulated</span></td><td class="num"></td></tr>
+    <tr data-sym="ρ_null" data-src="Simulated"><td><code>ρ<sub>null</sub></code></td><td>ρ for one simulated dataset in which every residual is drawn under perfect calibration; 2,000 datasets give the null distribution in <a href="#s05">section 05</a>, and 500 give each point on the replicate curve</td><td><span class="src src-simulated">Simulated</span></td><td class="num"></td></tr>
     <tr data-sym="m_i" data-src="Simulated"><td><code>m<sub>i</sub></code></td><td>Mean absolute residual of compound <code>i</code> over <code>R</code> simulated replicates</td><td><span class="src src-simulated">Simulated</span></td><td class="num"></td></tr>
     <tr data-sym="R" data-src="Toy setting"><td><code>R</code></td><td>Replicate measurements per compound in the replicate simulation; 1 matches the real data</td><td><span class="src src-toy">Toy setting</span></td><td class="num">1</td></tr>
     <tr class="grp"><td colspan="4">Scoring rules</td></tr>
