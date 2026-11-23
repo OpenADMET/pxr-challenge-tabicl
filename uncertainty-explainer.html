@@ -509,10 +509,10 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <div class="legend-row" style="flex-wrap:wrap">
       <span class="legend-item"><span class="legend-swatch" style="background:var(--purple)"></span> All of <code>σ</code> is measurement noise</span>
       <span class="legend-item"><span class="legend-swatch" style="background:var(--cyan)"></span> Measurement noise <code>s<sub>i</sub></code></span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--yellow)"></span> Measurement noise 0.3</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--orange)"></span> Measurement noise 0.3</span>
       <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> <code>R</code> = 1 (our data)</span>
     </div>
-    <div class="chart-caption">Each point is the mean Spearman <code>ρ</code> across 500 simulations at that replicate count, and the shaded bands cover the 5th to 95th percentile for the cyan and yellow curves. Each simulation draws one model error per compound, with standard deviation √(<code>σ<sub>i</sub></code>² − noise²), reuses it for every replicate, and draws a fresh measurement noise for each replicate. All three curves start at <code>ρ</code> ≈ 0.28 for <code>R</code> = 1, and only the purple curve, which has no model error, climbs toward 1.</div>
+    <div class="chart-caption">Each point is the mean Spearman <code>ρ</code> across 500 simulations at that replicate count, and the shaded bands cover the 5th to 95th percentile for the cyan and orange curves. Each simulation draws one model error per compound, with standard deviation √(<code>σ<sub>i</sub></code>² − noise²), reuses it for every replicate, and draws a fresh measurement noise for each replicate. All three curves start at <code>ρ</code> ≈ 0.28 for <code>R</code> = 1, and only the purple curve, which has no model error, climbs toward 1.</div>
   </div>
 
   <p>This simulation draws residuals from the model's predicted <code>σ</code> values, which means it assumes those <code>σ</code> values are correct. That assumption is partially validated by the calibration plot (miscalibration area 0.04), but it is not an independent proof. The simulation demonstrates the <em>mechanics</em> of the one-flip problem (one draw per compound limits <code>ρ</code> even when the ranking is real) rather than proving that our model's specific <code>σ</code> values are right. It also assumes Gaussian errors, and the curves for the curve-fit standard error <code>s<sub>i</sub></code> and for a constant 0.3 log units treat that value as the full run-to-run variability. Real replicate measurements may vary more than that.</p>
@@ -563,28 +563,38 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <div class="chart-caption">Histogram bins are 0.025 log units wide. Dashed lines mark the median standard error (0.12), a constant measurement noise of 0.3 log units, and the mean predicted <code>σ</code> (0.54). The standard errors come from the released challenge files, one per compound.</div>
   </div>
 
-  <p>The standard errors are small relative to <code>σ</code>. The median is 0.12 log units (5th to 95th percentile 0.06 to 0.32), against a mean <code>σ</code> of 0.54, and only 2 of 260 exceed the compound's <code>σ</code>. A curve-fit standard error describes how well one curve was fitted within one run, so it probably understates the variation between repeat runs. The standard errors also correlate with the model's <code>σ</code>, with a Spearman correlation of 0.54. Weakly active compounds have flat dose-response curves whose pEC50 is poorly determined (the Spearman correlation between <code>s<sub>i</sub></code> and pEC50 is −0.83), and the model also gives weakly active compounds a higher <code>σ</code> (the Spearman correlation between <code>σ<sub>i</sub></code> and pEC50 is −0.53).</p>
+  <p>The standard errors are small relative to <code>σ</code>. The median is 0.12 log units (5th to 95th percentile 0.06 to 0.32), against a mean <code>σ</code> of 0.54, and only 2 of 260 exceed the compound's <code>σ</code>. A curve-fit standard error describes how well one curve was fitted within one run, so it probably understates the variation between repeat runs. The standard errors also correlate with the model's <code>σ</code>, with a Spearman correlation of 0.54. Weakly active compounds have flat dose-response curves whose pEC50 is poorly determined (the Spearman correlation between <code>s<sub>i</sub></code> and pEC50 is −0.83), and the model also gives weakly active compounds a higher <code>σ</code> (the Spearman correlation between <code>σ<sub>i</sub></code> and pEC50 is −0.53). A good predictive <code>σ</code> should behave this way: some of the error it predicts comes from the assay, and compounds with poorly determined curves are harder to predict.</p>
 
   <h3>Where the resampled values center</h3>
 
-  <p>The resampled values scatter around the measurement, not the true value. However many we draw, they give back the measurement with an error bar of width <code>s<sub>i</sub></code>, and they tell us nothing new about where the true value <code>t<sub>i</sub></code> lies. Resampling does change <code>ρ</code>, because it adds noise to every residual. The next two charts show what that change means.</p>
+  <p>The resampled values scatter around the measurement, not the true value. However many we draw, they give back the measurement with an error bar of width <code>s<sub>i</sub></code>, and they tell us nothing new about where the true value <code>t<sub>i</sub></code> lies. Resampling does change <code>ρ</code>. Each resampled residual is the observed residual plus a fresh draw of width <code>s<sub>i</sub></code>, so the compounds with the largest <code>s<sub>i</sub></code> receive the most added scatter.</p>
 
   <h3>What resampling does when the truth is known</h3>
 
-  <p>To test what the change means, we simulate data in which the true values are known. Each simulated compound has its real predicted <code>σ<sub>i</sub></code>. Its true value is the prediction plus a model error, and its one measurement is the true value plus measurement noise. The measurement noise has standard deviation <code>s<sub>i</sub></code> (or a constant 0.3 log units), and the model error receives the rest of <code>σ<sub>i</sub></code>, a standard deviation of √(<code>σ<sub>i</sub></code>² − <code>s<sub>i</sub></code>²), so the simulated model is exactly calibrated, as in the replicate curve of <a href="#s04">section 04</a>. We then compute <code>ρ</code> between <code>σ<sub>i</sub></code> and the absolute residual three times, measuring the residual from the prediction to the true value, to the one measurement, and to the resampled measurement (averaged over 20 resamples). We repeat this for 1,000 datasets under each noise model.</p>
+  <p>To test what the change means, we simulate data in which the true values are known. Each simulated compound has its real predicted <code>σ<sub>i</sub></code>. Its true value is the prediction plus a model error, and its one measurement is the true value plus measurement noise. The measurement noise has standard deviation <code>s<sub>i</sub></code> (or a constant 0.3 log units), and the model error receives the rest of <code>σ<sub>i</sub></code>, a standard deviation of √(<code>σ<sub>i</sub></code>² − <code>s<sub>i</sub></code>²), so the simulated model is exactly calibrated, as in the replicate curve of <a href="#s04">section 04</a>. We then compute <code>ρ</code> between <code>σ<sub>i</sub></code> and the absolute residual three times, measuring the residual from the prediction to the true value, to the one measurement, and to the resampled measurement (averaged over 20 resamples). We call the first the oracle <code>ρ</code>, since it needs the true values. We repeat this for 1,000 datasets under each noise model.</p>
 
   <div class="chart-panel">
     <div class="chart-title">Spearman ρ against the truth, one measurement, and resampling</div>
     <canvas id="truth-chart" height="300" role="img" aria-label="For two measurement-noise models, the mean and 95 percent interval of rho against the true values, against one measurement, and after resampling"></canvas>
     <div class="legend-row" style="flex-wrap:wrap">
       <span class="legend-item"><span class="legend-swatch" style="background:var(--purple)"></span> Against the true values</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--orange)"></span> Against one measurement</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> Against one measurement</span>
       <span class="legend-item"><span class="legend-swatch" style="background:var(--green)"></span> After resampling</span>
     </div>
     <div class="chart-caption">Each dot is the mean across 1,000 simulated datasets, each line spans the central 95% of datasets, and the number at right is the mean. The data are simulated from the real predicted <code>σ<sub>i</sub></code>, so the true values are known.</div>
   </div>
 
-  <p>With a constant noise of 0.3, resampling lowers <code>ρ</code> from 0.28 to 0.22, further from the 0.42 measured against the true values. The added noise is unrelated to <code>σ</code>, so it only scrambles the ranking. With the curve-fit <code>s<sub>i</sub></code>, resampling raises <code>ρ</code> slightly, from 0.28 to 0.29, further above the 0.27 against the true values. That rise is an artifact of the added noise. The noise is largest for compounds with a large <code>s<sub>i</sub></code>, which tend to have a large <code>σ</code>, so it inflates their residuals and builds in a correlation with <code>σ</code>. Under the two noise models, resampling moves <code>ρ</code> without bringing it closer to the value against the true values.</p>
+  <p>With a constant noise of 0.3, resampling lowers <code>ρ</code> from 0.28 to 0.22, further from the oracle <code>ρ</code> of 0.42. The added noise is unrelated to <code>σ</code>, so it only scrambles the ranking. With the curve-fit <code>s<sub>i</sub></code>, resampling raises <code>ρ</code> slightly, from 0.28 to 0.29, further above the oracle <code>ρ</code> of 0.27. That rise is an artifact of the added noise. The noise is largest for compounds with a large <code>s<sub>i</sub></code>, which tend to have a large <code>σ</code>, so it inflates their residuals and builds in a correlation with <code>σ</code>. Under the two noise models, resampling moves <code>ρ</code> without bringing it closer to the oracle <code>ρ</code>.</p>
+
+  <h3>Does simulating a separate true value assume the answer?</h3>
+
+  <p>The simulation treats the true value and the measurement as different quantities. A common convention instead treats the measured value as the center of the distribution, with the curve-fit standard error as its width, and that might seem to rule out a separate true value from the start. The convention can be read three ways, and resampling fails to sharpen the ranking under each.</p>
+
+  <ul class="findings">
+    <li><strong>The measurement is the true value plus noise.</strong> This is the model the simulation uses, and there resampling does not move <code>ρ</code> toward the oracle <code>ρ</code>.</li>
+    <li><strong>The measurement is the true value.</strong> Then each observed residual is the true residual, and the oracle <code>ρ</code> is the observed 0.26. The curve-fit standard error would describe noise that is not present, and resampling adds error to an exact quantity: on the real data it moves <code>ρ</code> away from 0.26, to 0.28 or 0.22 depending on the noise added (below).</li>
+    <li><strong>The measurement locates the true value to within its standard error.</strong> With one measurement and nothing else to go on, the true value is as likely to lie on one side of it as the other, so the plausible true values follow <code>N(y<sub>i</sub>, s<sub>i</sub>²)</code>, the posterior under a flat prior. Resampled values are then draws of plausible true values, and resampled <code>ρ</code> becomes an estimate of the oracle <code>ρ</code>. The known-truth simulation tests that directly, and the estimate misses: 0.22 against an oracle <code>ρ</code> of 0.42 with a constant noise, and 0.29 against 0.27 with <code>s<sub>i</sub></code>. The flat prior ignores that true values cluster around the predictions, so the draws land too far from <code>ŷ<sub>i</sub></code>, with a variance of <code>σ<sub>i</sub></code>² + <code>s<sub>i</sub></code>² around the prediction where the true values have <code>σ<sub>i</sub></code>² − <code>s<sub>i</sub></code>². A prior that captured the clustering would have to come from <code>σ</code> itself, which would assume the calibration that <code>ρ</code> is meant to test.</li>
+  </ul>
 
   <h3>Resampling the real measurements</h3>
 
@@ -593,7 +603,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <canvas id="realresample-chart" height="280" role="img" aria-label="Histograms of rho after resampling the real test measurements with the curve-fit standard errors and with a constant 0.3, with the observed rho marked"></canvas>
     <div class="legend-row" style="flex-wrap:wrap">
       <span class="legend-item"><span class="legend-swatch" style="background:var(--green)"></span> Resampled with <code>s<sub>i</sub></code></span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--yellow)"></span> Resampled with 0.3</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--orange)"></span> Resampled with 0.3</span>
       <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> Observed <code>ρ</code> = 0.26</span>
     </div>
     <div class="chart-caption">Each histogram contains 2,000 resamples for one noise model, in bins of 0.01. Each resample draws a new value around every measured pEC50 and recomputes Spearman <code>ρ</code> between <code>σ</code> and the absolute residual.</div>
@@ -604,7 +614,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
   <h3>What the curve-fit standard errors are good for</h3>
 
   <ul class="findings">
-    <li><strong>They show that <code>σ</code> partly tracks assay quality.</strong> The Spearman correlation between <code>σ<sub>i</sub></code> and <code>s<sub>i</sub></code> is 0.54, and it falls to 0.20 once pEC50 is accounted for (a partial rank correlation), so most of the overlap comes from weakly active compounds with poorly determined curves. Some of the compounds the model flags as uncertain are also uncertain in the assay.</li>
+    <li><strong>They show that <code>σ</code> tracks real assay uncertainty.</strong> Compounds the model flags as uncertain tend to have less certain measurements (Spearman correlation 0.54), as a calibrated <code>σ</code> should. Most of the overlap runs through potency: with pEC50 accounted for (a partial rank correlation), the correlation falls to 0.20, so the shared signal is largely that weakly active compounds have flat, poorly determined curves. This part of <code>σ</code> predicts error that a repeat experiment would redraw, not error that more training data could reduce.</li>
     <li><strong>They put a size on the measurement part of the one-flip problem.</strong> With <code>s<sub>i</sub></code> as the measurement noise, even unlimited replicates would raise <code>ρ</code> only to about 0.36 (<a href="#s04">section 04</a>). Most of the limit on <code>ρ</code> comes from the model-error draw, which repeat experiments cannot redraw.</li>
     <li><strong>They let us test whether poorly fitted curves explain the weak ranking.</strong> In the better-fitted half of the test set (<code>s<sub>i</sub></code> at or below the median, 130 compounds), <code>ρ</code> = 0.19, inside the range of 0.04 to 0.36 that a correct <code>σ</code> would produce. In the worse-fitted half, <code>ρ</code> = 0.30, inside 0.15 to 0.46. Each half scores what a correct <code>σ</code> would, so poorly fitted curves do not explain the low <code>ρ</code>.</li>
   </ul>
@@ -1540,7 +1550,7 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
   const SERIES = [
     { key: 'all', color: C.purple, label: 'All of σ is noise', band: false, dash: [6, 4] },
     { key: 'curve_fit', color: C.cyan, label: 'Noise sᵢ', band: true, dash: [] },
-    { key: 'literature', color: C.yellow, label: 'Noise 0.3', band: true, dash: [] },
+    { key: 'literature', color: C.orange, label: 'Noise 0.3', band: true, dash: [] },
   ];
 
   const xMin = 0, xMax = 105, yMin = 0, yMax = 1.0;
@@ -1973,10 +1983,10 @@ const LN = {
   const yScale = v => pad.t + ph - v / yMax * ph;
 
   // Bars, then markers for the median, the constant 0.3 and the mean sigma
-  LN.bars(ctx, edges, counts, xScale, yScale, C.orange + 'bb');
+  LN.bars(ctx, edges, counts, xScale, yScale, C.cyan + '99');
   LN.vline(ctx, xScale(LABEL_NOISE.se_median), pad.t, pad.t + ph, C.fg, `median ${LABEL_NOISE.se_median.toFixed(2)}`, pad.t - 16);
-  LN.vline(ctx, xScale(LABEL_NOISE.literature), pad.t, pad.t + ph, C.yellow, '0.3', pad.t - 4);
-  LN.vline(ctx, xScale(LABEL_NOISE.mean_sigma), pad.t, pad.t + ph, C.cyan, `mean σ ${LABEL_NOISE.mean_sigma.toFixed(2)}`, pad.t - 4);
+  LN.vline(ctx, xScale(LABEL_NOISE.literature), pad.t, pad.t + ph, C.orange, '0.3', pad.t - 4);
+  LN.vline(ctx, xScale(LABEL_NOISE.mean_sigma), pad.t, pad.t + ph, C.purple, `mean σ ${LABEL_NOISE.mean_sigma.toFixed(2)}`, pad.t - 4);
 
   // Ticks and axes
   ctx.fillStyle = C.comment;
@@ -2013,7 +2023,7 @@ const LN = {
   ];
   const ROWS = [
     { key: 'oracle', label: 'True values', color: C.purple },
-    { key: 'single', label: 'One measurement', color: C.orange },
+    { key: 'single', label: 'One measurement', color: C.pink },
     { key: 'resampled', label: 'Resampled', color: C.green },
   ];
   const xMin = 0, xMax = 0.6;
@@ -2079,7 +2089,7 @@ const LN = {
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
   const ctx = hiDpiCanvas(canvas, W, H);
   const SERIES = [
-    { key: 'literature', color: C.yellow, label: 'Resampled with 0.3' },
+    { key: 'literature', color: C.orange, label: 'Resampled with 0.3' },
     { key: 'curve_fit', color: C.green, label: 'Resampled with sᵢ' },
   ];
 
@@ -2097,7 +2107,17 @@ const LN = {
   // Overlapping histograms, then the observed rho
   SERIES.forEach(s => {
     const { edges, counts } = LABEL_NOISE.resampled_real[s.key].hist;
-    LN.bars(ctx, edges, counts, xScale, yScale, s.color + '88');
+    LN.bars(ctx, edges, counts, xScale, yScale, s.color + '33');
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    counts.forEach((c, i) => {
+      const x0 = xScale(edges[i]), x1 = xScale(edges[i + 1]), y = yScale(c);
+      if (i === 0) ctx.moveTo(x0, yScale(0));
+      ctx.lineTo(x0, y); ctx.lineTo(x1, y);
+    });
+    ctx.lineTo(xScale(edges[counts.length]), yScale(0));
+    ctx.stroke();
   });
   LN.vline(ctx, xScale(OBS_RHO), pad.t, pad.t + ph, C.pink, 'observed 0.26', pad.t + 12);
 
