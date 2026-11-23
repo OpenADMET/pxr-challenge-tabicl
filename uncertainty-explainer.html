@@ -567,30 +567,6 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <h3>Where the resampled values center</h3>
 
-  <div class="chart-panel">
-    <div class="chart-title">Resampling centers on the measurement, not the true value</div>
-    <div class="sim-controls">
-      <button class="sim-btn" id="resample-new">New measurement</button>
-    </div>
-    <canvas id="resample-chart" height="300" role="img" aria-label="A true value with its measurement distribution, one measurement, and a resampling distribution centered on the measurement with resampled values marked below the axis"></canvas>
-    <div class="stats-row">
-      <div class="stat-box">
-        <div class="stat-label">Measurement − truth</div>
-        <div class="stat-value" style="color:var(--orange)" id="resample-meas">&mdash;</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">Mean resampled − truth</div>
-        <div class="stat-value" style="color:var(--green)" id="resample-mean">&mdash;</div>
-      </div>
-    </div>
-    <div class="legend-row" style="flex-wrap:wrap">
-      <span class="legend-item" style="white-space:nowrap"><span class="legend-swatch" style="background:var(--purple);opacity:0.4"></span> Measurement distribution</span>
-      <span class="legend-item" style="white-space:nowrap"><span class="legend-swatch" style="background:var(--orange)"></span> One measurement</span>
-      <span class="legend-item" style="white-space:nowrap"><span class="legend-swatch" style="background:var(--green)"></span> Resampled</span>
-    </div>
-    <div class="chart-caption">The chart shows an illustrative compound with true value 0 and measurement noise 0.3 log units. The purple distribution is where repeat experiments would land, and the orange dot is the one measurement we have. Resampling draws from the green distribution, which has the same width but is centered on the measurement. The ticks below the axis are 40 resampled values, and the green triangle is their mean. Click <strong>New measurement</strong> to draw again and watch the mean of the resampled values follow the measurement.</div>
-  </div>
-
   <p>The resampled values scatter around the measurement, not the true value. However many we draw, they give back the measurement with an error bar of width <code>s<sub>i</sub></code>, and they tell us nothing new about where the true value <code>t<sub>i</sub></code> lies. Resampling does change <code>ρ</code>, because it adds noise to every residual. The next two charts show what that change means.</p>
 
   <h3>What resampling does when the truth is known</h3>
@@ -2021,93 +1997,6 @@ const LN = {
     showChartTip(`sᵢ ${edges[i].toFixed(3)} to ${edges[i + 1].toFixed(3)}&emsp;${counts[i]} compounds`, ev);
   });
   canvas.addEventListener('mouseleave', hideChartTip);
-})();
-
-// ===== LABEL NOISE: WHERE RESAMPLED VALUES CENTER =====
-(function() {
-  const canvas = document.getElementById('resample-chart');
-  const measEl = document.getElementById('resample-meas');
-  const meanEl = document.getElementById('resample-mean');
-  const TRUTH = 0, NOISE = 0.3, N_RESAMPLED = 40;
-  const rng = mulberry32(7);
-  const signed = v => (v < 0 ? '−' : '+') + Math.abs(v).toFixed(2);
-
-  function render(measured) {
-    const { W, H } = LN.size(canvas, 300);
-    const pad = { t: 24, r: 24, b: 70, l: 24 };
-    const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
-    const ctx = hiDpiCanvas(canvas, W, H);
-    const xMin = -1.6, xMax = 1.6;
-    const xScale = v => pad.l + (v - xMin) / (xMax - xMin) * pw;
-    const axisY = pad.t + ph;
-    const yScale = v => axisY - v / (LN.pdf(0, 0, NOISE) * 1.15) * ph;
-
-    // Grid
-    ctx.strokeStyle = C.current;
-    ctx.lineWidth = 1;
-    for (let x = -1.5; x <= 1.5; x += 0.5) {
-      ctx.beginPath(); ctx.moveTo(xScale(x), pad.t); ctx.lineTo(xScale(x), axisY); ctx.stroke();
-    }
-
-    // Measurement distribution around the truth (dashed purple) and the resampling one (green)
-    const curve = (mu, color, fill, dash) => {
-      ctx.beginPath();
-      for (let i = 0; i <= 200; i++) {
-        const x = xMin + (xMax - xMin) * i / 200;
-        const px = xScale(x), py = yScale(LN.pdf(x, mu, NOISE));
-        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-      }
-      ctx.lineTo(xScale(xMax), axisY); ctx.lineTo(xScale(xMin), axisY); ctx.closePath();
-      ctx.fillStyle = fill; ctx.fill();
-      ctx.beginPath();
-      for (let i = 0; i <= 200; i++) {
-        const x = xMin + (xMax - xMin) * i / 200;
-        const px = xScale(x), py = yScale(LN.pdf(x, mu, NOISE));
-        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-      }
-      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash(dash); ctx.stroke(); ctx.setLineDash([]);
-    };
-    curve(TRUTH, C.purple + '88', C.purple + '18', [6, 4]);
-    curve(measured, C.green + 'cc', C.green + '14', []);
-
-    // Center lines: the truth and the measurement
-    LN.vline(ctx, xScale(TRUTH), yScale(LN.pdf(0, 0, NOISE)), axisY, C.purple + 'aa');
-    const measY = yScale(LN.pdf(measured, TRUTH, NOISE));
-    ctx.strokeStyle = C.orange; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(xScale(measured), axisY); ctx.lineTo(xScale(measured), measY); ctx.stroke();
-    ctx.beginPath(); ctx.arc(xScale(measured), measY, 5, 0, Math.PI * 2);
-    ctx.fillStyle = C.orange; ctx.fill(); ctx.strokeStyle = C.bg; ctx.lineWidth = 1.5; ctx.stroke();
-
-    // Axis, with the truth and the measurement labeled beneath it
-    ctx.strokeStyle = C.comment; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(pad.l, axisY); ctx.lineTo(pad.l + pw, axisY); ctx.stroke();
-    ctx.font = '10px "SF Mono", "Fira Code", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = C.purple;
-    ctx.fillText('True value', xScale(TRUTH), axisY + 14);
-
-    // Resampled values as ticks below the axis, with their mean as a triangle
-    const draws = Array.from({ length: N_RESAMPLED }, () => measured + NOISE * randn(rng));
-    const mean = draws.reduce((a, b) => a + b, 0) / draws.length;
-    const tickY = axisY + 34;
-    ctx.strokeStyle = C.green + 'cc'; ctx.lineWidth = 1.5;
-    draws.forEach(v => {
-      if (v < xMin || v > xMax) return;
-      ctx.beginPath(); ctx.moveTo(xScale(v), tickY - 7); ctx.lineTo(xScale(v), tickY + 7); ctx.stroke();
-    });
-    const mx = xScale(mean);
-    ctx.fillStyle = C.green;
-    ctx.beginPath(); ctx.moveTo(mx, tickY + 10); ctx.lineTo(mx - 6, tickY + 20); ctx.lineTo(mx + 6, tickY + 20); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = C.comment;
-    ctx.textAlign = 'left';
-    ctx.fillText('Resampled', pad.l, tickY + 4);
-
-    measEl.textContent = signed(measured - TRUTH);
-    meanEl.textContent = signed(mean - TRUTH);
-  }
-
-  document.getElementById('resample-new').addEventListener('click', () => render(TRUTH + NOISE * randn(rng)));
-  render(0.42);
 })();
 
 // ===== LABEL NOISE: KNOWN-TRUTH COMPARISON =====
