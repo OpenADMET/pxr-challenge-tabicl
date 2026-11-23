@@ -456,6 +456,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <p>Imagine each compound has a coin. Compound A's coin lands heads 60% of the time (high <code>σ</code>, expect large errors). Compound B's coin lands heads 40% of the time (low <code>σ</code>, expect small errors).</p>
     <p>If you flip each coin <strong>a thousand times</strong>, you can easily tell which coin has the higher rate. Compound A clearly produces more heads.</p>
     <p>But you only flip each coin <strong>once</strong>. Compound A might land tails. Compound B might land heads. From those two flips, you'd rank them backwards.</p>
+    <p>The coin is the compound's error, whatever produces it. Part of the error comes from the assay, and a repeat experiment flips that part again. Part comes from the model, and that part is flipped once, when the model is trained: the compound has one true value, and the model makes one prediction for it.</p>
   </div>
 
   <p>Our scatter plot has the same problem. Each compound's predicted <code>σ</code> defines a <em>distribution</em> of possible errors, and each residual is the distance between the prediction and one measurement. The chart below splits that distance into two parts: the gap between the prediction and the compound's true value (the model error, shown as the dashed orange bracket) and the gap between the true value and the measurement (the measurement noise, whose spread is the purple distribution).</p>
@@ -467,8 +468,10 @@ h2[id] { scroll-margin-top: 1.5rem; }
         <option value="lucky">Lucky draw</option>
         <option value="typical" selected>Typical draw</option>
         <option value="unlucky">Unlucky draw</option>
+        <option value="custom" hidden>Random</option>
       </select>
-      <button class="sim-btn" id="oneflip-random">Random draw</button>
+      <button class="sim-btn" id="oneflip-random">New measurement</button>
+      <button class="sim-btn" id="oneflip-truth">New true value</button>
     </div>
     <canvas id="oneflip-chart" height="340"></canvas>
     <div class="stats-row" id="oneflip-stats">
@@ -492,7 +495,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
       <span class="legend-item" style="white-space:nowrap"><span class="legend-swatch" style="background:var(--green)"></span> Lucky</span>
       <span class="legend-item" style="white-space:nowrap"><span class="legend-swatch" style="background:var(--red)"></span> Unlucky</span>
     </div>
-    <div class="chart-caption">We define an oracle-derived "true distribution," only obtainable through repeat experiments but granted here (purple). A single experiment yields one draw from this underlying distribution (orange), with probability according to the idealized Gaussian we impose. The model's prediction (cyan) has a separate center and width. Below the axis, the dashed orange bracket is the true residual (fixed), and the solid green or red appendage runs from the prediction to the draw, so its length is the observed residual. Green means the observed residual is shorter than reality (<span class="tag lucky">lucky</span>); red means it is longer (<span class="tag unlucky">unlucky</span>). The draw percentile is the share of the true distribution below the draw. Click <strong>Random draw</strong> repeatedly to see how much the observed residual jumps around.</div>
+    <div class="chart-caption">We define an oracle-derived "true distribution," only obtainable through repeat experiments but granted here (purple). A single experiment yields one draw from this underlying distribution (orange), with probability according to the idealized Gaussian we impose. The model's prediction (cyan) has a separate center and width. Below the axis, the dashed orange bracket is the true residual, the gap between the prediction and the true value, and the solid green or red appendage runs from the prediction to the draw, so its length is the observed residual. Green means the observed residual is shorter than reality (<span class="tag lucky">lucky</span>); red means it is longer (<span class="tag unlucky">unlucky</span>). The draw percentile is the share of the true distribution below the draw. Click <strong>New measurement</strong> repeatedly to see how much the observed residual jumps around. <strong>New true value</strong> also redraws the true value, from the part of the prediction's spread that is model error: the true residual is a draw too, and another compound with the same <code>σ</code> could have a very different one.</div>
   </div>
 
   <p>A compound with a wide predicted distribution (high <code>σ</code>) <em>will, on average</em>, produce larger residuals, but on any single occasion it might land close to the predicted mean and show a small error. Wide distributions still produce values near their center.</p>
@@ -501,19 +504,28 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p>Each residual is a single draw in two senses. The measurement is one draw from the purple distribution, and a repeat experiment would land somewhere else. The model error is one draw too, because <code>σ</code> describes how large the errors of compounds like this one tend to be, and this compound's true residual is one realization of that spread. Repeat experiments average away the measurement draw. They cannot remove the model-error draw, because the compound has one true value and the model makes one prediction for it.</p>
 
-  <p>A toy simulation shows how much replicates could help. Using our actual 260 predicted <code>σ</code> values, we simulate a perfectly calibrated model and ask what Spearman <code>ρ</code> we would observe if we measured each compound <code>R</code> times and averaged the absolute residuals over replicates (<code data-eq="eq-rep">m<sub>i</sub> = (1/R) · Σ<sub>k</sub> e<sub>ik</sub></code>). Replicates average away only the measurement-noise part of the residual (<code data-eq="eq-split">y<sub>i</sub> − ŷ<sub>i</sub> = (t<sub>i</sub> − ŷ<sub>i</sub>) + (y<sub>i</sub> − t<sub>i</sub>)</code>), so the answer depends on how much of <code>σ</code> is measurement noise. If all of <code>σ</code> were measurement noise, <code>ρ</code> would climb from 0.28 at <code>R</code> = 1 to 0.49 at <code>R</code> = 3 and 0.72 at <code>R</code> = 10. The challenge data reports the standard error of each dose-response fit, <code>s<sub>i</sub></code>, with a median of 0.12 log units against a mean <code>σ</code> of 0.54. If <code>σ</code> is calibrated, whatever part of it the measurement noise does not account for is model error. Treating <code>s<sub>i</sub></code> as the measurement noise leaves most of <code>σ</code> as model error, and <code>ρ</code> then rises only to 0.32 at <code>R</code> = 3 and levels off near 0.36. With a constant measurement noise of 0.3 log units, it levels off near 0.42.</p>
+  <p>The model-error draw by itself limits <code>ρ</code>. Suppose the true values were known exactly, and two compounds had correct <code>σ</code> values of 0.6 and 0.4. Each compound's error is still one draw from that compound's distribution, and the compound with the larger <code>σ</code> has the larger error only 63% of the time. The odds improve as the ratio of the two <code>σ</code> values grows, to 70% at a ratio of 2, 84% at 4 and 94% at 10. Our <code>σ</code> values are close together: the median ratio between two compounds is 1.28, and 69% of pairs differ by less than 1.5 times, so a correct <code>σ</code> orders a random pair correctly only 60% of the time. Across the test set, that gives a <code>ρ</code> against exact true values of about 0.28 (95% of simulated datasets between 0.17 and 0.39), the same as with one measurement per compound.</p>
+
+  <p>Replicate measurements remove only the measurement draw (<code data-eq="eq-split">y<sub>i</sub> − ŷ<sub>i</sub> = (t<sub>i</sub> − ŷ<sub>i</sub>) + (y<sub>i</sub> − t<sub>i</sub>)</code>), so how much they help depends on how much of <code>σ</code> is measurement noise. If <code>σ</code> is calibrated, whatever part of it the measurement noise does not account for is model error. A toy simulation shows the range. Using our actual 260 predicted <code>σ</code> values, we simulate a perfectly calibrated model in which a fixed share of each compound's <code>σ</code>² is measurement noise and the rest is model error, measure each compound <code>R</code> times, and average the absolute residuals over replicates (<code data-eq="eq-rep">m<sub>i</sub> = (1/R) · Σ<sub>k</sub> e<sub>ik</sub></code>). We also run two realistic noise levels: the standard error of each dose-response fit, <code>s<sub>i</sub></code>, which the challenge data reports (median 0.12 log units against a mean <code>σ</code> of 0.54, about 11% of <code>σ</code>² on average), and a constant 0.3 log units (about 28%).</p>
 
   <div class="chart-panel">
-    <div class="chart-title">Spearman ρ vs. number of replicates per compound (toy simulation)</div>
-    <canvas id="replicate-chart" height="340"></canvas>
+    <div class="chart-title">Spearman ρ vs. replicates per compound, by how much of σ is measurement noise (toy simulation)</div>
+    <canvas id="replicate-chart" height="360" role="img" aria-label="Mean Spearman rho against replicates per compound on a log scale, for fixed shares of sigma squared from 0 to 100 percent measurement noise and for the curve-fit standard errors and a constant 0.3"></canvas>
     <div class="legend-row" style="flex-wrap:wrap">
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--purple)"></span> All of <code>σ</code> is measurement noise</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--cyan)"></span> Measurement noise <code>s<sub>i</sub></code></span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--orange)"></span> Measurement noise 0.3</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> <code>R</code> = 1 (our data)</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#7a6aa0"></span> 0% (all model error)</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#bd93f9"></span> 25%, 50%, 75%</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#e6d4ff"></span> 100% (all measurement noise)</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--cyan)"></span> <code>s<sub>i</sub></code> (about 11%)</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--orange)"></span> 0.3 (about 28%)</span>
     </div>
+    <div class="chart-caption">Each point is the mean Spearman <code>ρ</code> across 500 simulations at that replicate count, with replicates on a log scale. The thin purple curves give a fixed share of each compound's <code>σ</code>² to measurement noise, lighter for a larger share and labeled at right. The thick curves use the curve-fit <code>s<sub>i</sub></code> and a constant 0.3 as the measurement noise, with shaded bands covering the 5th to 95th percentile. Each simulation draws one model error per compound, with standard deviation √(<code>σ<sub>i</sub></code>² − noise²), reuses it for every replicate, and draws a fresh measurement noise for each replicate.</div>
+  </div>
     <div class="chart-caption">Each point is the mean Spearman <code>ρ</code> across 500 simulations at that replicate count, and the shaded bands cover the 5th to 95th percentile for the cyan and orange curves. Each simulation draws one model error per compound, with standard deviation √(<code>σ<sub>i</sub></code>² − noise²), reuses it for every replicate, and draws a fresh measurement noise for each replicate. All three curves start at <code>ρ</code> ≈ 0.28 for <code>R</code> = 1, and only the purple curve, which has no model error, climbs toward 1.</div>
   </div>
+
+  <p>Every curve starts at <code>ρ</code> ≈ 0.28 with one measurement, whatever the source of the error. With no measurement noise the curve stays flat, because replicates have nothing to average; this is the exact-truth case above. Only the share that is measurement noise lets <code>ρ</code> rise, to 0.48 at 25% and 0.95 at 100% with 100 replicates. With the curve-fit <code>s<sub>i</sub></code>, <code>ρ</code> levels off near 0.36, and with a constant 0.3, near 0.42. The two realistic noise levels are not proportional to <code>σ</code>, so they do not line up exactly with the fixed-share curves of the same average share.</p>
+
+  <p>The one-flip problem is therefore more than a shortage of measurements. For this model, most of it would remain with perfect data, because a correct <code>σ</code> describes the spread of a compound's possible errors, not the error it actually made. A high per-compound <code>ρ</code> would need <code>σ</code> values that differ by large factors between compounds. The ranking still shows when errors are averaged across compounds with similar <code>σ</code>, which does for the model-error draw what replicates do for the measurement draw; the quintile bins in <a href="#s08a">section 08a</a> work this way.</p>
 
   <p>This simulation draws residuals from the model's predicted <code>σ</code> values, which means it assumes those <code>σ</code> values are correct. That assumption is partially validated by the calibration plot (miscalibration area 0.04), but it is not an independent proof. The simulation demonstrates the <em>mechanics</em> of the one-flip problem (one draw per compound limits <code>ρ</code> even when the ranking is real) rather than proving that our model's specific <code>σ</code> values are right. It also assumes Gaussian errors, and the curves for the curve-fit standard error <code>s<sub>i</sub></code> and for a constant 0.3 log units treat that value as the full run-to-run variability. Real replicate measurements may vary more than that.</p>
 
@@ -546,7 +558,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p>Perfectly calibrated uncertainty with our <code>σ</code> distribution produces a mean Spearman <code>ρ<sub>null</sub></code> of about <strong>0.285</strong>. Our observed 0.26 sits at the 34th percentile of the null distribution, well within the 95% interval of [0.17, 0.40]. <strong>The <code>ρ</code> we observe is what we would expect even if the uncertainty estimates were ideal. The low correlation reflects the inherent noise of comparing a distribution's width to a single sample from it.</strong></p>
 
-  <p>The blog post's conclusion, "not a reliable ranking of which compounds are hard," is too strong. The <code>σ</code> values vary, calibration holds, and higher σ does correspond to higher expected error, so the ranking is present. Any test based on individual residuals will show a weak correlation, because each residual is one noisy draw from the distribution it's being compared against.</p>
+  <p>The blog post's conclusion, "not a reliable ranking of which compounds are hard," is too strong. The <code>σ</code> values vary, calibration holds, and higher σ does correspond to higher expected error, so the ranking is present. Any test based on individual residuals will show a weak correlation, because each residual is one noisy draw from the distribution it's being compared against. That would remain true even with exact true values: for this <code>σ</code> distribution, a correct <code>σ</code> scores about 0.28 against perfect data (<a href="#s04">section 04</a>).</p>
 
   <hr>
 
@@ -647,7 +659,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p>The reliability diagram in <a href="#s01">section 01</a> already showed calibration passing. Several evaluation tools may handle the ranking question better than Spearman <code>ρ</code> on individual residuals, though each comes with its own assumptions and limitations. The first two (quintile binning and CRPS) address compound-level enrichment directly. The third (NLL) is an aggregate model-comparison metric that does not support enrichment.</p>
 
-  <p>The one-flip problem limits every evaluation tool that follows. Each method works around it (by aggregating, by scoring the full distribution, by testing calibration globally), but none eliminates it. Replicate measurements would sharpen all of them: more observations per compound would reduce the noise in per-compound error estimates, tighten the quintile bins, widen the gap between per-compound <code>σ</code> and constant <code>σ<sub>const</sub></code> in CRPS and NLL, and raise Spearman <code>ρ</code> along the replicate curve in <a href="#s04">section 04</a>, up to its plateau. The evaluation tools below are the best we can do with one measurement per compound.</p>
+  <p>The one-flip problem limits every evaluation tool that follows. Each method works around it (by aggregating, by scoring the full distribution, by testing calibration globally), but none eliminates it. Replicate measurements would sharpen all of them: more observations per compound would reduce the noise in per-compound error estimates, tighten the quintile bins, widen the gap between per-compound <code>σ</code> and constant <code>σ<sub>const</sub></code> in CRPS and NLL, and raise Spearman <code>ρ</code> along the replicate curves in <a href="#s04">section 04</a>, up to a plateau that depends on how much of <code>σ</code> is measurement noise. The evaluation tools below are the best we can do with one measurement per compound.</p>
 
   <hr>
 
@@ -752,7 +764,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
       <tr><td><code>run/04_sweep.py</code></td><td>Trains every configuration in <code>experiments/manifest.yaml</code>, one stage at a time, for five seeds (most of the compute)</td></tr>
       <tr><td><code>run/05_aggregate.py</code></td><td>Collects the results and confirms the featureset and regressor each stage selected, in <code>results/gates/</code></td></tr>
       <tr><td><code>run/07_uncertainty.py</code></td><td>Writes the predicted <code>σ</code> and <code>|residual|</code> of each test compound (<code>points.csv</code>) and the coverage curve (<code>coverage.csv</code>) for the selected model</td></tr>
-      <tr><td><code>run/09_replicates.py</code></td><td>Simulates a correct <code>σ</code> from the predicted <code>σ</code> in <code>points.csv</code>, under three measurement-noise levels and 500 times for each value of <code>R</code>, and writes the replicate curve in <a href="#s04">section 04</a> (<code>replicates.csv</code>)</td></tr>
+      <tr><td><code>run/09_replicates.py</code></td><td>Simulates a correct <code>σ</code> from the predicted <code>σ</code> in <code>points.csv</code>, under five fixed shares of measurement noise and the two realistic noise levels, 500 times for each value of <code>R</code>, and writes the replicate curve in <a href="#s04">section 04</a> (<code>replicates.csv</code>)</td></tr>
       <tr><td><code>run/10_label_noise.py</code></td><td>Joins the curve-fit standard error of each compound from the challenge files in <code>data/raw/</code>, resamples the measurements, runs the known-truth simulation, splits the test set by fit quality, and writes the results for <a href="#s07">section 07</a> (<code>label_noise.json</code>)</td></tr>
     </tbody>
   </table>
@@ -1551,107 +1563,82 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
 (function() {
   const canvas = document.getElementById('replicate-chart');
   const rect = canvas.parentElement.getBoundingClientRect();
-  const W = Math.min(rect.width - 24, 690), H = 320;
-  const pad = { t: 16, r: 20, b: 44, l: 58 };
+  const W = Math.min(rect.width - 24, 690), H = 340;
+  const pad = { t: 16, r: 44, b: 44, l: 52 };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
   const ctx = hiDpiCanvas(canvas, W, H);
 
-  const REP_DATA = {"all": [{"n": 1, "mean": 0.2809, "p5": 0.1842, "p95": 0.366}, {"n": 2, "mean": 0.413, "p5": 0.3333, "p95": 0.488}, {"n": 3, "mean": 0.4945, "p5": 0.4164, "p95": 0.5641}, {"n": 5, "mean": 0.5953, "p5": 0.5245, "p95": 0.6558}, {"n": 8, "mean": 0.6844, "p5": 0.634, "p95": 0.7292}, {"n": 10, "mean": 0.7219, "p5": 0.6761, "p95": 0.7666}, {"n": 15, "mean": 0.7805, "p5": 0.744, "p95": 0.8175}, {"n": 20, "mean": 0.8203, "p5": 0.7899, "p95": 0.85}, {"n": 30, "mean": 0.8633, "p5": 0.8388, "p95": 0.8866}, {"n": 50, "mean": 0.9071, "p5": 0.8903, "p95": 0.9237}, {"n": 75, "mean": 0.9325, "p5": 0.9195, "p95": 0.9444}, {"n": 100, "mean": 0.9474, "p5": 0.9374, "p95": 0.9571}], "curve_fit": [{"n": 1, "mean": 0.2854, "p5": 0.1937, "p95": 0.3771}, {"n": 2, "mean": 0.3132, "p5": 0.2241, "p95": 0.3983}, {"n": 3, "mean": 0.3245, "p5": 0.2263, "p95": 0.4142}, {"n": 5, "mean": 0.3368, "p5": 0.2482, "p95": 0.422}, {"n": 8, "mean": 0.3458, "p5": 0.2526, "p95": 0.4386}, {"n": 10, "mean": 0.3493, "p5": 0.2547, "p95": 0.4326}, {"n": 15, "mean": 0.3556, "p5": 0.2597, "p95": 0.4411}, {"n": 20, "mean": 0.3531, "p5": 0.2665, "p95": 0.4346}, {"n": 30, "mean": 0.3565, "p5": 0.2703, "p95": 0.4369}, {"n": 50, "mean": 0.354, "p5": 0.2705, "p95": 0.4327}, {"n": 75, "mean": 0.3584, "p5": 0.2687, "p95": 0.4402}, {"n": 100, "mean": 0.3559, "p5": 0.2631, "p95": 0.445}], "literature": [{"n": 1, "mean": 0.2841, "p5": 0.1923, "p95": 0.3729}, {"n": 2, "mean": 0.3269, "p5": 0.2354, "p95": 0.4153}, {"n": 3, "mean": 0.3453, "p5": 0.2501, "p95": 0.4405}, {"n": 5, "mean": 0.3673, "p5": 0.2719, "p95": 0.453}, {"n": 8, "mean": 0.3823, "p5": 0.2978, "p95": 0.4659}, {"n": 10, "mean": 0.3852, "p5": 0.2887, "p95": 0.4687}, {"n": 15, "mean": 0.3983, "p5": 0.3013, "p95": 0.476}, {"n": 20, "mean": 0.4036, "p5": 0.3164, "p95": 0.4878}, {"n": 30, "mean": 0.41, "p5": 0.3214, "p95": 0.5044}, {"n": 50, "mean": 0.4165, "p5": 0.3327, "p95": 0.5007}, {"n": 75, "mean": 0.4184, "p5": 0.3319, "p95": 0.4988}, {"n": 100, "mean": 0.4195, "p5": 0.3289, "p95": 0.5042}]};
+  const REP_DATA = {"share_0": [{"n": 1, "mean": 0.285, "p5": 0.1885, "p95": 0.3773}, {"n": 2, "mean": 0.2845, "p5": 0.1869, "p95": 0.3785}, {"n": 3, "mean": 0.2856, "p5": 0.1907, "p95": 0.3803}, {"n": 5, "mean": 0.282, "p5": 0.1895, "p95": 0.3755}, {"n": 8, "mean": 0.2824, "p5": 0.1956, "p95": 0.3727}, {"n": 10, "mean": 0.2858, "p5": 0.1868, "p95": 0.3815}, {"n": 15, "mean": 0.286, "p5": 0.1846, "p95": 0.3841}, {"n": 20, "mean": 0.282, "p5": 0.193, "p95": 0.3696}, {"n": 30, "mean": 0.2802, "p5": 0.1872, "p95": 0.3692}, {"n": 50, "mean": 0.2847, "p5": 0.189, "p95": 0.3745}, {"n": 75, "mean": 0.287, "p5": 0.1884, "p95": 0.3821}, {"n": 100, "mean": 0.2854, "p5": 0.1956, "p95": 0.3807}], "share_0.25": [{"n": 1, "mean": 0.2856, "p5": 0.1856, "p95": 0.3762}, {"n": 2, "mean": 0.3489, "p5": 0.2633, "p95": 0.4272}, {"n": 3, "mean": 0.3769, "p5": 0.283, "p95": 0.4629}, {"n": 5, "mean": 0.4131, "p5": 0.331, "p95": 0.4972}, {"n": 8, "mean": 0.4362, "p5": 0.3543, "p95": 0.5177}, {"n": 10, "mean": 0.4468, "p5": 0.3552, "p95": 0.5236}, {"n": 15, "mean": 0.461, "p5": 0.3729, "p95": 0.5443}, {"n": 20, "mean": 0.4649, "p5": 0.3847, "p95": 0.5361}, {"n": 30, "mean": 0.4729, "p5": 0.3963, "p95": 0.5445}, {"n": 50, "mean": 0.477, "p5": 0.4079, "p95": 0.5477}, {"n": 75, "mean": 0.4846, "p5": 0.4051, "p95": 0.5587}, {"n": 100, "mean": 0.4822, "p5": 0.3965, "p95": 0.554}], "share_0.5": [{"n": 1, "mean": 0.2832, "p5": 0.189, "p95": 0.3756}, {"n": 2, "mean": 0.3882, "p5": 0.3047, "p95": 0.4662}, {"n": 3, "mean": 0.4421, "p5": 0.3597, "p95": 0.5267}, {"n": 5, "mean": 0.5057, "p5": 0.4269, "p95": 0.5812}, {"n": 8, "mean": 0.554, "p5": 0.483, "p95": 0.6212}, {"n": 10, "mean": 0.572, "p5": 0.499, "p95": 0.6321}, {"n": 15, "mean": 0.5986, "p5": 0.5356, "p95": 0.6585}, {"n": 20, "mean": 0.6173, "p5": 0.5495, "p95": 0.6757}, {"n": 30, "mean": 0.6333, "p5": 0.5732, "p95": 0.6904}, {"n": 50, "mean": 0.6509, "p5": 0.5956, "p95": 0.7078}, {"n": 75, "mean": 0.6581, "p5": 0.6022, "p95": 0.7103}, {"n": 100, "mean": 0.6631, "p5": 0.605, "p95": 0.7199}], "share_0.75": [{"n": 1, "mean": 0.2834, "p5": 0.1904, "p95": 0.3795}, {"n": 2, "mean": 0.4074, "p5": 0.3287, "p95": 0.4935}, {"n": 3, "mean": 0.4815, "p5": 0.3995, "p95": 0.5563}, {"n": 5, "mean": 0.5691, "p5": 0.4999, "p95": 0.6285}, {"n": 8, "mean": 0.6425, "p5": 0.5827, "p95": 0.6991}, {"n": 10, "mean": 0.6721, "p5": 0.6165, "p95": 0.7249}, {"n": 15, "mean": 0.7205, "p5": 0.6718, "p95": 0.7649}, {"n": 20, "mean": 0.7458, "p5": 0.7002, "p95": 0.7908}, {"n": 30, "mean": 0.7782, "p5": 0.7374, "p95": 0.8144}, {"n": 50, "mean": 0.809, "p5": 0.7726, "p95": 0.8446}, {"n": 75, "mean": 0.8231, "p5": 0.787, "p95": 0.8571}, {"n": 100, "mean": 0.833, "p5": 0.7973, "p95": 0.8635}], "share_1": [{"n": 1, "mean": 0.284, "p5": 0.192, "p95": 0.3739}, {"n": 2, "mean": 0.4125, "p5": 0.3194, "p95": 0.4979}, {"n": 3, "mean": 0.4951, "p5": 0.4161, "p95": 0.5675}, {"n": 5, "mean": 0.5963, "p5": 0.5298, "p95": 0.6558}, {"n": 8, "mean": 0.6837, "p5": 0.6267, "p95": 0.7372}, {"n": 10, "mean": 0.7197, "p5": 0.6675, "p95": 0.7654}, {"n": 15, "mean": 0.7798, "p5": 0.7409, "p95": 0.818}, {"n": 20, "mean": 0.8181, "p5": 0.7856, "p95": 0.8471}, {"n": 30, "mean": 0.8631, "p5": 0.8388, "p95": 0.8875}, {"n": 50, "mean": 0.9075, "p5": 0.8896, "p95": 0.9253}, {"n": 75, "mean": 0.9327, "p5": 0.9195, "p95": 0.9454}, {"n": 100, "mean": 0.947, "p5": 0.9351, "p95": 0.9569}], "curve_fit": [{"n": 1, "mean": 0.2832, "p5": 0.1843, "p95": 0.3796}, {"n": 2, "mean": 0.3171, "p5": 0.2262, "p95": 0.4076}, {"n": 3, "mean": 0.3278, "p5": 0.2394, "p95": 0.4152}, {"n": 5, "mean": 0.3405, "p5": 0.2541, "p95": 0.42}, {"n": 8, "mean": 0.3456, "p5": 0.2626, "p95": 0.4317}, {"n": 10, "mean": 0.3515, "p5": 0.2585, "p95": 0.4375}, {"n": 15, "mean": 0.3509, "p5": 0.2644, "p95": 0.435}, {"n": 20, "mean": 0.3531, "p5": 0.2705, "p95": 0.4341}, {"n": 30, "mean": 0.357, "p5": 0.2727, "p95": 0.4372}, {"n": 50, "mean": 0.3567, "p5": 0.2709, "p95": 0.4336}, {"n": 75, "mean": 0.3488, "p5": 0.2585, "p95": 0.4296}, {"n": 100, "mean": 0.3575, "p5": 0.263, "p95": 0.4432}], "literature": [{"n": 1, "mean": 0.2822, "p5": 0.1919, "p95": 0.3824}, {"n": 2, "mean": 0.3281, "p5": 0.2339, "p95": 0.4253}, {"n": 3, "mean": 0.3451, "p5": 0.2536, "p95": 0.4348}, {"n": 5, "mean": 0.3623, "p5": 0.2737, "p95": 0.4465}, {"n": 8, "mean": 0.3756, "p5": 0.2807, "p95": 0.4758}, {"n": 10, "mean": 0.3854, "p5": 0.305, "p95": 0.4713}, {"n": 15, "mean": 0.3996, "p5": 0.3071, "p95": 0.4881}, {"n": 20, "mean": 0.4, "p5": 0.3058, "p95": 0.4784}, {"n": 30, "mean": 0.4074, "p5": 0.3227, "p95": 0.4885}, {"n": 50, "mean": 0.4108, "p5": 0.3192, "p95": 0.4995}, {"n": 75, "mean": 0.4128, "p5": 0.3287, "p95": 0.4957}, {"n": 100, "mean": 0.4166, "p5": 0.3265, "p95": 0.4995}]};
   const SERIES = [
-    { key: 'all', color: C.purple, label: 'All of σ is noise', band: false, dash: [6, 4] },
-    { key: 'curve_fit', color: C.cyan, label: 'Noise sᵢ', band: true, dash: [] },
-    { key: 'literature', color: C.orange, label: 'Noise 0.3', band: true, dash: [] },
+    { key: 'share_0', color: '#7a6aa0', label: '0%', width: 1.5 },
+    { key: 'share_0.25', color: '#9b80d6', label: '25%', width: 1.5 },
+    { key: 'share_0.5', color: '#bd93f9', label: '50%', width: 1.5 },
+    { key: 'share_0.75', color: '#d2b4fc', label: '75%', width: 1.5 },
+    { key: 'share_1', color: '#e6d4ff', label: '100%', width: 1.5 },
+    { key: 'curve_fit', color: C.cyan, label: 'sᵢ', width: 3, band: true },
+    { key: 'literature', color: C.orange, label: '0.3', width: 3, band: true },
   ];
-
-  const xMin = 0, xMax = 105, yMin = 0, yMax = 1.0;
-  const xScale = v => pad.l + (v - xMin) / (xMax - xMin) * pw;
-  const yScale = v => pad.t + ph - (v - yMin) / (yMax - yMin) * ph;
+  const TICKS = [1, 2, 3, 5, 10, 20, 50, 100];
+  const xScale = v => pad.l + Math.log(v) / Math.log(100) * pw;
+  const yScale = v => pad.t + ph - v * ph;
+  const rows = k => REP_DATA[k];
 
   // Grid
   ctx.strokeStyle = C.current;
   ctx.lineWidth = 1;
-  for (let y = 0; y <= 1; y += 0.2) {
-    const py = yScale(y);
-    ctx.beginPath(); ctx.moveTo(pad.l, py); ctx.lineTo(pad.l + pw, py); ctx.stroke();
+  for (let y = 0; y <= 1.001; y += 0.2) {
+    ctx.beginPath(); ctx.moveTo(pad.l, yScale(y)); ctx.lineTo(pad.l + pw, yScale(y)); ctx.stroke();
   }
-  for (let x = 0; x <= 100; x += 20) {
-    const px = xScale(x);
-    ctx.beginPath(); ctx.moveTo(px, pad.t); ctx.lineTo(px, pad.t + ph); ctx.stroke();
-  }
+  TICKS.forEach(x => {
+    ctx.beginPath(); ctx.moveTo(xScale(x), pad.t); ctx.lineTo(xScale(x), pad.t + ph); ctx.stroke();
+  });
 
   // 5th-95th bands for the realistic noise levels
   SERIES.filter(s => s.band).forEach(s => {
-    const rows = REP_DATA[s.key];
+    const d = rows(s.key);
     ctx.fillStyle = s.color + '22';
     ctx.beginPath();
-    rows.forEach((d, i) => {
-      const x = xScale(d.n), y = yScale(d.p95);
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    for (let i = rows.length - 1; i >= 0; i--) ctx.lineTo(xScale(rows[i].n), yScale(rows[i].p5));
+    d.forEach((p, i) => (i === 0 ? ctx.moveTo : ctx.lineTo).call(ctx, xScale(p.n), yScale(p.p95)));
+    for (let i = d.length - 1; i >= 0; i--) ctx.lineTo(xScale(d[i].n), yScale(d[i].p5));
     ctx.closePath();
     ctx.fill();
   });
 
-  // Mean lines with dots, and an end label for each series
+  // Mean lines, thin fixed shares first so the realistic levels draw on top
   SERIES.forEach(s => {
-    const rows = REP_DATA[s.key];
+    const d = rows(s.key);
     ctx.strokeStyle = s.color;
-    ctx.lineWidth = 2.5;
-    ctx.setLineDash(s.dash);
+    ctx.lineWidth = s.width;
     ctx.beginPath();
-    rows.forEach((d, i) => {
-      const x = xScale(d.n), y = yScale(d.mean);
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
+    d.forEach((p, i) => (i === 0 ? ctx.moveTo : ctx.lineTo).call(ctx, xScale(p.n), yScale(p.mean)));
     ctx.stroke();
-    ctx.setLineDash([]);
-    rows.forEach(d => {
-      ctx.beginPath();
-      ctx.arc(xScale(d.n), yScale(d.mean), 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = s.color;
-      ctx.fill();
-      ctx.strokeStyle = C.bg;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    });
-    const last = rows[rows.length - 1];
-    ctx.fillStyle = s.color;
-    ctx.font = '10px "SF Mono", "Fira Code", monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(s.label, xScale(last.n) - 6, yScale(last.mean) - 9);
   });
 
-  // R = 1 marker, shared by all three series
-  const n1 = REP_DATA.curve_fit[0];
-  const n1x = xScale(n1.n), n1y = yScale(n1.mean);
-  ctx.beginPath();
-  ctx.arc(n1x, n1y, 7, 0, Math.PI * 2);
-  ctx.strokeStyle = C.pink;
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  // End labels at right, nudged apart where curves finish close together
+  const ends = SERIES.map(s => ({ s, y: yScale(rows(s.key)[rows(s.key).length - 1].mean) })).sort((a, b) => b.y - a.y);
+  for (let i = 1; i < ends.length; i++) if (ends[i - 1].y - ends[i].y < 12) ends[i].y = ends[i - 1].y - 12;
+  ctx.font = '10px "SF Mono", "Fira Code", monospace';
+  ctx.textAlign = 'left';
+  ends.forEach(e => { ctx.fillStyle = e.s.color; ctx.fillText(e.s.label, pad.l + pw + 6, e.y + 3); });
+
+  // One-measurement label at R = 1, shared by every curve
   ctx.fillStyle = C.pink;
   ctx.font = 'bold 11px "SF Mono", "Fira Code", monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText('R = 1: ρ ≈ 0.28', n1x + 12, n1y + 18);
+  ctx.fillText('R = 1: ρ ≈ 0.28 for every curve', xScale(1) + 8, yScale(rows('share_0')[0].mean) + 20);
 
-  // Axes
+  // Axes, ticks and labels
   ctx.strokeStyle = C.comment;
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph); ctx.stroke();
-
-  // Tick labels
   ctx.fillStyle = C.comment;
   ctx.font = '11px "SF Mono", "Fira Code", monospace';
   ctx.textAlign = 'center';
-  for (let x = 0; x <= 100; x += 20) ctx.fillText(x, xScale(x), pad.t + ph + 18);
+  TICKS.forEach(x => ctx.fillText(x, xScale(x), pad.t + ph + 18));
   ctx.textAlign = 'right';
-  for (let y = 0; y <= 1; y += 0.2) ctx.fillText(y.toFixed(1), pad.l - 8, yScale(y) + 4);
-
-  // Axis labels
+  for (let y = 0; y <= 1.001; y += 0.2) ctx.fillText(y.toFixed(1), pad.l - 8, yScale(y) + 4);
   ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('Replicates per compound', pad.l + pw / 2, H - 4);
+  ctx.fillText('Replicates per compound (log scale)', pad.l + pw / 2, H - 4);
   ctx.save();
   ctx.translate(14, pad.t + ph / 2);
   ctx.rotate(-Math.PI / 2);
@@ -1662,17 +1649,17 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
   canvas.addEventListener('mousemove', ev => {
     const r = canvas.getBoundingClientRect();
     const mx = (ev.clientX - r.left) * (W / r.width);
-    let hit = -1, best = 20;
-    REP_DATA.all.forEach((d, i) => {
-      const dist = Math.abs(xScale(d.n) - mx);
+    let hit = -1, best = 16;
+    rows('share_0').forEach((p, i) => {
+      const dist = Math.abs(xScale(p.n) - mx);
       if (dist < best) { best = dist; hit = i; }
     });
     if (hit < 0) { hideChartTip(); return; }
     const lines = SERIES.map(s => {
-      const d = REP_DATA[s.key][hit];
-      return `<span style="color:${s.color}">${s.label}</span>&emsp;ρ = ${d.mean.toFixed(3)} [${d.p5.toFixed(3)}, ${d.p95.toFixed(3)}]`;
+      const p = rows(s.key)[hit];
+      return `<span style="color:${s.color}">${s.label}</span>&emsp;ρ = ${p.mean.toFixed(3)} [${p.p5.toFixed(3)}, ${p.p95.toFixed(3)}]`;
     });
-    showChartTip(`R = ${REP_DATA.all[hit].n}<br>` + lines.join('<br>'), ev);
+    showChartTip(`R = ${rows('share_0')[hit].n}<br>` + lines.join('<br>'), ev);
   });
   canvas.addEventListener('mouseleave', hideChartTip);
 })();
@@ -1686,11 +1673,12 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
   const obsEl = document.getElementById('oneflip-obs');
   const trueEl = document.getElementById('oneflip-true');
 
-  const MU_TRUE = 0;
+  const MU_TRUE_DEFAULT = 0;
+  let MU_TRUE = MU_TRUE_DEFAULT;
   const MU_PRED = 0.8;
   const SIGMA_NOISE = 0.35;
   const SIGMA_PRED = 0.55;
-  const TRUE_RESIDUAL = Math.abs(MU_PRED - MU_TRUE);
+  const SIGMA_MODEL = Math.sqrt(SIGMA_PRED ** 2 - SIGMA_NOISE ** 2);
 
   const SCENARIOS = {
     lucky:   0.50,
@@ -1729,6 +1717,7 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
   }
 
   function render(drawValue) {
+    const TRUE_RESIDUAL = Math.abs(MU_PRED - MU_TRUE);
     const rect = canvas.parentElement.getBoundingClientRect();
     const W = Math.min(rect.width - 24, 690), H = 340;
     const pad = { t: 20, r: 30, b: 90, l: 30 };
@@ -1839,7 +1828,7 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
     ctx.textAlign = 'center';
     ctx.fillText('True value', xScale(MU_TRUE), axisY + 14);
     ctx.fillStyle = C.cyan;
-    ctx.fillText('Prediction', xScale(MU_PRED), axisY + 14);
+    ctx.fillText('Prediction', xScale(MU_PRED), axisY + (Math.abs(MU_PRED - MU_TRUE) < 0.45 ? 26 : 14));
 
     // Draw point on the true distribution curve
     const drawX = xScale(drawValue);
@@ -1920,14 +1909,29 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
     trueEl.textContent = TRUE_RESIDUAL.toFixed(2);
   }
 
+  // Draw a normal value, redrawing until it falls inside the plotted range
+  const drawWithin = (mu, sd, lo, hi) => {
+    let v;
+    do { v = mu + sd * randn(flipRng); } while (v < lo || v > hi);
+    return v;
+  };
+
   select.addEventListener('change', () => {
     const val = SCENARIOS[select.value];
-    if (val !== undefined) render(val);
+    if (val === undefined) return;
+    MU_TRUE = MU_TRUE_DEFAULT;
+    render(val);
   });
 
   randomBtn.addEventListener('click', () => {
-    const drawValue = MU_TRUE + SIGMA_NOISE * randn(flipRng);
-    render(drawValue);
+    select.value = 'custom';
+    render(drawWithin(MU_TRUE, SIGMA_NOISE, -1.4, 2.2));
+  });
+
+  document.getElementById('oneflip-truth').addEventListener('click', () => {
+    select.value = 'custom';
+    MU_TRUE = drawWithin(MU_PRED, SIGMA_MODEL, -0.6, 1.7);
+    render(drawWithin(MU_TRUE, SIGMA_NOISE, -1.4, 2.2));
   });
 
   render(SCENARIOS.typical);
