@@ -362,14 +362,14 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p>Calibration asks: <em>on average, are the intervals honest?</em> Ranking asks: <em>for each compound, does the model know where it will be wrong?</em> A model can pass one and fail the other.</p>
 
+  <p>Every equation and symbol on this page shows its definition on hover and has an entry in the equations and symbols reference (<a href="#reference">section 10</a>). Clicking a symbol jumps to its entry.</p>
+
   <hr>
 
   <!-- ===== STEP 1: WHAT WE SAID ===== -->
   <h2 id="s01"><span class="step-num">01</span> What we said in the blog post</h2>
 
   <p>We fed our best feature set into TabICL and examined the predicted uncertainty. Figure 6 in the post had two panels. The right panel (the calibration plot) looked good: the intervals were close to the right width, with a miscalibration area of 0.04. The left panel plotted each compound's predicted standard deviation against its absolute error, and we computed the Spearman rank correlation between them.</p>
-
-  <p>Every equation and symbol on this page shows its definition on hover and has an entry in the equations and symbols reference (<a href="#reference">section 10</a>). Clicking a symbol jumps to its entry.</p>
 
   <p>For each test compound <code>i</code>, TabICL predicts a value <code>ŷ<sub>i</sub></code> and a standard deviation <code>σ<sub>i</sub></code>, and the measured value is <code>y<sub>i</sub></code>. The absolute residual is <code data-eq="eq-resid">e<sub>i</sub> = |y<sub>i</sub> − ŷ<sub>i</sub>|</code>, written |residual| in the text and charts, and <code data-eq="eq-spearman">ρ = Spearman(σ<sub>i</sub>, e<sub>i</sub>)</code> is the rank correlation across all <code>n</code> = 260 test compounds.</p>
 
@@ -449,7 +449,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
   <!-- ===== STEP 4: THE COIN FLIP ===== -->
   <h2 id="s04"><span class="step-num">04</span> The one-flip problem</h2>
 
-  <p>The <code>σ</code> values vary and the intervals are calibrated, yet the Spearman <code>ρ</code> is only 0.26. One explanation is that the Spearman <code>ρ</code> test, computed on individual residuals, lacks the statistical power to detect the ranking when each compound contributes only one observation. The following analogy illustrates why.</p>
+  <p>The <code>σ</code> values vary and the intervals are calibrated, yet the Spearman <code>ρ</code> is only 0.26. One explanation is that the Spearman <code>ρ</code> test, computed on individual residuals, lacks the statistical power to detect the ranking when each compound contributes only one realized error. The following analogy illustrates why.</p>
 
   <div class="callout analogy">
     <div class="callout-label">The coin analogy</div>
@@ -504,9 +504,55 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p>Each residual is a single draw in two senses. The measurement is one draw from the purple distribution, and a repeat experiment would land somewhere else. The model error is one draw too, because <code>σ</code> describes how large the errors of compounds like this one tend to be, and this compound's true residual is one realization of that spread. Repeat experiments average away the measurement draw. They cannot remove the model-error draw, because the compound has one true value and the model makes one prediction for it.</p>
 
-  <p>The model-error draw by itself limits <code>ρ</code>. Suppose the true values were known exactly, and two compounds had correct <code>σ</code> values of 0.6 and 0.4. Each compound's error is still one draw from that compound's distribution, and the compound with the larger <code>σ</code> has the larger error only 63% of the time. The odds improve as the ratio of the two <code>σ</code> values grows, to 70% at a ratio of 2, 84% at 4 and 94% at 10. Our <code>σ</code> values are close together: the median ratio between two compounds is 1.28, and 69% of pairs differ by less than 1.5 times, so a correct <code>σ</code> orders a random pair correctly only 60% of the time. Across the test set, that gives a <code>ρ</code> against exact true values of about 0.28 (95% of simulated datasets between 0.17 and 0.39), the same as with one measurement per compound.</p>
+  <p>The model-error draw by itself limits <code>ρ</code>. Suppose the true values were known exactly, and two compounds had correct <code>σ</code> values of 0.6 and 0.4. Each compound's error is still one draw from that compound's distribution, and the compound with the larger <code>σ</code> has the larger error only 63% of the time. The odds improve as the ratio of the two <code>σ</code> values grows, to 70% at a ratio of 2, 84% at 4 and 94% at 10. Our <code>σ</code> values are close together: the median ratio between two compounds is 1.28, and 69% of pairs differ by less than 1.5 times, so a correct <code>σ</code> orders a random pair correctly only 60% of the time. So even a correct <code>σ</code> produces a weak per-compound <code>ρ</code>, and <a href="#s05">section 05</a> measures how weak.</p>
+
+  <hr>
+
+  <!-- ===== STEP 5: SIMULATION ===== -->
+  <h2 id="s05"><span class="step-num">05</span> What does perfectly calibrated uncertainty produce?</h2>
+
+  <p><a href="#s04">Section 04</a> showed why one realized error per compound weakens <code>ρ</code> even when <code>σ</code> is correct. This section measures how much: holding the replicate count at 1 (matching our data), it asks what <em>distribution of <code>ρ</code> values</em> a model with ideal uncertainty estimates would produce, and whether <code>ρ</code> = 0.26 indicates a ranking deficiency or is simply the expected outcome given one realized error per compound.</p>
+
+  <p>We take the 260 predicted <code>σ</code> values from the real model and pretend the <strong>uncertainty estimates are perfectly calibrated</strong>: for each compound, we draw a single residual from a Gaussian with that compound's <code>σ</code>, <code data-eq="eq-sim">e<sub>i</sub> = |z<sub>i</sub>| · σ<sub>i</sub></code> with <code>z</code> drawn from a standard normal. The point predictions can still be wrong (they are); what's "perfect" is only the error bars. We compute Spearman <code>ρ<sub>null</sub></code> on those simulated residuals and repeat 2,000 times to build a distribution of <code>ρ<sub>null</sub></code> values.</p>
+
+  <p>To be precise: "perfectly calibrated" here means each compound's true error really is drawn from the Gaussian the model prescribes. The model is not making perfect predictions (zero error). It is making imperfect predictions and <em>correctly estimating how imperfect each one is</em>. If our observed <code>ρ</code> = 0.26 falls inside that distribution, the low correlation reflects having one realized error per compound rather than a deficiency in the model's uncertainty. If it falls below, there's a real ranking problem that single draws cannot explain.</p>
+
+  <div class="chart-panel">
+    <div class="chart-title">Simulated ρ distribution under perfect calibration</div>
+    <canvas id="sim-hist" height="300" style="cursor:pointer"></canvas>
+    <div class="legend-row">
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--purple)"></span> Simulated <code>ρ<sub>null</sub></code></span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> Observed <code>ρ</code> = 0.26</span>
+    </div>
+
+  <div class="callout result">
+    <div class="callout-label">The result</div>
+  <p>Perfectly calibrated uncertainty with our <code>σ</code> distribution produces a mean Spearman <code>ρ<sub>null</sub></code> of about <strong>0.285</strong>. Our observed 0.26 sits at the 34th percentile of the null distribution, well within the 95% interval of [0.17, 0.40]. <strong>The <code>ρ</code> we observe is what we would expect even if the uncertainty estimates were ideal. The low correlation reflects the inherent noise of comparing a distribution's width to a single sample from it.</strong></p>
+  <p>The blog post's conclusion, "not a reliable ranking of which compounds are hard," is too strong. The <code>σ</code> values vary, calibration holds, and higher σ does correspond to higher expected error, so the ranking is present. Any test based on individual residuals will show a weak correlation, because each residual is one noisy draw from the distribution it's being compared against. That would remain true even with exact true values: for this <code>σ</code> distribution, a correct <code>σ</code> scores about 0.28 against perfect data (<a href="#s06">section 06</a>).</p>
+  </div>
+    <div class="chart-caption" id="sim-caption"></div>
+    <div class="chart-caption" style="margin-top:0.3rem; font-style:italic">Click to resample with a new seed.</div>
+  </div>
+
+
+  <hr>
+
+  <!-- ===== STEP 6: BETTER DATA ===== -->
+  <h2 id="s06"><span class="step-num">06</span> Would more or better data help?</h2>
+
+  <p><a href="#s05">Section 05</a> shows that <code>ρ</code> = 0.26 is what a correct <code>σ</code> scores with the data we have. Two kinds of better data might seem to raise it: the exact true values, and repeated measurements of each compound.</p>
+
+  <p>With exact true values, only the model-error draw from <a href="#s04">section 04</a> remains. Across the test set, a correct <code>σ</code> then gives a <code>ρ</code> against exact true values of about 0.28 (95% of simulated datasets between 0.17 and 0.39), the same as with one measurement per compound.</p>
 
   <p>Replicate measurements remove only the measurement draw (<code data-eq="eq-split">y<sub>i</sub> − ŷ<sub>i</sub> = (t<sub>i</sub> − ŷ<sub>i</sub>) + (y<sub>i</sub> − t<sub>i</sub>)</code>), so how much they help depends on how much of <code>σ</code> is measurement noise. If <code>σ</code> is calibrated, whatever part of it the measurement noise does not account for is model error. A toy simulation shows the range. Using our actual 260 predicted <code>σ</code> values, we simulate a perfectly calibrated model in which a fixed share of each compound's <code>σ</code>² is measurement noise and the rest is model error, measure each compound <code>R</code> times, and average the absolute residuals over replicates (<code data-eq="eq-rep">m<sub>i</sub> = (1/R) · Σ<sub>k</sub> e<sub>ik</sub></code>). We also run two realistic noise levels: the standard error of each dose-response fit, <code>s<sub>i</sub></code>, which the challenge data reports (median 0.12 log units against a mean <code>σ</code> of 0.54, about 11% of <code>σ</code>² on average), and a constant 0.3 log units (about 28%).</p>
+
+  <div class="chart-panel">
+    <div class="chart-title">Curve-fit standard error of the 260 test pEC50 values</div>
+    <canvas id="se-hist" height="260" role="img" aria-label="Histogram of the curve-fit standard error of each test pEC50, with the median, a constant 0.3 log units, and the mean predicted sigma marked"></canvas>
+    <div class="chart-caption">Histogram bins are 0.025 log units wide. Dashed lines mark the median standard error (0.12), a constant measurement noise of 0.3 log units, and the mean predicted <code>σ</code> (0.54). The standard errors come from the released challenge files, one per compound.</div>
+  </div>
+
+  <p>The standard errors are small relative to <code>σ</code>. The median is 0.12 log units (5th to 95th percentile 0.06 to 0.32), against a mean <code>σ</code> of 0.54, and only 2 of 260 exceed the compound's <code>σ</code>. A curve-fit standard error describes how well one curve was fitted within one run, so it probably understates the variation between repeat runs.</p>
 
   <div class="chart-panel">
     <div class="chart-title">Spearman ρ vs. replicates per compound, by how much of σ is measurement noise (toy simulation)</div>
@@ -520,45 +566,15 @@ h2[id] { scroll-margin-top: 1.5rem; }
     </div>
     <div class="chart-caption">Each point is the mean Spearman <code>ρ</code> across 500 simulations at that replicate count, with replicates on a log scale. The thin purple curves give a fixed share of each compound's <code>σ</code>² to measurement noise, lighter for a larger share and labeled at right. The thick curves use the curve-fit <code>s<sub>i</sub></code> and a constant 0.3 as the measurement noise, with shaded bands covering the 5th to 95th percentile. Each simulation draws one model error per compound, with standard deviation √(<code>σ<sub>i</sub></code>² − noise²), reuses it for every replicate, and draws a fresh measurement noise for each replicate.</div>
   </div>
-    <div class="chart-caption">Each point is the mean Spearman <code>ρ</code> across 500 simulations at that replicate count, and the shaded bands cover the 5th to 95th percentile for the cyan and orange curves. Each simulation draws one model error per compound, with standard deviation √(<code>σ<sub>i</sub></code>² − noise²), reuses it for every replicate, and draws a fresh measurement noise for each replicate. All three curves start at <code>ρ</code> ≈ 0.28 for <code>R</code> = 1, and only the purple curve, which has no model error, climbs toward 1.</div>
-  </div>
 
   <p>Every curve starts at <code>ρ</code> ≈ 0.28 with one measurement, whatever the source of the error. With no measurement noise the curve stays flat, because replicates have nothing to average; this is the exact-truth case above. Only the share that is measurement noise lets <code>ρ</code> rise, to 0.48 at 25% and 0.95 at 100% with 100 replicates. With the curve-fit <code>s<sub>i</sub></code>, <code>ρ</code> levels off near 0.36, and with a constant 0.3, near 0.42. The two realistic noise levels are not proportional to <code>σ</code>, so they do not line up exactly with the fixed-share curves of the same average share.</p>
 
-  <p>The one-flip problem is therefore more than a shortage of measurements. For this model, most of it would remain with perfect data, because a correct <code>σ</code> describes the spread of a compound's possible errors, not the error it actually made. A high per-compound <code>ρ</code> would need <code>σ</code> values that differ by large factors between compounds. The ranking still shows when errors are averaged across compounds with similar <code>σ</code>, which does for the model-error draw what replicates do for the measurement draw; the quintile bins in <a href="#s08a">section 08a</a> work this way.</p>
-
   <p>This simulation draws residuals from the model's predicted <code>σ</code> values, which means it assumes those <code>σ</code> values are correct. That assumption is partially validated by the calibration plot (miscalibration area 0.04), but it is not an independent proof. The simulation demonstrates the <em>mechanics</em> of the one-flip problem (one draw per compound limits <code>ρ</code> even when the ranking is real) rather than proving that our model's specific <code>σ</code> values are right. It also assumes Gaussian errors, and the curves for the curve-fit standard error <code>s<sub>i</sub></code> and for a constant 0.3 log units treat that value as the full run-to-run variability. Real replicate measurements may vary more than that.</p>
 
-  <hr>
-
-  <!-- ===== STEP 5: SIMULATION ===== -->
-  <h2 id="s05"><span class="step-num">05</span> What does perfectly calibrated uncertainty produce?</h2>
-
-  <p>The replicate curve in <a href="#s04">section 04</a> varied the number of measurements per compound to show how far replicates could raise <code>ρ</code>. This section uses the complementary approach: holding the replicate count at 1 (matching our data), it asks what <em>distribution of <code>ρ</code> values</em> a model with ideal uncertainty estimates would produce. <a href="#s04">Section 04</a> asked how many measurements it would take to see the ranking clearly; this section asks whether <code>ρ</code> = 0.26 indicates a ranking deficiency or is simply the expected outcome given one measurement per compound.</p>
-
-  <p>We take the 260 predicted <code>σ</code> values from the real model and pretend the <strong>uncertainty estimates are perfectly calibrated</strong>: for each compound, we draw a single residual from a Gaussian with that compound's <code>σ</code>, <code data-eq="eq-sim">e<sub>i</sub> = |z<sub>i</sub>| · σ<sub>i</sub></code> with <code>z</code> drawn from a standard normal. The point predictions can still be wrong (they are); what's "perfect" is only the error bars. We compute Spearman <code>ρ<sub>null</sub></code> on those simulated residuals and repeat 2,000 times to build a distribution of <code>ρ<sub>null</sub></code> values.</p>
-
-  <p>To be precise: "perfectly calibrated" here means each compound's true error really is drawn from the Gaussian the model prescribes. The model is not making perfect predictions (zero error). It is making imperfect predictions and <em>correctly estimating how imperfect each one is</em>. If our observed <code>ρ</code> = 0.26 falls inside that distribution, the low correlation reflects the measurement setup (one residual per compound) rather than a deficiency in the model's uncertainty. If it falls below, there's a real ranking problem the measurement noise cannot explain.</p>
-
-  <div class="chart-panel">
-    <div class="chart-title">Simulated ρ distribution under perfect calibration</div>
-    <canvas id="sim-hist" height="300" style="cursor:pointer"></canvas>
-    <div class="legend-row">
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--purple)"></span> Simulated <code>ρ<sub>null</sub></code></span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> Observed <code>ρ</code> = 0.26</span>
-    </div>
-    <div class="chart-caption" id="sim-caption"></div>
-    <div class="chart-caption" style="margin-top:0.3rem; font-style:italic">Click to resample with a new seed.</div>
+  <div class="callout result">
+    <div class="callout-label">Verdict</div>
+  <p>The one-flip problem is therefore more than a shortage of measurements. For this model, most of it would remain with perfect data, because a correct <code>σ</code> describes the spread of a compound's possible errors, not the error it actually made. A high per-compound <code>ρ</code> would need <code>σ</code> values that differ by large factors between compounds. The ranking still shows when errors are averaged across compounds with similar <code>σ</code>, which does for the model-error draw what replicates do for the measurement draw; the quintile bins in <a href="#s08a">section 08a</a> work this way.</p>
   </div>
-
-  <hr>
-
-  <!-- ===== STEP 6: THE RESULT ===== -->
-  <h2 id="s06"><span class="step-num">06</span> The result</h2>
-
-  <p>Perfectly calibrated uncertainty with our <code>σ</code> distribution produces a mean Spearman <code>ρ<sub>null</sub></code> of about <strong>0.285</strong>. Our observed 0.26 sits at the 34th percentile of the null distribution, well within the 95% interval of [0.17, 0.40]. <strong>The <code>ρ</code> we observe is what we would expect even if the uncertainty estimates were ideal. The low correlation reflects the inherent noise of comparing a distribution's width to a single sample from it.</strong></p>
-
-  <p>The blog post's conclusion, "not a reliable ranking of which compounds are hard," is too strong. The <code>σ</code> values vary, calibration holds, and higher σ does correspond to higher expected error, so the ranking is present. Any test based on individual residuals will show a weak correlation, because each residual is one noisy draw from the distribution it's being compared against. That would remain true even with exact true values: for this <code>σ</code> distribution, a correct <code>σ</code> scores about 0.28 against perfect data (<a href="#s04">section 04</a>).</p>
 
   <hr>
 
@@ -575,25 +591,15 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <li><strong>The measurement locates the true value to within its standard error.</strong> With one measurement and nothing else to go on, the true value is as likely to lie on one side of it as the other, so the plausible true values follow <code>N(y<sub>i</sub>, s<sub>i</sub>²)</code>, the posterior under a flat prior. Resampled values are then draws of plausible true values, and resampled <code>ρ</code> becomes an estimate of the oracle <code>ρ</code>.</li>
   </ul>
 
-  <p>A simulation in which the true values are known tests the first and third readings, and resampling the real measurements tests the second.</p>
-
-  <h3>The curve-fit standard errors are small and correlate with σ</h3>
-
-  <div class="chart-panel">
-    <div class="chart-title">Curve-fit standard error of the 260 test pEC50 values</div>
-    <canvas id="se-hist" height="260" role="img" aria-label="Histogram of the curve-fit standard error of each test pEC50, with the median, a constant 0.3 log units, and the mean predicted sigma marked"></canvas>
-    <div class="chart-caption">Histogram bins are 0.025 log units wide. Dashed lines mark the median standard error (0.12), a constant measurement noise of 0.3 log units, and the mean predicted <code>σ</code> (0.54). The standard errors come from the released challenge files, one per compound.</div>
-  </div>
-
-  <p>The standard errors are small relative to <code>σ</code>. The median is 0.12 log units (5th to 95th percentile 0.06 to 0.32), against a mean <code>σ</code> of 0.54, and only 2 of 260 exceed the compound's <code>σ</code>. A curve-fit standard error describes how well one curve was fitted within one run, so it probably understates the variation between repeat runs. The standard errors also correlate with the model's <code>σ</code>, with a Spearman correlation of 0.54. Weakly active compounds have flat dose-response curves whose pEC50 is poorly determined (the Spearman correlation between <code>s<sub>i</sub></code> and pEC50 is −0.83), and the model also gives weakly active compounds a higher <code>σ</code> (the Spearman correlation between <code>σ<sub>i</sub></code> and pEC50 is −0.53). A good predictive <code>σ</code> should behave this way: some of the error it predicts comes from the assay, and compounds with poorly determined curves are harder to predict.</p>
-
-  <h3>Where the resampled values center</h3>
-
   <p>The resampled values scatter around the measurement, not the true value. However many we draw, they give back the measurement with an error bar of width <code>s<sub>i</sub></code>, and they tell us nothing new about where the true value <code>t<sub>i</sub></code> lies. Resampling does change <code>ρ</code>. Each resampled residual is the observed residual plus a fresh draw of width <code>s<sub>i</sub></code>, so the compounds with the largest <code>s<sub>i</sub></code> receive the most added scatter.</p>
+
+  <p>The standard errors also correlate with the model's <code>σ</code>, with a Spearman correlation of 0.54. Weakly active compounds have flat dose-response curves whose pEC50 is poorly determined (the Spearman correlation between <code>s<sub>i</sub></code> and pEC50 is −0.83), and the model also gives weakly active compounds a higher <code>σ</code> (the Spearman correlation between <code>σ<sub>i</sub></code> and pEC50 is −0.53). A good predictive <code>σ</code> should behave this way: some of the error it predicts comes from the assay, and compounds with poorly determined curves are harder to predict.</p>
+
+  <p>A simulation in which the true values are known tests the first and third readings, and resampling the real measurements tests the second.</p>
 
   <h3>What resampling does when the truth is known</h3>
 
-  <p>To test what the change means, we simulate data in which the true values are known. Each simulated compound has its real predicted <code>σ<sub>i</sub></code>. Its true value is the prediction plus a model error, and its one measurement is the true value plus measurement noise. The measurement noise has standard deviation <code>s<sub>i</sub></code> (or a constant 0.3 log units), and the model error receives the rest of <code>σ<sub>i</sub></code>, a standard deviation of √(<code>σ<sub>i</sub></code>² − <code>s<sub>i</sub></code>²), so the simulated model is exactly calibrated, as in the replicate curve of <a href="#s04">section 04</a>. We then compute <code>ρ</code> between <code>σ<sub>i</sub></code> and the absolute residual three times, measuring the residual from the prediction to the true value, to the one measurement, and to the resampled measurement (averaged over 20 resamples). The first is the oracle <code>ρ</code>. We repeat this for 1,000 datasets under each noise model.</p>
+  <p>To test what the change means, we simulate data in which the true values are known. Each simulated compound has its real predicted <code>σ<sub>i</sub></code>. Its true value is the prediction plus a model error, and its one measurement is the true value plus measurement noise. The measurement noise has standard deviation <code>s<sub>i</sub></code> (or a constant 0.3 log units), and the model error receives the rest of <code>σ<sub>i</sub></code>, a standard deviation of √(<code>σ<sub>i</sub></code>² − <code>s<sub>i</sub></code>²), so the simulated model is exactly calibrated, as in the replicate curve of <a href="#s06">section 06</a>. We then compute <code>ρ</code> between <code>σ<sub>i</sub></code> and the absolute residual three times, measuring the residual from the prediction to the true value, to the one measurement, and to the resampled measurement (averaged over 20 resamples). The first is the oracle <code>ρ</code>. We repeat this for 1,000 datasets under each noise model.</p>
 
   <div class="chart-panel">
     <div class="chart-title">Spearman ρ against the truth, one measurement, and resampling</div>
@@ -636,8 +642,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
   <h3>What the curve-fit standard errors are good for</h3>
 
   <ul class="findings">
-    <li><strong>They show that <code>σ</code> tracks real assay uncertainty.</strong> Compounds the model flags as uncertain tend to have less certain measurements (Spearman correlation 0.54), as a calibrated <code>σ</code> should. Most of the overlap runs through potency: with pEC50 accounted for (a partial rank correlation), the correlation falls to 0.20, so the shared signal is largely that weakly active compounds have flat, poorly determined curves. This part of <code>σ</code> predicts error that a repeat experiment would redraw, not error that more training data could reduce.</li>
-    <li><strong>They put a size on the measurement part of the one-flip problem.</strong> With <code>s<sub>i</sub></code> as the measurement noise, even unlimited replicates would raise <code>ρ</code> only to about 0.36 (<a href="#s04">section 04</a>). Most of the limit on <code>ρ</code> comes from the model-error draw, which repeat experiments cannot redraw.</li>
+    <li><strong>They show that <code>σ</code> tracks real assay uncertainty.</strong> Most of the overlap runs through potency: with pEC50 accounted for (a partial rank correlation), the correlation falls to 0.20, so the shared signal is largely that weakly active compounds have flat, poorly determined curves. This part of <code>σ</code> predicts error that a repeat experiment would redraw, not error that more training data could reduce.</li>
     <li><strong>They let us test whether poorly fitted curves explain the weak ranking.</strong> In the better-fitted half of the test set (<code>s<sub>i</sub></code> at or below the median, 130 compounds), <code>ρ</code> = 0.19, inside the range of 0.04 to 0.36 that a correct <code>σ</code> would produce. In the worse-fitted half, <code>ρ</code> = 0.30, inside 0.15 to 0.46. Each half scores what a correct <code>σ</code> would, so poorly fitted curves do not explain the low <code>ρ</code>.</li>
   </ul>
 
@@ -657,9 +662,9 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p>What you <strong>can't</strong> do: look at one compound's error after the fact and judge whether the model "knew" it was hard. That's the one-flip problem. Repeated measurements would average away the measurement noise, and the model's error on that compound would remain one draw from the distribution <code>σ</code> describes. Across a batch, the ranking is still present.</p>
 
-  <p>The reliability diagram in <a href="#s01">section 01</a> already showed calibration passing. Several evaluation tools may handle the ranking question better than Spearman <code>ρ</code> on individual residuals, though each comes with its own assumptions and limitations. The first two (quintile binning and CRPS) address compound-level enrichment directly. The third (NLL) is an aggregate model-comparison metric that does not support enrichment.</p>
+  <p>Several evaluation tools may handle the ranking question better than Spearman <code>ρ</code> on individual residuals, though each comes with its own assumptions and limitations. The first two (quintile binning and CRPS) address compound-level enrichment directly. The third (NLL) is an aggregate model-comparison metric that does not support enrichment.</p>
 
-  <p>The one-flip problem limits every evaluation tool that follows. Each method works around it (by aggregating, by scoring the full distribution, by testing calibration globally), but none eliminates it. Replicate measurements would sharpen all of them: more observations per compound would reduce the noise in per-compound error estimates, tighten the quintile bins, widen the gap between per-compound <code>σ</code> and constant <code>σ<sub>const</sub></code> in CRPS and NLL, and raise Spearman <code>ρ</code> along the replicate curves in <a href="#s04">section 04</a>, up to a plateau that depends on how much of <code>σ</code> is measurement noise. The evaluation tools below are the best we can do with one measurement per compound.</p>
+  <p>The one-flip problem limits every evaluation tool that follows. Each method works around it (by aggregating, by scoring the full distribution, by testing calibration globally), but none eliminates it. Averaging across compounds is the main way around it. Replicate measurements would also sharpen all of them: more observations per compound would reduce the noise in per-compound error estimates, tighten the quintile bins, widen the gap between per-compound <code>σ</code> and constant <code>σ<sub>const</sub></code> in CRPS and NLL, and raise Spearman <code>ρ</code> along the replicate curves in <a href="#s06">section 06</a>, up to a plateau that depends on how much of <code>σ</code> is measurement noise. The evaluation tools below are the best we can do with one measurement per compound.</p>
 
   <hr>
 
@@ -744,6 +749,16 @@ h2[id] { scroll-margin-top: 1.5rem; }
   <p><strong>Strengths:</strong> Proper scoring rule. The strictest aggregate test of whether σ matches the actual error distribution. Standard in probabilistic modeling; directly optimized by many training procedures. Useful for comparing one model's uncertainty against another's. <strong>Weaknesses:</strong> Does not support enrichment or compound-level triage (non-monotonic per quintile). Heavily influenced by outliers (a single large residual against a small <code>σ</code> dominates the average). Assumes a distributional form (Gaussian here). Harder to interpret than CRPS or binning in absolute terms.</p>
 
 
+  <div class="callout result">
+    <div class="callout-label">Summary</div>
+    <ul class="findings">
+      <li><strong><code>ρ</code> = 0.26 is what a correct <code>σ</code> scores here.</strong> It falls at the 34th percentile of the values a perfectly calibrated <code>σ</code> produces with this model's <code>σ</code> distribution (<a href="#s05">section 05</a>).</li>
+      <li><strong>The limit is a single realized error per compound.</strong> A correct <code>σ</code> describes the spread of possible errors, not the error a compound actually has, and for this model most of that error is model error rather than assay noise (<a href="#s04">sections 04</a> and <a href="#s06">06</a>).</li>
+      <li><strong>Better data and resampling do not remove it.</strong> Exact true values leave <code>ρ</code> near 0.28, replicates help only with the measurement share, and resampling each measurement around its curve-fit standard error moves <code>ρ</code> without sharpening the ranking (<a href="#s06">sections 06</a> and <a href="#s07">07</a>).</li>
+      <li><strong>The ranking shows in aggregate.</strong> Calibration, quintile bins and proper scoring rules average over compounds, and they show that <code>σ</code> tracks difficulty (<a href="#s01">section 01</a> and <a href="#s08a">sections 08a to 08c</a>).</li>
+    </ul>
+  </div>
+
   <hr>
 
   <h2 id="reproducibility"><span class="step-num">09</span> Reproducibility</h2>
@@ -764,7 +779,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
       <tr><td><code>run/04_sweep.py</code></td><td>Trains every configuration in <code>experiments/manifest.yaml</code>, one stage at a time, for five seeds (most of the compute)</td></tr>
       <tr><td><code>run/05_aggregate.py</code></td><td>Collects the results and confirms the featureset and regressor each stage selected, in <code>results/gates/</code></td></tr>
       <tr><td><code>run/07_uncertainty.py</code></td><td>Writes the predicted <code>σ</code> and <code>|residual|</code> of each test compound (<code>points.csv</code>) and the coverage curve (<code>coverage.csv</code>) for the selected model</td></tr>
-      <tr><td><code>run/09_replicates.py</code></td><td>Simulates a correct <code>σ</code> from the predicted <code>σ</code> in <code>points.csv</code>, under five fixed shares of measurement noise and the two realistic noise levels, 500 times for each value of <code>R</code>, and writes the replicate curve in <a href="#s04">section 04</a> (<code>replicates.csv</code>)</td></tr>
+      <tr><td><code>run/09_replicates.py</code></td><td>Simulates a correct <code>σ</code> from the predicted <code>σ</code> in <code>points.csv</code>, under five fixed shares of measurement noise and the two realistic noise levels, 500 times for each value of <code>R</code>, and writes the replicate curve in <a href="#s06">section 06</a> (<code>replicates.csv</code>)</td></tr>
       <tr><td><code>run/10_label_noise.py</code></td><td>Joins the curve-fit standard error of each compound from the challenge files in <code>data/raw/</code>, resamples the measurements, runs the known-truth simulation, splits the test set by fit quality, and writes the results for <a href="#s07">section 07</a> (<code>label_noise.json</code>)</td></tr>
     </tbody>
   </table>
