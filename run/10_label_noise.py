@@ -78,6 +78,15 @@ def _histogram(values: NDArray[np.float64], width: float) -> dict[str, Any]:
     return {"edges": np.round(edges, 4).tolist(), "counts": counts.tolist()}
 
 
+def _partial_rank_correlation(
+    x: NDArray[np.float64], y: NDArray[np.float64], control: NDArray[np.float64]
+) -> float:
+    """Correlate the ranks of x and y after regressing the ranks of a control out of each."""
+    ranks = [stats.rankdata(v) for v in (x, y, control)]
+    residuals = [r - np.polyval(np.polyfit(ranks[2], r, 1), ranks[2]) for r in ranks[:2]]
+    return float(np.corrcoef(*residuals)[0, 1])
+
+
 def describe_se(
     curve_fit_se: NDArray[np.float64],
     sigma: NDArray[np.float64],
@@ -100,8 +109,10 @@ def describe_se(
     Returns
     -------
     dict
-        Quantiles, the root mean square, a histogram, and Spearman rho of the
-        standard error against sigma, pEC50 and the absolute residual.
+        Quantiles, the root mean square, a histogram, Spearman rho of the
+        standard error against sigma, pEC50 and the absolute residual, Spearman
+        rho of sigma against pEC50, and the rank correlation of sigma and the
+        standard error with pEC50 partialled out.
     """
     p5, p50, p95 = np.percentile(curve_fit_se, [5, 50, 95])
     return {
@@ -115,6 +126,8 @@ def describe_se(
         "rho_sigma": float(stats.spearmanr(sigma, curve_fit_se).statistic),
         "rho_pec50": float(stats.spearmanr(observed, curve_fit_se).statistic),
         "rho_abs_residual": float(stats.spearmanr(abs_residual, curve_fit_se).statistic),
+        "rho_sigma_pec50": float(stats.spearmanr(sigma, observed).statistic),
+        "partial_rho_sigma_given_pec50": _partial_rank_correlation(sigma, curve_fit_se, observed),
     }
 
 
