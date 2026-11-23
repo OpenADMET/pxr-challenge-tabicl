@@ -18,6 +18,9 @@ Four things are written to label_noise.json beside the per-compound table:
   measurement-noise model (see src/label_noise.py)
 - rho within the better-fitted and worse-fitted halves of the test set, each
   against the band a correct sigma produces for that half
+- the limit a correct sigma faces even with exact true values: rho when all
+  of sigma is model error, and how often one pair of compounds is ranked
+  correctly at a given ratio of their sigma
 """
 
 from __future__ import annotations
@@ -51,6 +54,7 @@ N_INNER_RESAMPLES = 20
 N_NULL = 2000
 SE_BIN_WIDTH = 0.025
 RHO_BIN_WIDTH = 0.01
+PAIR_RATIOS = (1.5, 2.0, 4.0, 10.0)
 SEED = 0
 
 logger = logging.getLogger(__name__)
@@ -249,6 +253,45 @@ def split_by_fit_quality(
     return summary
 
 
+def exact_truth_limit(sigma: NDArray[np.float64], rng: np.random.Generator) -> dict[str, Any]:
+    """Summarize how well a correct sigma ranks errors when the true values are known.
+
+    Parameters
+    ----------
+    sigma : array-like
+        Predicted standard deviation of each compound, assumed correct and
+        entirely model error.
+    rng : numpy.random.Generator
+        Source of the normal draws.
+
+    Returns
+    -------
+    dict
+        The mean and central 95% interval of rho against the true values, the
+        probability of ranking a pair correctly at each of ``PAIR_RATIOS``,
+        and, over every pair of test compounds, the median sigma ratio, the
+        share of pairs with a ratio below 1.5, and the mean probability of
+        ranking a pair correctly.
+    """
+    oracle = label_noise.spearman_rows(
+        sigma, np.abs(rng.standard_normal((N_NULL, sigma.size))) * sigma
+    )
+    upper = np.triu_indices(sigma.size, k=1)
+    ratios = np.maximum(sigma[upper[0]], sigma[upper[1]]) / np.minimum(
+        sigma[upper[0]], sigma[upper[1]]
+    )
+    probabilities = label_noise.pair_ranking_probability(np.array(PAIR_RATIOS))
+    return {
+        "oracle": _interval(oracle),
+        "pair_probability": {
+            f"{r:g}": float(p) for r, p in zip(PAIR_RATIOS, probabilities, strict=True)
+        },
+        "median_pair_ratio": float(np.median(ratios)),
+        "share_pairs_below_1_5": float(np.mean(ratios < 1.5)),
+        "mean_pair_probability": float(label_noise.pair_ranking_probability(ratios).mean()),
+    }
+
+
 def main() -> None:
     """Run every comparison and write label_noise.json."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -271,11 +314,13 @@ def main() -> None:
         "curve_fit_se": describe_se(curve_fit_se, sigma, observed, abs_residual),
         "resampled_real": {},
         "known_truth": {},
+        "noise_share": {},
     }
 
     # Resample the real measurements, and simulate with the truth known, per noise model
     for index, model in enumerate(RESAMPLING_NOISE_MODELS):
         noise = label_noise.measurement_noise(model, sigma, curve_fit_se)
+        record["noise_share"][model] = float(np.mean(noise**2) / np.mean(sigma**2))
         rho = resample_real(sigma, residual, noise, np.random.default_rng([args.seed, 0, index]))
         record["resampled_real"][model] = _interval(rho) | {
             "histogram": _histogram(rho, RHO_BIN_WIDTH)
@@ -290,6 +335,7 @@ def main() -> None:
             {k: round(v["mean"], 3) for k, v in record["known_truth"][model].items()},
         )
 
+    record["exact_truth"] = exact_truth_limit(sigma, np.random.default_rng([args.seed, 3]))
     record["fit_quality_halves"] = split_by_fit_quality(
         sigma, abs_residual, curve_fit_se, np.random.default_rng([args.seed, 2])
     )

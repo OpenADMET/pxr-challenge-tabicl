@@ -31,6 +31,26 @@ def test_measurement_noise_rejects_unknown_model():
         label_noise.measurement_noise("replicate", np.ones(2), np.ones(2))
 
 
+def test_share_model_assigns_the_given_fraction_of_variance():
+    sigma = np.array([0.4, 1.0])
+
+    noise = label_noise.measurement_noise("share_0.25", sigma, np.zeros(2))
+
+    np.testing.assert_allclose(noise**2, [0.04, 0.25])
+
+
+def test_pair_ranking_probability_is_a_coin_flip_for_equal_sigma():
+    np.testing.assert_allclose(label_noise.pair_ranking_probability(np.array([1.0])), [0.5])
+
+
+def test_pair_ranking_probability_matches_monte_carlo():
+    draws = np.abs(np.random.default_rng(4).standard_normal((2, 400_000)))
+
+    observed = np.mean(1.5 * draws[0] > draws[1])
+
+    assert abs(label_noise.pair_ranking_probability(np.array([1.5]))[0] - observed) < 3e-3
+
+
 def test_replicates_approach_perfect_ranking_when_all_of_sigma_is_noise():
     sigma = np.linspace(0.2, 1.0, 100)
     rng = np.random.default_rng(1)

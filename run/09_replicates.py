@@ -8,9 +8,11 @@ sigma would reach if each compound were measured R times. At R = 1 this is the
 single-measurement case the test set is actually in.
 
 How far replicates can raise rho depends on how much of sigma is measurement
-noise, so the simulation runs under each noise model: all of sigma, the
-curve-fit standard error the challenge reports, and a constant literature-style
-value. Only the first lets rho approach 1.
+noise, so the simulation runs under fixed shares of sigma^2 from all model
+error to all measurement noise, and under the two realistic noise models: the
+curve-fit standard error the challenge reports and a constant
+literature-style value. Every model gives the same rho at R = 1; only the
+share that is measurement noise lets rho rise with R.
 
 Reads the per-compound table run/07_uncertainty.py writes, joins the curve-fit
 standard errors from data/raw, and writes replicates.csv beside the table, one

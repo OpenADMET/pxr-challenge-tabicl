@@ -8,9 +8,12 @@ the prediction and the compound's true value, is fixed for a given compound
 and model, with standard deviation sqrt(sigma^2 - s^2) across compounds.
 Replicate measurements average away the first part and leave the second.
 
-Three measurement-noise models are compared: all of sigma (the case where
-replicates converge on a perfect ranking), the curve-fit standard error the
-challenge reports for each pEC50, and a constant literature-style value.
+Two kinds of measurement-noise model are compared. A fixed-share model gives
+every compound the same fraction of sigma^2 as measurement noise, from 0 (all
+model error, the case where replicates change nothing) to 1 (all measurement
+noise, the case where replicates converge on a perfect ranking). The two
+realistic models use the curve-fit standard error the challenge reports for
+each pEC50 and a constant literature-style value.
 """
 
 from __future__ import annotations
@@ -27,7 +30,11 @@ from data import CANONICAL_COL, RAW_DIR, load_test_curve_fit_se
 # constant run-to-run pEC50 noise assumed by the literature-style noise model
 LITERATURE_NOISE = 0.3
 
-NOISE_MODELS = ("all", "curve_fit", "literature")
+# shares of sigma^2 assigned to measurement noise by the fixed-share models
+NOISE_SHARES = (0.0, 0.25, 0.5, 0.75, 1.0)
+SHARE_PREFIX = "share_"
+REALISTIC_NOISE_MODELS = ("curve_fit", "literature")
+NOISE_MODELS = tuple(f"{SHARE_PREFIX}{share:g}" for share in NOISE_SHARES) + REALISTIC_NOISE_MODELS
 
 
 def load_points(points_path: Path, raw_dir: Path = RAW_DIR) -> pd.DataFrame:
@@ -77,9 +84,10 @@ def measurement_noise(
     Parameters
     ----------
     model : str
-        One of ``NOISE_MODELS``: ``"all"`` treats all of sigma as measurement
-        noise, ``"curve_fit"`` uses the reported curve-fit standard error, and
-        ``"literature"`` uses ``LITERATURE_NOISE`` for every compound.
+        One of ``NOISE_MODELS``: ``"share_<f>"`` assigns the fraction ``f`` of
+        each compound's sigma^2 to measurement noise, ``"curve_fit"`` uses the
+        reported curve-fit standard error, and ``"literature"`` uses
+        ``LITERATURE_NOISE`` for every compound.
     sigma : array-like
         Predicted standard deviation of each compound.
     curve_fit_se : array-like
@@ -95,8 +103,8 @@ def measurement_noise(
     ValueError
         If ``model`` is not one of ``NOISE_MODELS``.
     """
-    if model == "all":
-        return sigma.copy()
+    if model.startswith(SHARE_PREFIX) and model in NOISE_MODELS:
+        return np.sqrt(float(model.removeprefix(SHARE_PREFIX))) * sigma
     if model == "curve_fit":
         return np.minimum(curve_fit_se, sigma)
     if model == "literature":
@@ -192,3 +200,29 @@ def folded_normal_mean(
     spread = safe * np.sqrt(2 / np.pi) * np.exp(-(offset**2) / (2 * safe**2))
     shift = offset * (1 - 2 * stats.norm.cdf(-offset / safe))
     return np.where(scale > 0, spread + shift, np.abs(offset))
+
+
+def pair_ranking_probability(ratio: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Return how often a correct sigma ranks one pair of compounds' errors correctly.
+
+    For two compounds whose errors are single normal draws with standard
+    deviations in the given ratio (larger over smaller), this is the
+    probability that the compound with the larger sigma has the larger
+    absolute error, even when the true values are known exactly.
+
+    Parameters
+    ----------
+    ratio : array-like
+        Larger sigma divided by smaller sigma, each at least 1.
+
+    Returns
+    -------
+    numpy.ndarray
+        Probability of the correct order, from 0.5 at a ratio of 1 toward 1.
+
+    Notes
+    -----
+    The ratio of two independent half-normal draws with unit scale has the
+    cumulative distribution (2/pi) arctan(r), which gives the probability.
+    """
+    return 2 / np.pi * np.arctan(ratio)
