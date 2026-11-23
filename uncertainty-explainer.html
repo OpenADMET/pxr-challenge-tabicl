@@ -594,7 +594,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <div class="chart-caption">Each dot is the mean across 1,000 simulated datasets, each line spans the central 95% of datasets, and the number at right is the mean. The data are simulated from the real predicted <code>σ<sub>i</sub></code>, so the true values are known.</div>
   </div>
 
-  <p>With a constant noise of 0.3, resampling lowers <code>ρ</code> from 0.28 to 0.22, further from the oracle <code>ρ</code> of 0.42. The added noise is unrelated to <code>σ</code>, so it only scrambles the ranking. With the curve-fit <code>s<sub>i</sub></code>, resampling raises <code>ρ</code> slightly, from 0.28 to 0.29, further above the oracle <code>ρ</code> of 0.27. That rise is an artifact of the added noise. The noise is largest for compounds with a large <code>s<sub>i</sub></code>, which tend to have a large <code>σ</code>, so it inflates their residuals and builds in a correlation with <code>σ</code>. Under the two noise models, resampling moves <code>ρ</code> without bringing it closer to the oracle <code>ρ</code>.</p>
+  <p>With a constant noise of 0.3, resampling lowers <code>ρ</code> from 0.28 to 0.22, further from the oracle <code>ρ</code> of 0.42. The added noise is unrelated to <code>σ</code>, so it only scrambles the ranking. With the curve-fit <code>s<sub>i</sub></code>, resampling raises <code>ρ</code> slightly, from 0.28 to 0.29, further above the oracle <code>ρ</code> of 0.27. That rise is an artifact of the added noise. The noise is largest for compounds with a large <code>s<sub>i</sub></code>, which tend to have a large <code>σ</code>, so it inflates their residuals and builds in a correlation with <code>σ</code>.</p>
 
   <h3>Resampling the real measurements</h3>
 
