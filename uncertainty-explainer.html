@@ -555,6 +555,16 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p>A natural follow-up is to ask whether error information we already have can help. Each pEC50 comes from a dose-response fit, and the challenge data reports the standard error of that fit, <code>s<sub>i</sub></code>, for every compound. The idea is to treat each measured value as the center of a normal distribution with width <code>s<sub>i</sub></code>, draw a new value for every compound (<code data-eq="eq-resample">y*<sub>i</sub> = y<sub>i</sub> + s<sub>i</sub> · z<sub>i</sub></code>), recompute <code>ρ</code>, and repeat, which gives a distribution of <code>ρ</code> that accounts for the uncertainty in each measurement. The method requires no replicates and no new experiments, so we tested whether it tells us more about the ranking than the single measurement does.</p>
 
+  <p>The idea rests on a common convention: the measured value is the center of its distribution, and the curve-fit standard error is the width. The convention can be read three ways, and each gives resampled <code>ρ</code> a different meaning.</p>
+
+  <ul class="findings">
+    <li><strong>The measurement is the true value plus noise.</strong> Resampling adds a second noise draw to the first, and the question is whether resampled <code>ρ</code> moves toward the <code>ρ</code> we would see against the true values, which we call the oracle <code>ρ</code>.</li>
+    <li><strong>The measurement is the true value.</strong> The observed <code>ρ</code> of 0.26 is then already the oracle <code>ρ</code>, and the question is what resampling does to an exact quantity.</li>
+    <li><strong>The measurement locates the true value to within its standard error.</strong> With one measurement and nothing else to go on, the true value is as likely to lie on one side of it as the other, so the plausible true values follow <code>N(y<sub>i</sub>, s<sub>i</sub>²)</code>, the posterior under a flat prior. Resampled values are then draws of plausible true values, and resampled <code>ρ</code> becomes an estimate of the oracle <code>ρ</code>.</li>
+  </ul>
+
+  <p>A simulation in which the true values are known tests the first and third readings, and resampling the real measurements tests the second.</p>
+
   <h3>The curve-fit standard errors are small and correlate with σ</h3>
 
   <div class="chart-panel">
@@ -571,7 +581,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <h3>What resampling does when the truth is known</h3>
 
-  <p>To test what the change means, we simulate data in which the true values are known. Each simulated compound has its real predicted <code>σ<sub>i</sub></code>. Its true value is the prediction plus a model error, and its one measurement is the true value plus measurement noise. The measurement noise has standard deviation <code>s<sub>i</sub></code> (or a constant 0.3 log units), and the model error receives the rest of <code>σ<sub>i</sub></code>, a standard deviation of √(<code>σ<sub>i</sub></code>² − <code>s<sub>i</sub></code>²), so the simulated model is exactly calibrated, as in the replicate curve of <a href="#s04">section 04</a>. We then compute <code>ρ</code> between <code>σ<sub>i</sub></code> and the absolute residual three times, measuring the residual from the prediction to the true value, to the one measurement, and to the resampled measurement (averaged over 20 resamples). We call the first the oracle <code>ρ</code>, since it needs the true values. We repeat this for 1,000 datasets under each noise model.</p>
+  <p>To test what the change means, we simulate data in which the true values are known. Each simulated compound has its real predicted <code>σ<sub>i</sub></code>. Its true value is the prediction plus a model error, and its one measurement is the true value plus measurement noise. The measurement noise has standard deviation <code>s<sub>i</sub></code> (or a constant 0.3 log units), and the model error receives the rest of <code>σ<sub>i</sub></code>, a standard deviation of √(<code>σ<sub>i</sub></code>² − <code>s<sub>i</sub></code>²), so the simulated model is exactly calibrated, as in the replicate curve of <a href="#s04">section 04</a>. We then compute <code>ρ</code> between <code>σ<sub>i</sub></code> and the absolute residual three times, measuring the residual from the prediction to the true value, to the one measurement, and to the resampled measurement (averaged over 20 resamples). The first is the oracle <code>ρ</code>. We repeat this for 1,000 datasets under each noise model.</p>
 
   <div class="chart-panel">
     <div class="chart-title">Spearman ρ against the truth, one measurement, and resampling</div>
@@ -585,16 +595,6 @@ h2[id] { scroll-margin-top: 1.5rem; }
   </div>
 
   <p>With a constant noise of 0.3, resampling lowers <code>ρ</code> from 0.28 to 0.22, further from the oracle <code>ρ</code> of 0.42. The added noise is unrelated to <code>σ</code>, so it only scrambles the ranking. With the curve-fit <code>s<sub>i</sub></code>, resampling raises <code>ρ</code> slightly, from 0.28 to 0.29, further above the oracle <code>ρ</code> of 0.27. That rise is an artifact of the added noise. The noise is largest for compounds with a large <code>s<sub>i</sub></code>, which tend to have a large <code>σ</code>, so it inflates their residuals and builds in a correlation with <code>σ</code>. Under the two noise models, resampling moves <code>ρ</code> without bringing it closer to the oracle <code>ρ</code>.</p>
-
-  <h3>Does simulating a separate true value assume the answer?</h3>
-
-  <p>The simulation treats the true value and the measurement as different quantities. A common convention instead treats the measured value as the center of the distribution, with the curve-fit standard error as its width, and that might seem to rule out a separate true value from the start. The convention can be read three ways, and resampling fails to sharpen the ranking under each.</p>
-
-  <ul class="findings">
-    <li><strong>The measurement is the true value plus noise.</strong> This is the model the simulation uses, and there resampling does not move <code>ρ</code> toward the oracle <code>ρ</code>.</li>
-    <li><strong>The measurement is the true value.</strong> Then each observed residual is the true residual, and the oracle <code>ρ</code> is the observed 0.26. The curve-fit standard error would describe noise that is not present, and resampling adds error to an exact quantity: on the real data it moves <code>ρ</code> away from 0.26, to 0.28 or 0.22 depending on the noise added (below).</li>
-    <li><strong>The measurement locates the true value to within its standard error.</strong> With one measurement and nothing else to go on, the true value is as likely to lie on one side of it as the other, so the plausible true values follow <code>N(y<sub>i</sub>, s<sub>i</sub>²)</code>, the posterior under a flat prior. Resampled values are then draws of plausible true values, and resampled <code>ρ</code> becomes an estimate of the oracle <code>ρ</code>. The known-truth simulation tests that directly, and the estimate misses: 0.22 against an oracle <code>ρ</code> of 0.42 with a constant noise, and 0.29 against 0.27 with <code>s<sub>i</sub></code>. The flat prior ignores that true values cluster around the predictions, so the draws land too far from <code>ŷ<sub>i</sub></code>, with a variance of <code>σ<sub>i</sub></code>² + <code>s<sub>i</sub></code>² around the prediction where the true values have <code>σ<sub>i</sub></code>² − <code>s<sub>i</sub></code>². A prior that captured the clustering would have to come from <code>σ</code> itself, which would assume the calibration that <code>ρ</code> is meant to test.</li>
-  </ul>
 
   <h3>Resampling the real measurements</h3>
 
@@ -610,6 +610,16 @@ h2[id] { scroll-margin-top: 1.5rem; }
   </div>
 
   <p>The real data behave as the simulation predicts. Resampling with <code>s<sub>i</sub></code> gives a mean <code>ρ</code> of 0.28 (95% of resamples between 0.22 and 0.35), above the observed 0.26. Resampling with a constant 0.3 gives 0.22 (0.13 to 0.30), below it. The resampled values are no better than the observed value as estimates of how well <code>σ</code> ranks the compounds, because the noise we chose to add determined the size and direction of the change.</p>
+
+  <h3>Back to the three readings</h3>
+
+  <ul class="findings">
+    <li><strong>The measurement is the true value plus noise.</strong> This is the model the known-truth simulation uses, and resampling does not move <code>ρ</code> toward the oracle <code>ρ</code>: 0.22 against 0.42 with a constant noise, and 0.29 against 0.27 with <code>s<sub>i</sub></code>.</li>
+    <li><strong>The measurement is the true value.</strong> The observed 0.26 is exact, and resampling moves <code>ρ</code> away from it, to 0.28 with <code>s<sub>i</sub></code> or 0.22 with a constant noise.</li>
+    <li><strong>The measurement locates the true value to within its standard error.</strong> The resampled values in the simulation are exactly these flat-prior draws, so the same comparison applies, and resampled <code>ρ</code> misses the oracle <code>ρ</code> it is meant to estimate. The flat prior ignores that true values cluster around the predictions, so the draws land too far from <code>ŷ<sub>i</sub></code>, with a variance of <code>σ<sub>i</sub></code>² + <code>s<sub>i</sub></code>² around the prediction where the true values have <code>σ<sub>i</sub></code>² − <code>s<sub>i</sub></code>². A prior that captured the clustering would have to come from <code>σ</code> itself, which would assume the calibration that <code>ρ</code> is meant to test.</li>
+  </ul>
+
+  <p>Simulating a separate true value therefore does not assume the answer. Under each reading, resampling fails to sharpen the ranking.</p>
 
   <h3>What the curve-fit standard errors are good for</h3>
 
