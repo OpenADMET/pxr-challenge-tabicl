@@ -46,6 +46,9 @@ TARGET_COL = "pEC50"
 SOURCE_COL = "source"
 CANONICAL_COL = "canonical_smiles"
 
+# curve-fit standard error of each pEC50, as named in the released files
+PEC50_SE_COL = "pEC50_std.error"
+
 # seeded validation carve-out of the pooled fit set, for early stopping only
 VAL_FRACTION = 0.2
 SPLIT_SEED = 42
@@ -199,6 +202,47 @@ def canonical_smiles(smiles: str) -> str | None:
         return None
     parent = _LARGEST_FRAGMENT.choose(mol)
     return Chem.MolToSmiles(parent)
+
+
+def load_test_curve_fit_se(raw_dir: Path = RAW_DIR) -> pd.Series:
+    """Return the curve-fit standard error of each phase-2 pEC50, by canonical SMILES.
+
+    The challenge files report, for every pEC50, the standard error of the
+    dose-response fit that produced it. It measures how well one curve was
+    fitted within one run, not how far a repeat run would land.
+
+    Parameters
+    ----------
+    raw_dir : path-like
+        Directory holding the files ``fetch_raw`` wrote. Defaults to
+        ``data/raw``.
+
+    Returns
+    -------
+    pandas.Series
+        Standard error in pEC50 units, indexed by canonical SMILES and named
+        ``PEC50_SE_COL``.
+
+    Raises
+    ------
+    ValueError
+        If the file has no standard-error column, a standard error is missing
+        or not positive, or one canonical structure appears twice.
+    """
+    # the released headers carry a unit suffix, so match on the column stem
+    frame = pd.read_csv(raw_dir / PHASE2_FILE)
+    matches = [c for c in frame.columns if c.split(" (")[0] == PEC50_SE_COL]
+    if len(matches) != 1:
+        raise ValueError(f"{PHASE2_FILE}: expected one {PEC50_SE_COL} column, found {matches}")
+    se = frame[matches[0]].astype(float)
+    if se.isna().any() or (se <= 0).any():
+        raise ValueError(f"{PHASE2_FILE}: {PEC50_SE_COL} has missing or non-positive values")
+
+    # key by the canonical structure the split files are joined on
+    keys = frame[SMILES_COL].map(canonical_smiles)
+    if keys.isna().any() or keys.duplicated().any():
+        raise ValueError(f"{PHASE2_FILE}: canonical SMILES are not a unique key")
+    return pd.Series(se.to_numpy(), index=pd.Index(keys, name=CANONICAL_COL), name=PEC50_SE_COL)
 
 
 def _load_potency_csv(path: Path, source: str) -> pd.DataFrame:

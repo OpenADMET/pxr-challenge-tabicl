@@ -9,6 +9,7 @@ import pytest
 
 from data import (
     CANONICAL_COL,
+    PEC50_SE_COL,
     PHASE1_FILE,
     PHASE2_FILE,
     RAW_DIR,
@@ -18,6 +19,7 @@ from data import (
     _assert_disjoint,
     build_split,
     canonical_smiles,
+    load_test_curve_fit_se,
 )
 
 # the challenge's official split sizes: TRAIN (4139) + phase 1 (253) fit, phase 2 test
@@ -139,3 +141,37 @@ def test_the_committed_splits_regenerate_byte_identically(tmp_path):
     build_split(out_dir=tmp_path)
     for name in ("fit_all.csv", "fit_train.csv", "fit_val.csv", "test_phase2.csv"):
         assert (tmp_path / name).read_bytes() == (SPLIT_DIR / name).read_bytes(), name
+
+
+def _write_phase2_se(raw_dir: Path, smiles: list[str], se: list[float]) -> None:
+    """Write a phase-2 CSV with the released unit-suffixed standard-error header."""
+    frame = pd.DataFrame(
+        {
+            "SMILES": smiles,
+            TARGET_COL: [5.5] * len(smiles),
+            f"{PEC50_SE_COL} (-log10(molarity))": se,
+        }
+    )
+    frame.to_csv(raw_dir / PHASE2_FILE, index=False)
+
+
+def test_load_test_curve_fit_se_keys_by_canonical_smiles(tmp_path: Path):
+    _write_phase2_se(tmp_path, ["OCC", "CCCl.Cl"], [0.1, 0.25])
+
+    se = load_test_curve_fit_se(tmp_path)
+
+    assert se.to_dict() == {"CCO": 0.1, "CCCl": 0.25}
+
+
+def test_load_test_curve_fit_se_rejects_missing_values(tmp_path: Path):
+    _write_phase2_se(tmp_path, ["CCO", "CCCl"], [0.1, float("nan")])
+
+    with pytest.raises(ValueError, match="missing or non-positive"):
+        load_test_curve_fit_se(tmp_path)
+
+
+def test_load_test_curve_fit_se_rejects_duplicate_structures(tmp_path: Path):
+    _write_phase2_se(tmp_path, ["CCO", "OCC"], [0.1, 0.2])
+
+    with pytest.raises(ValueError, match="unique key"):
+        load_test_curve_fit_se(tmp_path)

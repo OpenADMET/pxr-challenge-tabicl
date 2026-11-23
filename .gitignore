@@ -35,6 +35,7 @@ results/uncertainty/*/*
 !results/uncertainty/*/points.csv
 !results/uncertainty/*/coverage.csv
 !results/uncertainty/*/replicates.csv
+!results/uncertainty/*/label_noise.json
 
 # each feature block's column count, recorded where the feature caches exist, so
 # a figure built on a machine without them still names its blocks' widths
