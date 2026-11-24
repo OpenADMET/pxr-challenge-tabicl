@@ -1,28 +1,31 @@
-"""Test whether resampling each measurement around itself can sharpen the ranking.
+"""Summarize the curve-fit standard errors and test a spread that includes them.
 
-The proposal under test treats each measured pEC50 as the center of a normal
-distribution whose width is the curve-fit standard error s, draws a new value
-from it for every compound, recomputes Spearman rho between sigma and the
-absolute residual, and repeats. The draws are y* = y + s z, so they center on
-the one measurement rather than on the true value, and every draw inherits that
-measurement's error.
+The challenge reports the standard error s of each test pEC50's dose-response
+fit. If the model's predicted standard deviation sigma describes its own error
+and s describes the measurement's noise, a measurement should land around the
+prediction with spread sqrt(sigma^2 + s^2), the convolution of the two
+normals. This script scores that combined spread against the measurements and
+compares it with sigma, with sigma rescaled by a constant, and with sigma
+combined with a constant noise.
 
 The following are written to label_noise.json beside the per-compound table:
 
 - how the curve-fit standard errors are distributed and how they relate to
   sigma, pEC50 and the absolute residual
-- the resampled rho on the real test set, under the curve-fit standard errors
-  and under a constant literature-style noise
-- rho after averaging several resampled values per compound, which returns
-  to the single-measurement rho as the number averaged grows
-- a simulation in which the true values are known, comparing rho against the
-  true values, against one measurement, and after resampling, under each
-  measurement-noise model (see src/label_noise.py)
-- rho within the better-fitted and worse-fitted halves of the test set, each
-  against the band a correct sigma produces for that half
-- the limit a correct sigma faces even with exact true values: rho when all
-  of sigma is model error, and how often one pair of compounds is ranked
-  correctly at a given ratio of their sigma
+- the average share of sigma^2 each measurement-noise model assigns to noise
+- the probability that a correct sigma ranks one pair of compounds correctly
+- for each predicted spread, the mean negative log-likelihood, the root mean
+  square of the standardized residuals, the miscalibration area, Spearman rho
+  against the absolute residual, and the band of rho a correct spread produces
+  with one residual per compound
+- paired bootstrap intervals for the likelihood and rho gains of the combined
+  spread
+- the mean absolute residual and the mean absolute residual each spread
+  expects, within quintiles of the curve-fit standard error
+- the same spread scores without the compounds measured below the assay
+  floor, whose pEC50 values are censored, the share of the combined spread's
+  likelihood gain those compounds account for, and how well sigma separates
+  them from the rest
 """
 
 from __future__ import annotations
@@ -45,21 +48,24 @@ import gates  # noqa: E402
 import label_noise  # noqa: E402
 import manifest as manifest_module  # noqa: E402
 import provenance  # noqa: E402
+import uncertainty  # noqa: E402
 
-DESCRIPTION = "Test whether resampling each measurement around itself sharpens the ranking."
+DESCRIPTION = "Summarize the curve-fit standard errors and test a spread that includes them."
 
 UNCERTAINTY_DIR = Path("results/uncertainty")
-RESAMPLING_NOISE_MODELS = ("curve_fit", "literature")
-N_RESAMPLES = 2000
-N_DATASETS = 1000
-N_INNER_RESAMPLES = 20
-RESAMPLE_AVERAGES = (1, 2, 3, 5, 10, 20, 50, 100, 1000)
-N_AVERAGE_REPEATS = 500
+NOISE_SHARE_MODELS = ("curve_fit", "literature")
+PAIR_SIGMAS = (0.6, 0.4)
 N_NULL = 2000
+N_BOOTSTRAP = 2000
+N_SE_GROUPS = 5
+
+# pEC50 below which a measured value is censored at the assay floor
+CENSOR_FLOOR = 4.0
 SE_BIN_WIDTH = 0.025
-RHO_BIN_WIDTH = 0.01
-PAIR_RATIOS = (1.5, 2.0, 4.0, 10.0)
 SEED = 0
+
+# mean absolute value of a zero-centered normal per unit standard deviation
+HALF_NORMAL_MEAN = float(np.sqrt(2 / np.pi))
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +82,12 @@ def _interval(values: NDArray[np.float64]) -> dict[str, float]:
     """Summarize draws as a mean and central 95% interval."""
     lo, hi = np.percentile(values, [2.5, 97.5])
     return {"mean": float(values.mean()), "lo": float(lo), "hi": float(hi)}
+
+
+def _quantiles(values: NDArray[np.float64]) -> dict[str, float]:
+    """Summarize draws as a median and central 95% interval."""
+    lo, median, hi = np.percentile(values, [2.5, 50, 97.5])
+    return {"lo": float(lo), "median": float(median), "hi": float(hi)}
 
 
 def _histogram(values: NDArray[np.float64], width: float) -> dict[str, Any]:
@@ -139,13 +151,10 @@ def describe_se(
     }
 
 
-def resample_real(
-    sigma: NDArray[np.float64],
-    residual: NDArray[np.float64],
-    noise: NDArray[np.float64],
-    rng: np.random.Generator,
-) -> NDArray[np.float64]:
-    """Return rho after resampling each measurement around itself, per resample.
+def predicted_spreads(
+    sigma: NDArray[np.float64], residual: NDArray[np.float64], curve_fit_se: NDArray[np.float64]
+) -> dict[str, NDArray[np.float64]]:
+    """Return each predicted spread compared, keyed by name.
 
     Parameters
     ----------
@@ -153,147 +162,204 @@ def resample_real(
         Predicted standard deviation of each compound.
     residual : array-like
         Signed residual, measurement minus prediction, of each compound.
-    noise : array-like
-        Width of the normal each measurement is resampled from.
-    rng : numpy.random.Generator
-        Source of the normal draws.
-
-    Returns
-    -------
-    numpy.ndarray
-        One rho per resample, shape ``(N_RESAMPLES,)``.
-    """
-    resampled = residual + rng.standard_normal((N_RESAMPLES, sigma.size)) * noise
-    return label_noise.spearman_rows(sigma, np.abs(resampled))
-
-
-def simulate_known_truth(
-    sigma: NDArray[np.float64], noise: NDArray[np.float64], rng: np.random.Generator
-) -> dict[str, dict[str, float]]:
-    """Compare rho against true values, one measurement, and resampling, with truth known.
-
-    Each simulated dataset draws a model error per compound with standard
-    deviation sqrt(sigma^2 - noise^2), then one measurement around the true
-    value with standard deviation ``noise``. The resampled rho of a dataset is
-    the mean over ``N_INNER_RESAMPLES`` resamples of its measurements.
-
-    Parameters
-    ----------
-    sigma : array-like
-        Predicted standard deviation of each compound, assumed correct.
-    noise : array-like
-        Measurement-noise standard deviation of each compound, at most sigma.
-    rng : numpy.random.Generator
-        Source of the normal draws.
+    curve_fit_se : array-like
+        Curve-fit standard error of each measured pEC50.
 
     Returns
     -------
     dict
-        For each of ``oracle`` (against the true values), ``single`` (against
-        one measurement), ``resampled`` and ``infinite_replicates`` (against the
-        mean absolute error infinitely many replicates converge on), the mean
-        and central 95% interval across datasets.
+        ``sigma``; ``sigma_rescaled``, sigma times the constant that brings the
+        root mean square standardized residual to 1; ``sigma_constant``, sigma
+        combined with the literature-style constant noise; and
+        ``sigma_curve_fit``, sigma combined with the curve-fit standard error.
     """
-    # Draw the fixed model errors and one measurement per compound per dataset
-    model_sd = np.sqrt(sigma**2 - noise**2)
-    model_error = rng.standard_normal((N_DATASETS, sigma.size)) * model_sd
-    measured = model_error + rng.standard_normal((N_DATASETS, sigma.size)) * noise
-
-    # Resample every dataset's measurements around themselves and average the rho
-    resampled = np.empty(N_DATASETS)
-    for k in range(N_DATASETS):
-        draws = measured[k] + rng.standard_normal((N_INNER_RESAMPLES, sigma.size)) * noise
-        resampled[k] = label_noise.spearman_rows(sigma, np.abs(draws)).mean()
-
-    limit = label_noise.folded_normal_mean(model_error, np.broadcast_to(noise, model_error.shape))
+    scale = np.sqrt(np.mean((residual / sigma) ** 2))
     return {
-        "oracle": _interval(label_noise.spearman_rows(sigma, np.abs(model_error))),
-        "single": _interval(label_noise.spearman_rows(sigma, np.abs(measured))),
-        "resampled": _interval(resampled),
-        "infinite_replicates": _interval(label_noise.spearman_rows(sigma, limit)),
+        "sigma": sigma,
+        "sigma_rescaled": scale * sigma,
+        "sigma_constant": np.sqrt(sigma**2 + label_noise.LITERATURE_NOISE**2),
+        "sigma_curve_fit": np.sqrt(sigma**2 + curve_fit_se**2),
     }
 
 
-def split_by_fit_quality(
-    sigma: NDArray[np.float64],
-    abs_residual: NDArray[np.float64],
-    curve_fit_se: NDArray[np.float64],
-    rng: np.random.Generator,
+def score_spread(
+    spread: NDArray[np.float64], residual: NDArray[np.float64], rng: np.random.Generator
+) -> dict[str, float]:
+    """Score one predicted spread against the residuals.
+
+    Parameters
+    ----------
+    spread : array-like
+        Predicted standard deviation of each residual.
+    residual : array-like
+        Signed residual, measurement minus prediction, of each compound.
+    rng : numpy.random.Generator
+        Source of the normal draws for the band of rho.
+
+    Returns
+    -------
+    dict
+        Mean negative log-likelihood, root mean square standardized residual,
+        miscalibration area, Spearman rho against the absolute residual, and
+        the mean, central 95% interval and percentile of the observed rho
+        among the rho values a correct spread produces with one residual per
+        compound.
+    """
+    abs_residual = np.abs(residual)
+    rho = float(stats.spearmanr(spread, abs_residual).statistic)
+    null = label_noise.spearman_rows(
+        spread, np.abs(rng.standard_normal((N_NULL, spread.size))) * spread
+    )
+    band = _interval(null)
+    expected, observed = uncertainty.coverage_curve(residual, np.zeros_like(residual), spread)
+    return {
+        "nll": label_noise.gaussian_nll(residual, spread),
+        "rms_z": float(np.sqrt(np.mean((residual / spread) ** 2))),
+        "miscalibration_area": uncertainty.miscalibration_area(expected, observed),
+        "rho": rho,
+        "null_mean": band["mean"],
+        "null_lo": band["lo"],
+        "null_hi": band["hi"],
+        "null_percentile": float(np.mean(null <= rho) * 100),
+    }
+
+
+def bootstrap_gains(
+    spreads: dict[str, NDArray[np.float64]], residual: NDArray[np.float64], rng: np.random.Generator
 ) -> dict[str, dict[str, float]]:
-    """Return rho and its correct-sigma band in the better- and worse-fitted halves.
+    """Return paired bootstrap intervals for the gains of the curve-fit combined spread.
+
+    Parameters
+    ----------
+    spreads : dict
+        Predicted spreads from ``predicted_spreads``.
+    residual : array-like
+        Signed residual, measurement minus prediction, of each compound.
+    rng : numpy.random.Generator
+        Source of the bootstrap resamples of compounds.
+
+    Returns
+    -------
+    dict
+        ``nll_vs_rescaled``, the rescaled sigma's negative log-likelihood minus
+        the combined spread's, and ``rho_vs_sigma``, the combined spread's rho
+        minus sigma's, each as a median and central 95% interval.
+    """
+    combined, rescaled, sigma = (
+        spreads["sigma_curve_fit"],
+        spreads["sigma_rescaled"],
+        spreads["sigma"],
+    )
+    nll_gain = np.empty(N_BOOTSTRAP)
+    rho_gain = np.empty(N_BOOTSTRAP)
+    for k in range(N_BOOTSTRAP):
+        idx = rng.integers(0, residual.size, residual.size)
+        r = residual[idx]
+        nll_gain[k] = label_noise.gaussian_nll(r, rescaled[idx]) - label_noise.gaussian_nll(
+            r, combined[idx]
+        )
+        rho_gain[k] = (
+            stats.spearmanr(combined[idx], np.abs(r)).statistic
+            - stats.spearmanr(sigma[idx], np.abs(r)).statistic
+        )
+    return {"nll_vs_rescaled": _quantiles(nll_gain), "rho_vs_sigma": _quantiles(rho_gain)}
+
+
+def by_se_group(
+    sigma: NDArray[np.float64], residual: NDArray[np.float64], curve_fit_se: NDArray[np.float64]
+) -> list[dict[str, float]]:
+    """Compare observed and expected absolute residuals within quintiles of the standard error.
 
     Parameters
     ----------
     sigma : array-like
         Predicted standard deviation of each compound.
-    abs_residual : array-like
-        Absolute residual of each compound.
+    residual : array-like
+        Signed residual, measurement minus prediction, of each compound.
     curve_fit_se : array-like
-        Curve-fit standard error of each compound, split at its median.
-    rng : numpy.random.Generator
-        Source of the normal draws for the band.
+        Curve-fit standard error of each measured pEC50.
 
     Returns
     -------
-    dict
-        For ``low_se`` and ``high_se``, the compound count, observed rho, and
-        the mean and central 95% interval of rho under a correct sigma.
+    list of dict
+        One entry per quintile, lowest standard errors first, with its
+        standard-error range, compound count, mean standard error, mean sigma,
+        mean absolute residual, and the mean absolute residual that sigma and
+        the combined spread each expect.
     """
-    cut = np.median(curve_fit_se)
-    halves = {"low_se": curve_fit_se <= cut, "high_se": curve_fit_se > cut}
-    summary = {}
-    for name, mask in halves.items():
-        null = label_noise.spearman_rows(
-            sigma[mask], np.abs(rng.standard_normal((N_NULL, int(mask.sum())))) * sigma[mask]
+    edges = np.quantile(curve_fit_se, np.linspace(0, 1, N_SE_GROUPS + 1))
+    group = np.clip(np.searchsorted(edges, curve_fit_se, side="right") - 1, 0, N_SE_GROUPS - 1)
+    combined = np.sqrt(sigma**2 + curve_fit_se**2)
+    rows = []
+    for g in range(N_SE_GROUPS):
+        mask = group == g
+        rows.append(
+            {
+                "se_lo": float(edges[g]),
+                "se_hi": float(edges[g + 1]),
+                "n": int(mask.sum()),
+                "mean_se": float(curve_fit_se[mask].mean()),
+                "mean_sigma": float(sigma[mask].mean()),
+                "mean_abs_residual": float(np.abs(residual[mask]).mean()),
+                "expected_sigma": float(HALF_NORMAL_MEAN * sigma[mask].mean()),
+                "expected_combined": float(HALF_NORMAL_MEAN * combined[mask].mean()),
+            }
         )
-        band = _interval(null)
-        summary[name] = {
-            "n": int(mask.sum()),
-            "rho": float(stats.spearmanr(sigma[mask], abs_residual[mask]).statistic),
-            "null_mean": band["mean"],
-            "null_lo": band["lo"],
-            "null_hi": band["hi"],
-        }
-    return summary
+    return rows
 
 
-def exact_truth_limit(sigma: NDArray[np.float64], rng: np.random.Generator) -> dict[str, Any]:
-    """Summarize how well a correct sigma ranks errors when the true values are known.
+def describe_censored(
+    sigma: NDArray[np.float64],
+    residual: NDArray[np.float64],
+    curve_fit_se: NDArray[np.float64],
+    predicted: NDArray[np.float64],
+    censored: NDArray[np.bool_],
+) -> dict[str, float]:
+    """Summarize the censored compounds and their share of the combined spread's gain.
 
     Parameters
     ----------
     sigma : array-like
-        Predicted standard deviation of each compound, assumed correct and
-        entirely model error.
-    rng : numpy.random.Generator
-        Source of the normal draws.
+        Predicted standard deviation of each compound.
+    residual : array-like
+        Signed residual, measurement minus prediction, of each compound.
+    curve_fit_se : array-like
+        Curve-fit standard error of each measured pEC50.
+    predicted : array-like
+        Predicted pEC50 of each compound.
+    censored : array-like of bool
+        Whether each compound was measured below the assay floor.
 
     Returns
     -------
     dict
-        The mean and central 95% interval of rho against the true values, the
-        probability of ranking a pair correctly at each of ``PAIR_RATIOS``,
-        and, over every pair of test compounds, the median sigma ratio, the
-        share of pairs with a ratio below 1.5, and the mean probability of
-        ranking a pair correctly.
+        Compound count, mean sigma and median standard error inside and outside
+        the censored group, the median prediction for censored compounds, the
+        area under the ROC curve of sigma for separating censored compounds,
+        and the share of the combined spread's negative log-likelihood gain
+        over sigma that comes from censored compounds.
     """
-    oracle = label_noise.spearman_rows(
-        sigma, np.abs(rng.standard_normal((N_NULL, sigma.size))) * sigma
+    combined = np.sqrt(sigma**2 + curve_fit_se**2)
+    gain = _nll_terms(residual, sigma) - _nll_terms(residual, combined)
+    auc = stats.mannwhitneyu(sigma[censored], sigma[~censored]).statistic / (
+        censored.sum() * (~censored).sum()
     )
-    upper = np.triu_indices(sigma.size, k=1)
-    ratios = np.maximum(sigma[upper[0]], sigma[upper[1]]) / np.minimum(
-        sigma[upper[0]], sigma[upper[1]]
-    )
-    probabilities = label_noise.pair_ranking_probability(np.array(PAIR_RATIOS))
     return {
-        "oracle": _interval(oracle),
-        "pair_probability": {
-            f"{r:g}": float(p) for r, p in zip(PAIR_RATIOS, probabilities, strict=True)
-        },
-        "median_pair_ratio": float(np.median(ratios)),
-        "share_pairs_below_1_5": float(np.mean(ratios < 1.5)),
-        "mean_pair_probability": float(label_noise.pair_ranking_probability(ratios).mean()),
+        "floor": CENSOR_FLOOR,
+        "n": int(censored.sum()),
+        "mean_sigma": float(sigma[censored].mean()),
+        "mean_sigma_rest": float(sigma[~censored].mean()),
+        "median_se": float(np.median(curve_fit_se[censored])),
+        "median_se_rest": float(np.median(curve_fit_se[~censored])),
+        "median_predicted": float(np.median(predicted[censored])),
+        "auc_sigma": float(auc),
+        "nll_gain_share": float(gain[censored].sum() / gain.sum()),
     }
+
+
+def _nll_terms(residual: NDArray[np.float64], spread: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Return each compound's negative log-likelihood under a zero-centered normal."""
+    return 0.5 * np.log(2 * np.pi * spread**2) + 0.5 * (residual / spread) ** 2
 
 
 def main() -> None:
@@ -307,57 +373,49 @@ def main() -> None:
     points = label_noise.load_points(out_dir / "points.csv")
     sigma = points["model_sigma"].to_numpy(dtype=np.float64)
     residual = (points["observed"] - points["predicted"]).to_numpy(dtype=np.float64)
-    abs_residual = np.abs(residual)
     curve_fit_se = points["curve_fit_se"].to_numpy(dtype=np.float64)
     observed = points["observed"].to_numpy(dtype=np.float64)
 
+    # Summarize the standard errors and the noise share each noise model implies
     record: dict[str, Any] = {
         "n": int(sigma.size),
-        "observed_rho": float(stats.spearmanr(sigma, abs_residual).statistic),
+        "observed_rho": float(stats.spearmanr(sigma, np.abs(residual)).statistic),
         "literature_noise": label_noise.LITERATURE_NOISE,
-        "curve_fit_se": describe_se(curve_fit_se, sigma, observed, abs_residual),
-        "resampled_real": {},
-        "resampled_average": {},
-        "known_truth": {},
-        "noise_share": {},
+        "curve_fit_se": describe_se(curve_fit_se, sigma, observed, np.abs(residual)),
+        "noise_share": {
+            model: float(
+                np.mean(label_noise.measurement_noise(model, sigma, curve_fit_se) ** 2)
+                / np.mean(sigma**2)
+            )
+            for model in NOISE_SHARE_MODELS
+        },
+        "pair_probability": float(
+            label_noise.pair_ranking_probability(np.array(PAIR_SIGMAS[0] / PAIR_SIGMAS[1]))
+        ),
     }
 
-    # Resample the real measurements, and simulate with the truth known, per noise model
-    for index, model in enumerate(RESAMPLING_NOISE_MODELS):
-        noise = label_noise.measurement_noise(model, sigma, curve_fit_se)
-        record["noise_share"][model] = float(np.mean(noise**2) / np.mean(sigma**2))
-        rho = resample_real(sigma, residual, noise, np.random.default_rng([args.seed, 0, index]))
-        record["resampled_real"][model] = _interval(rho) | {
-            "histogram": _histogram(rho, RHO_BIN_WIDTH)
-        }
-        record["resampled_average"][model] = [
-            {"averaged": n_averaged}
-            | _interval(
-                label_noise.averaged_resample_rho(
-                    sigma,
-                    residual,
-                    noise,
-                    n_averaged,
-                    N_AVERAGE_REPEATS,
-                    np.random.default_rng([args.seed, 4, index, n_averaged]),
-                )
-            )
-            for n_averaged in RESAMPLE_AVERAGES
-        ]
-        record["known_truth"][model] = simulate_known_truth(
-            sigma, noise, np.random.default_rng([args.seed, 1, index])
-        )
-        logger.info(
-            "%s: resampled real rho %.3f; known truth %s",
-            model,
-            rho.mean(),
-            {k: round(v["mean"], 3) for k, v in record["known_truth"][model].items()},
-        )
+    # Score each predicted spread, then the paired gains and the standard-error quintiles
+    spreads = predicted_spreads(sigma, residual, curve_fit_se)
+    record["spreads"] = {
+        name: score_spread(spread, residual, np.random.default_rng([args.seed, index]))
+        for index, (name, spread) in enumerate(spreads.items())
+    }
+    record["spread_scale"] = float(spreads["sigma_rescaled"][0] / sigma[0])
+    record["bootstrap"] = bootstrap_gains(spreads, residual, np.random.default_rng([args.seed, 9]))
+    record["by_se_group"] = by_se_group(sigma, residual, curve_fit_se)
 
-    record["exact_truth"] = exact_truth_limit(sigma, np.random.default_rng([args.seed, 3]))
-    record["fit_quality_halves"] = split_by_fit_quality(
-        sigma, abs_residual, curve_fit_se, np.random.default_rng([args.seed, 2])
-    )
+    # Repeat the spread scores without the censored compounds, and describe those compounds
+    predicted = points["predicted"].to_numpy(dtype=np.float64)
+    censored = observed < CENSOR_FLOOR
+    kept = ~censored
+    kept_spreads = predicted_spreads(sigma[kept], residual[kept], curve_fit_se[kept])
+    record["spreads_uncensored"] = {
+        name: score_spread(spread, residual[kept], np.random.default_rng([args.seed, 20 + index]))
+        for index, (name, spread) in enumerate(kept_spreads.items())
+    }
+    record["censored"] = describe_censored(sigma, residual, curve_fit_se, predicted, censored)
+    for name, score in record["spreads"].items():
+        logger.info("%s: nll %.3f, rho %.3f", name, score["nll"], score["rho"])
 
     # Write the record beside the per-compound points
     out_path = out_dir / "label_noise.json"

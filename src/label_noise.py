@@ -14,6 +14,10 @@ model error, the case where replicates change nothing) to 1 (all measurement
 noise, the case where replicates converge on a perfect ranking). The two
 realistic models use the curve-fit standard error the challenge reports for
 each pEC50 and a constant literature-style value.
+
+The module also scores a predicted spread for each residual by its Gaussian
+negative log-likelihood, which compares the spread sigma predicts with one
+that adds the curve-fit standard error.
 """
 
 from __future__ import annotations
@@ -175,75 +179,22 @@ def simulate_replicates(
     return spearman_rows(sigma, mean_error)
 
 
-def averaged_resample_rho(
-    sigma: NDArray[np.float64],
-    residual: NDArray[np.float64],
-    noise: NDArray[np.float64],
-    n_averaged: int,
-    n_repeats: int,
-    rng: np.random.Generator,
-) -> NDArray[np.float64]:
-    """Return rho after averaging several resampled values per measurement, per repeat.
-
-    Each compound's measurement is resampled ``n_averaged`` times around
-    itself, the resampled values are averaged, and rho is computed between
-    sigma and the absolute distance of that average from the prediction. The
-    mean of ``n_averaged`` normal draws of width ``noise`` is one normal draw
-    of width ``noise / sqrt(n_averaged)``, so the average is drawn directly.
-    As ``n_averaged`` grows, every average returns to its measurement and rho
-    returns to the single-measurement value.
+def gaussian_nll(residual: NDArray[np.float64], spread: NDArray[np.float64]) -> float:
+    """Return the mean negative log-likelihood of residuals under zero-centered normals.
 
     Parameters
     ----------
-    sigma : array-like
-        Predicted standard deviation of each compound.
     residual : array-like
         Signed residual, measurement minus prediction, of each compound.
-    noise : array-like
-        Width of the normal each measurement is resampled from.
-    n_averaged : int
-        Resampled values averaged per compound.
-    n_repeats : int
-        Independent repeats to run.
-    rng : numpy.random.Generator
-        Source of the normal draws.
+    spread : array-like
+        Predicted standard deviation of each residual, all positive.
 
     Returns
     -------
-    numpy.ndarray
-        One rho per repeat, shape ``(n_repeats,)``.
+    float
+        Mean of ``-log N(residual; 0, spread^2)`` across compounds, in nats.
     """
-    # Draw each average of n_averaged resamples as one narrower normal
-    averaged_noise = noise / np.sqrt(n_averaged)
-    averaged = residual + rng.standard_normal((n_repeats, sigma.size)) * averaged_noise
-    return spearman_rows(sigma, np.abs(averaged))
-
-
-def folded_normal_mean(
-    offset: NDArray[np.float64], scale: NDArray[np.float64]
-) -> NDArray[np.float64]:
-    """Return E|offset + scale * z| for a standard normal z.
-
-    This is the mean absolute error infinitely many replicates would converge
-    on, for a fixed model error ``offset`` and measurement noise ``scale``.
-
-    Parameters
-    ----------
-    offset : array-like
-        Fixed shift of each normal.
-    scale : array-like
-        Standard deviation of each normal; zero gives ``|offset|``.
-
-    Returns
-    -------
-    numpy.ndarray
-        The mean of each folded normal.
-    """
-    # Avoid dividing by a zero scale, where the folded mean is just |offset|
-    safe = np.where(scale > 0, scale, 1.0)
-    spread = safe * np.sqrt(2 / np.pi) * np.exp(-(offset**2) / (2 * safe**2))
-    shift = offset * (1 - 2 * stats.norm.cdf(-offset / safe))
-    return np.where(scale > 0, spread + shift, np.abs(offset))
+    return float(np.mean(0.5 * np.log(2 * np.pi * spread**2) + 0.5 * (residual / spread) ** 2))
 
 
 def pair_ranking_probability(ratio: NDArray[np.float64]) -> NDArray[np.float64]:
