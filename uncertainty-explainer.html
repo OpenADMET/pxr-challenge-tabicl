@@ -468,10 +468,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
         <option value="lucky">Lucky draw</option>
         <option value="typical" selected>Typical draw</option>
         <option value="unlucky">Unlucky draw</option>
-        <option value="custom" hidden>Random</option>
       </select>
-      <button class="sim-btn" id="oneflip-random">New measurement</button>
-      <button class="sim-btn" id="oneflip-truth">New true value</button>
     </div>
     <canvas id="oneflip-chart" height="340"></canvas>
     <div class="stats-row" id="oneflip-stats">
@@ -495,7 +492,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
       <span class="legend-item" style="white-space:nowrap"><span class="legend-swatch" style="background:var(--green)"></span> Lucky</span>
       <span class="legend-item" style="white-space:nowrap"><span class="legend-swatch" style="background:var(--red)"></span> Unlucky</span>
     </div>
-    <div class="chart-caption">We define an oracle-derived "true distribution," only obtainable through repeat experiments but granted here (purple). A single experiment yields one draw from this underlying distribution (orange), with probability according to the idealized Gaussian we impose. The model's prediction (cyan) has a separate center and width. Below the axis, the dashed orange bracket is the true residual, the gap between the prediction and the true value, and the solid green or red appendage runs from the prediction to the draw, so its length is the observed residual. Green means the observed residual is shorter than reality (<span class="tag lucky">lucky</span>); red means it is longer (<span class="tag unlucky">unlucky</span>). The draw percentile is the share of the true distribution below the draw. Click <strong>New measurement</strong> repeatedly to see how much the observed residual jumps around. <strong>New true value</strong> also redraws the true value, from the part of the prediction's spread that is model error: the true residual is a draw too, and another compound with the same <code>σ</code> could have a very different one.</div>
+    <div class="chart-caption">We define an oracle-derived "true distribution," only obtainable through repeat experiments but granted here (purple). A single experiment yields one draw from this underlying distribution (orange), with probability according to the idealized Gaussian we impose. The model's prediction (cyan) has a separate center and width. Below the axis, the dashed orange bracket is the true residual, the gap between the prediction and the true value, and the solid green or red appendage runs from the prediction to the draw, so its length is the observed residual. Green means the observed residual is shorter than reality (<span class="tag lucky">lucky</span>); red means it is longer (<span class="tag unlucky">unlucky</span>). The draw percentile is the share of the true distribution below the draw. The values are illustrative, and the menu switches between a lucky, a typical and an unlucky draw.</div>
   </div>
 
   <p>A compound with a wide predicted distribution (high <code>σ</code>) <em>will, on average</em>, produce larger residuals, but on any single occasion it might land close to the predicted mean and show a small error. Wide distributions still produce values near their center.</p>
@@ -1683,25 +1680,20 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
 (function() {
   const canvas = document.getElementById('oneflip-chart');
   const select = document.getElementById('oneflip-scenario');
-  const randomBtn = document.getElementById('oneflip-random');
   const pctEl = document.getElementById('oneflip-pct');
   const obsEl = document.getElementById('oneflip-obs');
   const trueEl = document.getElementById('oneflip-true');
 
-  const MU_TRUE_DEFAULT = 0;
-  let MU_TRUE = MU_TRUE_DEFAULT;
+  const MU_TRUE = 0;
   const MU_PRED = 0.8;
   const SIGMA_NOISE = 0.35;
   const SIGMA_PRED = 0.55;
-  const SIGMA_MODEL = Math.sqrt(SIGMA_PRED ** 2 - SIGMA_NOISE ** 2);
 
   const SCENARIOS = {
     lucky:   0.50,
     typical: 0.05,
     unlucky: -0.55,
   };
-
-  let flipRng = mulberry32(99);
 
   function erfApprox(x) {
     const a1 =  0.254829592, a2 = -0.284496736, a3 =  1.421413741;
@@ -1924,30 +1916,7 @@ drawQuintileBar('nll-chart', 'meanNLL', C.orange, 'Mean NLL');
     trueEl.textContent = TRUE_RESIDUAL.toFixed(2);
   }
 
-  // Draw a normal value, redrawing until it falls inside the plotted range
-  const drawWithin = (mu, sd, lo, hi) => {
-    let v;
-    do { v = mu + sd * randn(flipRng); } while (v < lo || v > hi);
-    return v;
-  };
-
-  select.addEventListener('change', () => {
-    const val = SCENARIOS[select.value];
-    if (val === undefined) return;
-    MU_TRUE = MU_TRUE_DEFAULT;
-    render(val);
-  });
-
-  randomBtn.addEventListener('click', () => {
-    select.value = 'custom';
-    render(drawWithin(MU_TRUE, SIGMA_NOISE, -1.4, 2.2));
-  });
-
-  document.getElementById('oneflip-truth').addEventListener('click', () => {
-    select.value = 'custom';
-    MU_TRUE = drawWithin(MU_PRED, SIGMA_MODEL, -0.6, 1.7);
-    render(drawWithin(MU_TRUE, SIGMA_NOISE, -1.4, 2.2));
-  });
+  select.addEventListener('change', () => render(SCENARIOS[select.value]));
 
   render(SCENARIOS.typical);
 })();
