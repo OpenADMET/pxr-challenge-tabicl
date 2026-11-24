@@ -459,7 +459,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <p>The coin is the compound's residual, whether it comes from assay noise, model error, or a mix of both. Part of the error comes from the assay, and a repeat experiment flips that part again. Part comes from the model, and that part is flipped once, when the model is trained: the compound has one true value, and the model makes one prediction for it.</p>
   </div>
 
-  <p>Our scatter plot has the same problem. Each compound's predicted <code>σ</code> defines a <em>distribution</em> of possible errors, and each residual is the distance between the prediction and one measurement. The chart below splits that distance into two parts: the gap between the prediction and the compound's true value (the model error, shown as the dashed orange bracket) and the gap between the true value and the measurement (the measurement noise, whose spread is the purple distribution).</p>
+  <p>Our scatter plot has the same problem. Each compound's predicted <code>σ</code> defines a <em>distribution</em> of possible errors, and each residual is the distance between the prediction and one measurement. The chart below splits that distance into two parts: the gap between the prediction and the compound's true value (the model error, shown as the dashed orange bracket) and the gap between the true value and the measurement (the measurement noise, whose spread is the purple distribution). The true value is illustrative, a way to show where a residual comes from; the calculation of <code>ρ</code> uses only the measurement and the prediction (<a href="#s07">section 07</a>).</p>
 
   <div class="chart-panel" style="margin-top:1.5rem">
     <div class="chart-title">A single experimental draw can misrepresent the true residual</div>
