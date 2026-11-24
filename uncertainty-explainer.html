@@ -582,8 +582,6 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p>The resampled values scatter around the measurement, not the true value. However many we draw, they give back the measurement with an error bar of width <code>s<sub>i</sub></code>, and they tell us nothing new about where the true value <code>t<sub>i</sub></code> lies. Resampling does change <code>ρ</code>. Each resampled residual is the observed residual plus a fresh draw of width <code>s<sub>i</sub></code>, so the compounds with the largest <code>s<sub>i</sub></code> receive the most added scatter.</p>
 
-  <h3>Resampling the real measurements</h3>
-
   <div class="chart-panel">
     <div class="chart-title">Spearman ρ after resampling the 260 real measurements</div>
     <canvas id="realresample-chart" height="280" role="img" aria-label="Histograms of rho after resampling the real test measurements with the curve-fit standard errors and with a constant 0.3, with the observed rho marked"></canvas>
