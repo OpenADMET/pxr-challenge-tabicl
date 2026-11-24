@@ -582,36 +582,11 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p>A natural follow-up is to ask whether error information we already have can help. Each pEC50 comes from a dose-response fit, and the challenge data reports the standard error of that fit, <code>s<sub>i</sub></code>, for every compound. The idea is to treat each measured value as the center of a normal distribution with width <code>s<sub>i</sub></code>, draw a new value for every compound (<code data-eq="eq-resample">y*<sub>i</sub> = y<sub>i</sub> + s<sub>i</sub> · z<sub>i</sub></code>), recompute <code>ρ</code>, and repeat, which gives a distribution of <code>ρ</code> that accounts for the uncertainty in each measurement.</p>
 
-  <p>The idea rests on a common convention: the measured value is the center of its distribution, and the curve-fit standard error is the width. The convention can be read three ways, and each gives resampled <code>ρ</code> a different meaning.</p>
-
-  <ul class="findings">
-    <li><strong>The measurement is the true value plus noise.</strong> Resampling adds a second noise draw to the first, and the question is whether resampled <code>ρ</code> moves toward the <code>ρ</code> we would see against the true values, which we call the oracle <code>ρ</code>.</li>
-    <li><strong>The measurement is the true value.</strong> The observed <code>ρ</code> of 0.26 is then already the oracle <code>ρ</code>, and the question is what resampling does to an exact quantity.</li>
-    <li><strong>The measurement locates the true value to within its standard error.</strong> With one measurement and nothing else to go on, the true value is as likely to lie on one side of it as the other, so the plausible true values follow <code>N(y<sub>i</sub>, s<sub>i</sub>²)</code>, the posterior under a flat prior. Resampled values are then draws of plausible true values, and resampled <code>ρ</code> becomes an estimate of the oracle <code>ρ</code>.</li>
-  </ul>
+  <p>The idea rests on a common convention: the measured value is the center of its distribution, and the curve-fit standard error is the width. The convention can be read three ways, and we return to each after the results.</p>
 
   <p>The resampled values scatter around the measurement, not the true value. However many we draw, they give back the measurement with an error bar of width <code>s<sub>i</sub></code>, and they tell us nothing new about where the true value <code>t<sub>i</sub></code> lies. Resampling does change <code>ρ</code>. Each resampled residual is the observed residual plus a fresh draw of width <code>s<sub>i</sub></code>, so the compounds with the largest <code>s<sub>i</sub></code> receive the most added scatter.</p>
 
   <p>The standard errors also correlate with the model's <code>σ</code>, with a Spearman correlation of 0.54. Weakly active compounds have flat dose-response curves whose pEC50 is poorly determined (the Spearman correlation between <code>s<sub>i</sub></code> and pEC50 is −0.83), and the model also gives weakly active compounds a higher <code>σ</code> (the Spearman correlation between <code>σ<sub>i</sub></code> and pEC50 is −0.53). A good predictive <code>σ</code> should behave this way: some of the error it predicts comes from the assay, and compounds with poorly determined curves are harder to predict.</p>
-
-  <p>A simulation in which the true values are known tests the first and third readings, and resampling the real measurements tests the second.</p>
-
-  <h3>What resampling does when the truth is known</h3>
-
-  <p>To test what the change means, we simulate data in which the true values are known. Each simulated compound has its real predicted <code>σ<sub>i</sub></code>. Its true value is the prediction plus a model error, and its one measurement is the true value plus measurement noise. The measurement noise has standard deviation <code>s<sub>i</sub></code> (or a constant 0.3 log units), and the model error receives the rest of <code>σ<sub>i</sub></code>, a standard deviation of √(<code>σ<sub>i</sub></code>² − <code>s<sub>i</sub></code>²), so the simulated model is exactly calibrated, as in the replicate curve of <a href="#s06">section 06</a>. We then compute <code>ρ</code> between <code>σ<sub>i</sub></code> and the absolute residual three times, measuring the residual from the prediction to the true value, to the one measurement, and to the resampled measurement (averaged over 20 resamples). The first is the oracle <code>ρ</code>. We repeat this for 1,000 datasets under each noise model.</p>
-
-  <div class="chart-panel">
-    <div class="chart-title">Spearman ρ against the truth, one measurement, and resampling</div>
-    <canvas id="truth-chart" height="300" role="img" aria-label="For two measurement-noise models, the mean and 95 percent interval of rho against the true values, against one measurement, and after resampling"></canvas>
-    <div class="legend-row" style="flex-wrap:wrap">
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--purple)"></span> Against the true values</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> Against one measurement</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--green)"></span> After resampling</span>
-    </div>
-    <div class="chart-caption">Each dot is the mean across 1,000 simulated datasets, each line spans the central 95% of datasets, and the number at right is the mean. The data are simulated from the real predicted <code>σ<sub>i</sub></code>, so the true values are known.</div>
-  </div>
-
-  <p>With a constant noise of 0.3, resampling lowers <code>ρ</code> from 0.28 to 0.22, further from the oracle <code>ρ</code> of 0.42. The added noise is unrelated to <code>σ</code>, so it only scrambles the ranking. With the curve-fit <code>s<sub>i</sub></code>, resampling raises <code>ρ</code> slightly, from 0.28 to 0.29, further above the oracle <code>ρ</code> of 0.27. That rise is an artifact of the added noise. The noise is largest for compounds with a large <code>s<sub>i</sub></code>, which tend to have a large <code>σ</code>, so it inflates their residuals and builds in a correlation with <code>σ</code>.</p>
 
   <h3>Resampling the real measurements</h3>
 
@@ -626,17 +601,17 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <div class="chart-caption">Each histogram contains 2,000 resamples for one noise model, in bins of 0.01. Each resample draws a new value around every measured pEC50 and recomputes Spearman <code>ρ</code> between <code>σ</code> and the absolute residual.</div>
   </div>
 
-  <p>The real data behave as the simulation predicts. Resampling with <code>s<sub>i</sub></code> gives a mean <code>ρ</code> of 0.28 (95% of resamples between 0.22 and 0.35), above the observed 0.26. Resampling with a constant 0.3 gives 0.22 (0.13 to 0.30), below it. The resampled values are no better than the observed value as estimates of how well <code>σ</code> ranks the compounds, because the noise we chose to add determined the size and direction of the change.</p>
+  <p>Resampling with <code>s<sub>i</sub></code> gives a mean <code>ρ</code> of 0.28 (95% of resamples between 0.22 and 0.35), above the observed 0.26. Resampling with a constant 0.3 gives 0.22 (0.13 to 0.30), below it. The constant noise is unrelated to <code>σ</code>, so it only scrambles the ranking. The curve-fit noise is largest for compounds with a large <code>s<sub>i</sub></code>, which tend to have a large <code>σ</code>, so it inflates their residuals and builds in a correlation with <code>σ</code>. The resampled values are no better than the observed value as estimates of how well <code>σ</code> ranks the compounds, because the noise we chose to add determined the size and direction of the change.</p>
 
-  <h3>Back to the three readings</h3>
+  <h3>What resampling means under each reading</h3>
 
   <ul class="findings">
-    <li><strong>The measurement is the true value plus noise.</strong> This is the model the known-truth simulation uses, and resampling does not move <code>ρ</code> toward the oracle <code>ρ</code>: 0.22 against 0.42 with a constant noise, and 0.29 against 0.27 with <code>s<sub>i</sub></code>.</li>
-    <li><strong>The measurement is the true value.</strong> The observed 0.26 is exact, and resampling moves <code>ρ</code> away from it, to 0.28 with <code>s<sub>i</sub></code> or 0.22 with a constant noise.</li>
-    <li><strong>The measurement locates the true value to within its standard error.</strong> The resampled values in the simulation are exactly these flat-prior draws, so the same comparison applies, and resampled <code>ρ</code> misses the oracle <code>ρ</code> it is meant to estimate. The flat prior ignores that true values cluster around the predictions, so the draws land too far from <code>ŷ<sub>i</sub></code>, with a variance of <code>σ<sub>i</sub></code>² + <code>s<sub>i</sub></code>² around the prediction where the true values have <code>σ<sub>i</sub></code>² − <code>s<sub>i</sub></code>². A prior that captured the clustering would have to come from <code>σ</code> itself, which would assume the calibration that <code>ρ</code> is meant to test.</li>
+    <li><strong>The measurement is the true value plus noise.</strong> Resampling adds a second noise draw on top of the one already in the measurement. It cannot remove the first draw, so the resampled residuals lie further from the true residuals than the observed ones do, and the change in <code>ρ</code> reflects the noise we added.</li>
+    <li><strong>The measurement is the true value.</strong> The observed 0.26 is then exact, and resampling only moves <code>ρ</code> away from it, to 0.28 with <code>s<sub>i</sub></code> or 0.22 with a constant noise.</li>
+    <li><strong>The measurement locates the true value to within its standard error.</strong> With one measurement and nothing else to go on, the plausible true values follow <code>N(y<sub>i</sub>, s<sub>i</sub>²)</code>, the posterior under a flat prior, and the resampled values are draws of them. The draws scatter in every direction around the measurement, so on average they land further from the prediction than the true values do, most of all where <code>s<sub>i</sub></code> is largest. A prior that placed the true values closer to the predictions would have to come from <code>σ</code> itself, which would assume the calibration that <code>ρ</code> is meant to test.</li>
   </ul>
 
-  <p>Simulating a separate true value therefore does not assume the answer. Under each reading, resampling fails to sharpen the ranking.</p>
+  <p>Under each reading, resampling fails to sharpen the ranking.</p>
 
   <h3>What the curve-fit standard errors are good for</h3>
 
@@ -2012,78 +1987,6 @@ const LN = {
     const i = edges.findIndex((e, k) => k < counts.length && v >= e && v < edges[k + 1]);
     if (i < 0) { hideChartTip(); return; }
     showChartTip(`sᵢ ${edges[i].toFixed(3)} to ${edges[i + 1].toFixed(3)}&emsp;${counts[i]} compounds`, ev);
-  });
-  canvas.addEventListener('mouseleave', hideChartTip);
-})();
-
-// ===== LABEL NOISE: KNOWN-TRUTH COMPARISON =====
-(function() {
-  const canvas = document.getElementById('truth-chart');
-  const { W, H } = LN.size(canvas, 300);
-  const pad = { t: 12, r: 52, b: 44, l: 140 };
-  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
-  const ctx = hiDpiCanvas(canvas, W, H);
-
-  const GROUPS = [
-    { key: 'curve_fit', label: 'Noise sᵢ' },
-    { key: 'literature', label: 'Noise 0.3' },
-  ];
-  const ROWS = [
-    { key: 'oracle', label: 'True values', color: C.purple },
-    { key: 'single', label: 'One measurement', color: C.pink },
-    { key: 'resampled', label: 'Resampled', color: C.green },
-  ];
-  const xMin = 0, xMax = 0.6;
-  const xScale = v => pad.l + (v - xMin) / (xMax - xMin) * pw;
-  const slots = GROUPS.length * (ROWS.length + 1);
-  const rowH = ph / slots;
-
-  // Grid
-  ctx.strokeStyle = C.current; ctx.lineWidth = 1;
-  for (let x = 0; x <= xMax + 1e-9; x += 0.1) {
-    ctx.beginPath(); ctx.moveTo(xScale(x), pad.t); ctx.lineTo(xScale(x), pad.t + ph); ctx.stroke();
-  }
-
-  // One group per noise model: a header, then an interval per way of computing rho
-  const hits = [];
-  GROUPS.forEach((g, gi) => {
-    const base = pad.t + gi * (ROWS.length + 1) * rowH;
-    ctx.fillStyle = C.fg;
-    ctx.font = 'bold 11px "SF Mono", "Fira Code", monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(g.label, 8, base + rowH * 0.65);
-    ROWS.forEach((r, ri) => {
-      const d = LABEL_NOISE.known_truth[g.key][r.key];
-      const y = base + (ri + 1.5) * rowH;
-      ctx.fillStyle = C.comment;
-      ctx.font = LN.mono;
-      ctx.textAlign = 'left';
-      ctx.fillText(r.label, 20, y + 4);
-      ctx.strokeStyle = r.color; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(xScale(d.lo), y); ctx.lineTo(xScale(d.hi), y); ctx.stroke();
-      ctx.beginPath(); ctx.arc(xScale(d.mean), y, 5, 0, Math.PI * 2);
-      ctx.fillStyle = r.color; ctx.fill(); ctx.strokeStyle = C.bg; ctx.lineWidth = 1.5; ctx.stroke();
-      ctx.fillStyle = r.color;
-      ctx.textAlign = 'left';
-      ctx.fillText(d.mean.toFixed(2), pad.l + pw + 8, y + 4);
-      hits.push({ y, html: `${g.label}, ${r.label.toLowerCase()}&emsp;ρ = ${d.mean.toFixed(3)} [${d.lo.toFixed(3)}, ${d.hi.toFixed(3)}]` });
-    });
-  });
-
-  // Ticks and axes
-  ctx.fillStyle = C.comment; ctx.font = LN.mono; ctx.textAlign = 'center';
-  for (let x = 0; x <= xMax + 1e-9; x += 0.1) ctx.fillText(x.toFixed(1), xScale(x), pad.t + ph + 18);
-  ctx.strokeStyle = C.comment; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph); ctx.stroke();
-  ctx.font = LN.sans;
-  ctx.fillText('Spearman ρ', pad.l + pw / 2, H - 4);
-
-  // Hover: the nearest interval
-  canvas.addEventListener('mousemove', ev => {
-    const r = canvas.getBoundingClientRect();
-    const my = (ev.clientY - r.top) * (H / r.height);
-    const hit = hits.find(h => Math.abs(h.y - my) < rowH / 2);
-    if (hit) showChartTip(hit.html, ev); else hideChartTip();
   });
   canvas.addEventListener('mouseleave', hideChartTip);
 })();
