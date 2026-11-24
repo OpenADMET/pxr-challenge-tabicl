@@ -580,37 +580,39 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <li><strong>The measurement locates the true value to within its standard error.</strong> With one measurement and nothing else to go on, the plausible true values follow <code>N(y<sub>i</sub>, s<sub>i</sub>²)</code>, the posterior under a flat prior, and the resampled values are draws of them. The draws scatter in every direction around the measurement, so on average they land further from the prediction than the true values do, most of all where <code>s<sub>i</sub></code> is largest. A prior that placed the true values closer to the predictions would have to come from <code>σ</code> itself, which would assume the calibration that <code>ρ</code> is meant to test.</li>
   </ul>
 
-  <p>Under every reading, the resampled values are built from the measurement. The chart below follows one compound through the procedure. Its true value <code>t<sub>i</sub></code> is unknown in practice; the chart shows it because this compound is simulated. The measurement <code>y<sub>i</sub></code> lands somewhere around <code>t<sub>i</sub></code>, one draw of the measurement noise, and resampling draws new values <code>y*<sub>i</sub></code> around <code>y<sub>i</sub></code>. Click <strong>New measurement</strong> several times. Wherever the measurement lands, the resampled values follow it, and their average falls on the measurement, however far the measurement is from the true value. Calling the measurement the center of its distribution does not move it to the true value. It only makes the resampled values agree with the measurement, error included.</p>
+  <p>The second reading is already how <code>ρ</code> is computed. Spearman <code>ρ</code> compares <code>σ</code> with <code>|y<sub>i</sub> − ŷ<sub>i</sub>|</code>, the distance from the prediction to the measurement, and uses no true value. <a href="#s04">Section 04</a> separated the true value from the measurement to show where a residual comes from; the calculation itself treats each measurement as the true value. The chart below drops the true value and draws the one-flip problem the way <code>ρ</code> sees it. Two compounds have correct <code>σ</code> values of 0.6 and 0.4, and each residual is one draw from the distribution its <code>σ</code> describes. Click <strong>Random draw</strong> a few times, then <strong>Draw 100</strong>. The compound with the smaller <code>σ</code> often lands the larger residual, which misranks the pair, and across many draws this happens about 37% of the time. No true value appears anywhere in the chart. Treating the measurement as the true value leaves the one-flip problem in place, because that is the setting in which the problem was measured.</p>
 
   <div class="chart-panel">
-    <div class="chart-title">Resampled values follow the measurement, not the true value</div>
+    <div class="chart-title">With the measurement as the target, one draw per compound still misranks pairs</div>
     <div class="sim-controls">
-      <button class="sim-btn" id="center-new">New measurement</button>
+      <button class="sim-btn" id="pair-one">Random draw</button>
+      <button class="sim-btn" id="pair-many">Draw 100</button>
     </div>
-    <canvas id="center-chart" height="240" role="img" aria-label="One simulated compound: the distribution of possible measurements around the true value, one measurement, and resampled values drawn around that measurement"></canvas>
+    <canvas id="pair-chart" height="270" role="img" aria-label="Two compounds with sigma 0.6 and 0.4, each with the distribution of residuals its sigma describes and one drawn residual, labeled as ranked correctly or misranked"></canvas>
     <div class="stats-row">
       <div class="stat-box">
-        <div class="stat-label">Measurement − true value</div>
-        <div class="stat-value" style="color:var(--orange)" id="center-meas">&mdash;</div>
+        <div class="stat-label">Draws</div>
+        <div class="stat-value" style="color:var(--orange)" id="pair-n">0</div>
       </div>
       <div class="stat-box">
-        <div class="stat-label">Resampled average − measurement</div>
-        <div class="stat-value" style="color:var(--green)" id="center-avg-meas">&mdash;</div>
+        <div class="stat-label">Misranked</div>
+        <div class="stat-value" style="color:var(--red)" id="pair-k">0</div>
       </div>
       <div class="stat-box">
-        <div class="stat-label">Resampled average − true value</div>
-        <div class="stat-value" style="color:var(--purple)" id="center-avg-true">&mdash;</div>
+        <div class="stat-label">Misranked share</div>
+        <div class="stat-value" style="color:var(--red)" id="pair-share">&mdash;</div>
       </div>
     </div>
     <div class="legend-row" style="flex-wrap:wrap">
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--purple);opacity:0.4"></span> Where a measurement can land</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--orange)"></span> The one measurement</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--green)"></span> Resampled values and their average</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--cyan);opacity:0.6"></span> Residuals <code>σ</code> describes</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--orange)"></span> Measured residual</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--green)"></span> Ranked correctly</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--red)"></span> Misranked</span>
     </div>
-    <div class="chart-caption">One simulated compound with its true value at 0 and a measurement noise of 0.3 log units, wide enough to see (the median curve-fit standard error is 0.12). The purple curve is centered on the true value; the green curve and the 40 green dots are centered on the measurement, and the green diamond is their average. The gap between the resampled average and the true value matches the gap between the measurement and the true value, because no step of the resampling uses the true value.</div>
+    <div class="chart-caption">Each row is one compound. The curve is the distribution of residuals its <code>σ</code> describes, centered on the prediction at 0, and the orange marker is the one measured residual. The pair is misranked when the compound with <code>σ</code> = 0.4 lands the larger |residual|. The tally counts draws since the page loaded, and its share approaches 37%, because the larger-<code>σ</code> compound has the larger |residual| with probability (2/π)·arctan(0.6/0.4) = 0.63.</div>
   </div>
 
-  <p>Applied to the 260 test measurements as proposed, with one resampled value per compound and <code>ρ</code> recomputed 2,000 times, the procedure gives the histograms below.</p>
+  <p>That leaves the curve-fit error bars as the one new ingredient. Applied to the 260 test measurements as proposed, with one resampled value per compound and <code>ρ</code> recomputed 2,000 times, the procedure gives the histograms below.</p>
 
   <div class="chart-panel">
     <div class="chart-title">Spearman ρ after resampling the 260 real measurements</div>
@@ -637,7 +639,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
   </div>
 
   <ul class="findings">
-    <li><strong>Resampling returns to the measurement, and the measurement is not the truth.</strong> A single resample with a constant width scores 0.22 because the added noise is unrelated to <code>σ</code> and blurs the ranking. Averaging removes the blur and gives back 0.26, and no number of draws goes past it, because the measurement is the center of every draw. That 0.26 is <code>ρ</code> against the measurements, measurement error included, and not <code>ρ</code> against the true values. <a href="#s05">Section 05</a> shows it is one draw from the range a correct <code>σ</code> produces (0.17 to 0.40). Calling the measurement the truth does not remove that draw.</li>
+    <li><strong>Resampling returns to the measurement treated as true.</strong> A single resample with a constant width scores 0.22 because the added noise is unrelated to <code>σ</code> and blurs the ranking. Averaging removes the blur and gives back 0.26, and no number of draws goes past it, because the measurement is the center of every draw. That 0.26 is <code>ρ</code> with each measurement treated as the true value, the calculation in the pair chart above, and <a href="#s05">section 05</a> shows it is what a correct <code>σ</code> scores when each compound contributes one residual (0.17 to 0.40).</li>
     <li><strong>The rise with <code>s<sub>i</sub></code> comes from the added noise.</strong> A single resample with <code>s<sub>i</sub></code> scores 0.28 because the added noise is largest where <code>s<sub>i</sub></code> is largest, and <code>s<sub>i</sub></code> tracks <code>σ</code> (Spearman correlation 0.54), so the noise enlarges residuals in a pattern that already matches <code>σ</code>. Averaging removes that noise, and <code>ρ</code> falls back to 0.26. Information about the model's ranking would not fade as more draws are averaged, so the rise was not information about the ranking. Even at its peak, 0.28 matches the 0.285 a correct <code>σ</code> is expected to score with one measurement per compound (<a href="#s05">section 05</a>).</li>
   </ul>
 
@@ -2014,96 +2016,95 @@ const LN = {
   canvas.addEventListener('mouseleave', hideChartTip);
 })();
 
-// ===== LABEL NOISE: ONE COMPOUND RESAMPLED AROUND ITS MEASUREMENT =====
+// ===== RESAMPLING: TWO COMPOUNDS, ONE DRAW EACH =====
 (function() {
-  const canvas = document.getElementById('center-chart');
-  const { W, H } = LN.size(canvas, 240);
-  const pad = { t: 22, r: 16, b: 40, l: 16 };
+  const canvas = document.getElementById('pair-chart');
+  const { W, H } = LN.size(canvas, 270);
+  const pad = { t: 8, r: 16, b: 40, l: 16 };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
   const ctx = hiDpiCanvas(canvas, W, H);
-  const NOISE = 0.3, N_DRAWS = 40, XMIN = -1.3, XMAX = 1.3;
-  const rng = mulberry32(7);
-  const xScale = v => pad.l + (v - XMIN) / (XMAX - XMIN) * pw;
-  const axisY = pad.t + ph;
-  const stripY = axisY - 16;
-  const curveBase = stripY - 14;
-  const pdfMax = LN.pdf(0, 0, NOISE) * 1.08;
-  const yScale = v => curveBase - v / pdfMax * (curveBase - pad.t);
-  const jitter = Array.from({ length: N_DRAWS }, (_, i) => ((i * 37) % 11 - 5) * 1.1);
-  let meas = 0.35;
-  let draws = [];
+  const XMIN = -1.8, XMAX = 1.8;
+  const COMPOUNDS = [
+    { label: 'Compound A, σ = 0.6', sigma: 0.6 },
+    { label: 'Compound B, σ = 0.4', sigma: 0.4 },
+  ];
+  const rng = mulberry32(21);
+  const xScale = v => pad.l + (Math.max(XMIN, Math.min(XMAX, v)) - XMIN) / (XMAX - XMIN) * pw;
+  const rowH = ph / 2;
+  const pdfMax = LN.pdf(0, 0, 0.4) * 1.05;
+  let draws = [0.25, -0.45];
+  let n = 0, k = 0;
 
-  const fmt = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+  function row(i, comp, residual, verdictColor) {
+    const top = pad.t + i * rowH;
+    const base = top + rowH - 18;
+    const yScale = v => base - v / pdfMax * (rowH - 40);
 
-  function resample() {
-    draws = Array.from({ length: N_DRAWS }, () => meas + NOISE * randn(rng));
-  }
-
-  function curve(mu, stroke, fill) {
+    // Residual distribution around the prediction
     ctx.beginPath();
     for (let x = XMIN; x <= XMAX + 1e-9; x += 0.01) {
-      const px = xScale(x), py = yScale(LN.pdf(x, mu, NOISE));
+      const px = xScale(x), py = yScale(LN.pdf(x, 0, comp.sigma));
       if (x === XMIN) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
-    if (fill) {
-      ctx.lineTo(xScale(XMAX), curveBase); ctx.lineTo(xScale(XMIN), curveBase); ctx.closePath();
-      ctx.fillStyle = fill; ctx.fill();
-    }
-    ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.strokeStyle = C.cyan; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.lineTo(xScale(XMAX), base); ctx.lineTo(xScale(XMIN), base); ctx.closePath();
+    ctx.fillStyle = C.cyan + '22'; ctx.fill();
+
+    // Baseline and prediction marker
+    ctx.strokeStyle = C.comment; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.l, base); ctx.lineTo(pad.l + pw, base); ctx.stroke();
+    LN.vline(ctx, xScale(0), top + 14, base, C.cyan + '99');
+
+    // Measured residual as a bar from the prediction and a marker
+    const dx = xScale(residual);
+    ctx.strokeStyle = verdictColor; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(xScale(0), base + 6); ctx.lineTo(dx, base + 6); ctx.stroke();
+    ctx.strokeStyle = C.orange; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(dx, top + 18); ctx.lineTo(dx, base); ctx.stroke();
+
+    // Row label and residual size
+    ctx.font = LN.mono; ctx.textAlign = 'left'; ctx.fillStyle = C.fg;
+    ctx.fillText(comp.label, pad.l + 2, top + 14);
+    ctx.textAlign = residual >= 0 ? 'left' : 'right';
+    ctx.fillStyle = C.orange;
+    ctx.fillText('|residual| ' + Math.abs(residual).toFixed(2), dx + (residual >= 0 ? 6 : -6), top + 30);
   }
 
   function render() {
     ctx.clearRect(0, 0, W, H);
-    const avg = draws.reduce((s, v) => s + v, 0) / draws.length;
+    const correct = Math.abs(draws[0]) > Math.abs(draws[1]);
+    const verdictColor = correct ? C.green : C.red;
+    COMPOUNDS.forEach((c, i) => row(i, c, draws[i], verdictColor));
 
-    // Measurement distribution around the true value, resampling distribution around the measurement
-    curve(0, C.purple, C.purple + '33');
-    curve(meas, C.green + 'cc', null);
+    // Verdict for the pair
+    ctx.font = '12px "SF Mono", "Fira Code", monospace';
+    ctx.textAlign = 'right'; ctx.fillStyle = verdictColor;
+    ctx.fillText(correct ? 'Ranked correctly' : 'Misranked', pad.l + pw - 2, pad.t + 14);
 
-    // True value and measurement markers, labels on opposite sides
-    const right = meas >= 0;
-    LN.vline(ctx, xScale(0), pad.t, axisY, C.purple);
-    ctx.strokeStyle = C.orange; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(xScale(meas), pad.t); ctx.lineTo(xScale(meas), axisY); ctx.stroke();
-    ctx.font = LN.mono;
-    ctx.fillStyle = C.purple; ctx.textAlign = right ? 'right' : 'left';
-    ctx.fillText('True value', xScale(0) + (right ? -5 : 5), pad.t - 8);
-    ctx.fillStyle = C.orange; ctx.textAlign = right ? 'left' : 'right';
-    ctx.fillText('Measurement', xScale(meas) + (right ? 5 : -5), pad.t - 8);
-
-    // Resampled values as a strip, and their average as a diamond
-    ctx.fillStyle = C.green + 'aa';
-    draws.forEach((v, i) => {
-      if (v < XMIN || v > XMAX) return;
-      ctx.beginPath(); ctx.arc(xScale(v), stripY + jitter[i] * 0.5, 2.5, 0, 2 * Math.PI); ctx.fill();
-    });
-    const ax = xScale(avg);
-    ctx.fillStyle = C.green; ctx.strokeStyle = C.bg; ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(ax, stripY - 8); ctx.lineTo(ax + 7, stripY); ctx.lineTo(ax, stripY + 8); ctx.lineTo(ax - 7, stripY);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
-
-    // Axis
-    ctx.strokeStyle = C.comment; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(pad.l, axisY); ctx.lineTo(pad.l + pw, axisY); ctx.stroke();
-    ctx.fillStyle = C.comment; ctx.textAlign = 'center';
-    for (let x = -1; x <= 1; x += 0.5) ctx.fillText(x.toFixed(1), xScale(x), axisY + 14);
+    // Axis ticks under the lower row
+    ctx.fillStyle = C.comment; ctx.font = LN.mono; ctx.textAlign = 'center';
+    for (let x = -1.5; x <= 1.5 + 1e-9; x += 0.5) ctx.fillText(x.toFixed(1), xScale(x), pad.t + ph + 6);
     ctx.font = LN.sans;
-    ctx.fillText('pEC50 relative to the true value', pad.l + pw / 2, H - 4);
+    ctx.fillText('Residual: measurement − prediction', pad.l + pw / 2, H - 6);
 
-    // Gaps in the stat boxes
-    document.getElementById('center-meas').textContent = fmt(meas);
-    document.getElementById('center-avg-meas').textContent = fmt(avg - meas);
-    document.getElementById('center-avg-true').textContent = fmt(avg);
+    // Running tally
+    document.getElementById('pair-n').textContent = n;
+    document.getElementById('pair-k').textContent = k;
+    document.getElementById('pair-share').textContent = n ? Math.round(100 * k / n) + '%' : '—';
   }
 
-  document.getElementById('center-new').addEventListener('click', () => {
-    do { meas = NOISE * randn(rng); } while (Math.abs(meas) > 0.8);
-    resample();
+  function drawPair() {
+    draws = COMPOUNDS.map(c => c.sigma * randn(rng));
+    n += 1;
+    if (Math.abs(draws[0]) <= Math.abs(draws[1])) k += 1;
+  }
+
+  document.getElementById('pair-one').addEventListener('click', () => { drawPair(); render(); });
+  document.getElementById('pair-many').addEventListener('click', () => {
+    for (let i = 0; i < 100; i++) drawPair();
     render();
   });
 
-  resample();
   render();
 })();
 
