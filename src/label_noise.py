@@ -175,6 +175,50 @@ def simulate_replicates(
     return spearman_rows(sigma, mean_error)
 
 
+def averaged_resample_rho(
+    sigma: NDArray[np.float64],
+    residual: NDArray[np.float64],
+    noise: NDArray[np.float64],
+    n_averaged: int,
+    n_repeats: int,
+    rng: np.random.Generator,
+) -> NDArray[np.float64]:
+    """Return rho after averaging several resampled values per measurement, per repeat.
+
+    Each compound's measurement is resampled ``n_averaged`` times around
+    itself, the resampled values are averaged, and rho is computed between
+    sigma and the absolute distance of that average from the prediction. The
+    mean of ``n_averaged`` normal draws of width ``noise`` is one normal draw
+    of width ``noise / sqrt(n_averaged)``, so the average is drawn directly.
+    As ``n_averaged`` grows, every average returns to its measurement and rho
+    returns to the single-measurement value.
+
+    Parameters
+    ----------
+    sigma : array-like
+        Predicted standard deviation of each compound.
+    residual : array-like
+        Signed residual, measurement minus prediction, of each compound.
+    noise : array-like
+        Width of the normal each measurement is resampled from.
+    n_averaged : int
+        Resampled values averaged per compound.
+    n_repeats : int
+        Independent repeats to run.
+    rng : numpy.random.Generator
+        Source of the normal draws.
+
+    Returns
+    -------
+    numpy.ndarray
+        One rho per repeat, shape ``(n_repeats,)``.
+    """
+    # Draw each average of n_averaged resamples as one narrower normal
+    averaged_noise = noise / np.sqrt(n_averaged)
+    averaged = residual + rng.standard_normal((n_repeats, sigma.size)) * averaged_noise
+    return spearman_rows(sigma, np.abs(averaged))
+
+
 def folded_normal_mean(
     offset: NDArray[np.float64], scale: NDArray[np.float64]
 ) -> NDArray[np.float64]:

@@ -84,3 +84,31 @@ def test_folded_normal_mean_is_absolute_offset_at_zero_scale():
     offset = np.array([-0.4, 0.7])
 
     np.testing.assert_allclose(label_noise.folded_normal_mean(offset, np.zeros(2)), [0.4, 0.7])
+
+
+def test_averaged_resamples_return_to_the_single_measurement_rho():
+    rng = np.random.default_rng(5)
+    sigma = np.linspace(0.2, 1.0, 100)
+    residual = rng.standard_normal(100) * sigma
+    noise = np.full(100, 0.3)
+    observed = stats.spearmanr(sigma, np.abs(residual)).statistic
+
+    rho = label_noise.averaged_resample_rho(sigma, residual, noise, 10**12, 20, rng)
+
+    np.testing.assert_allclose(rho, observed)
+
+
+def test_one_averaged_resample_matches_a_single_resample_in_distribution():
+    rng = np.random.default_rng(6)
+    sigma = np.linspace(0.2, 1.0, 100)
+    residual = rng.standard_normal(100) * sigma
+    noise = np.full(100, 0.3)
+
+    averaged = label_noise.averaged_resample_rho(
+        sigma, residual, noise, 1, 4000, np.random.default_rng(7)
+    )
+    single = label_noise.spearman_rows(
+        sigma, np.abs(residual + np.random.default_rng(8).standard_normal((4000, 100)) * noise)
+    )
+
+    assert abs(averaged.mean() - single.mean()) < 0.01

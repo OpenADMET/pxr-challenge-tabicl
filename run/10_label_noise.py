@@ -7,12 +7,14 @@ absolute residual, and repeats. The draws are y* = y + s z, so they center on
 the one measurement rather than on the true value, and every draw inherits that
 measurement's error.
 
-Four things are written to label_noise.json beside the per-compound table:
+The following are written to label_noise.json beside the per-compound table:
 
 - how the curve-fit standard errors are distributed and how they relate to
   sigma, pEC50 and the absolute residual
 - the resampled rho on the real test set, under the curve-fit standard errors
   and under a constant literature-style noise
+- rho after averaging several resampled values per compound, which returns
+  to the single-measurement rho as the number averaged grows
 - a simulation in which the true values are known, comparing rho against the
   true values, against one measurement, and after resampling, under each
   measurement-noise model (see src/label_noise.py)
@@ -51,6 +53,8 @@ RESAMPLING_NOISE_MODELS = ("curve_fit", "literature")
 N_RESAMPLES = 2000
 N_DATASETS = 1000
 N_INNER_RESAMPLES = 20
+RESAMPLE_AVERAGES = (1, 2, 3, 5, 10, 20, 50, 100, 1000)
+N_AVERAGE_REPEATS = 500
 N_NULL = 2000
 SE_BIN_WIDTH = 0.025
 RHO_BIN_WIDTH = 0.01
@@ -313,6 +317,7 @@ def main() -> None:
         "literature_noise": label_noise.LITERATURE_NOISE,
         "curve_fit_se": describe_se(curve_fit_se, sigma, observed, abs_residual),
         "resampled_real": {},
+        "resampled_average": {},
         "known_truth": {},
         "noise_share": {},
     }
@@ -325,6 +330,20 @@ def main() -> None:
         record["resampled_real"][model] = _interval(rho) | {
             "histogram": _histogram(rho, RHO_BIN_WIDTH)
         }
+        record["resampled_average"][model] = [
+            {"averaged": n_averaged}
+            | _interval(
+                label_noise.averaged_resample_rho(
+                    sigma,
+                    residual,
+                    noise,
+                    n_averaged,
+                    N_AVERAGE_REPEATS,
+                    np.random.default_rng([args.seed, 4, index, n_averaged]),
+                )
+            )
+            for n_averaged in RESAMPLE_AVERAGES
+        ]
         record["known_truth"][model] = simulate_known_truth(
             sigma, noise, np.random.default_rng([args.seed, 1, index])
         )
