@@ -362,7 +362,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p>Calibration asks: <em>on average, are the intervals honest?</em> Ranking asks: <em>for each compound, does the model know where it will be wrong?</em> A model can pass one and fail the other.</p>
 
-  <p>Every equation and symbol on this page shows its definition on hover and has an entry in the equations and symbols reference (<a href="#reference">section 10</a>). Clicking a symbol jumps to its entry.</p>
+  <p>Every equation and symbol on this page shows its definition on hover and has an entry in the equations and symbols reference (<a href="#reference">section 11</a>). Clicking a symbol jumps to its entry.</p>
 
   <hr>
 
@@ -562,7 +562,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <div class="callout result">
     <div class="callout-label">Verdict</div>
-  <p>The one-flip problem is therefore more than a shortage of measurements. For this model, most of it would remain with perfect data, because a correct <code>σ</code> describes the spread of a compound's possible errors, not the error it actually made. A high per-compound <code>ρ</code> would need <code>σ</code> values that differ by large factors between compounds. The ranking still shows when errors are averaged across compounds with similar <code>σ</code>, which does for the model-error draw what replicates do for the measurement draw; the quintile bins in <a href="#s08a">section 08a</a> work this way.</p>
+  <p>The one-flip problem is therefore more than a shortage of measurements. For this model, most of it would remain with perfect data, because a correct <code>σ</code> describes the spread of a compound's possible errors, not the error it actually made. A high per-compound <code>ρ</code> would need <code>σ</code> values that differ by large factors between compounds. The ranking still shows when errors are averaged across compounds with similar <code>σ</code>, which does for the model-error draw what replicates do for the measurement draw; the quintile bins in <a href="#s09a">section 09a</a> work this way.</p>
   </div>
 
   <hr>
@@ -615,8 +615,37 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <hr>
 
-  <!-- ===== STEP 7: SO WHAT ===== -->
-  <h2 id="s08"><span class="step-num">08</span> What this means in practice</h2>
+  <!-- ===== STEP 8: MEASUREMENT ERROR ===== -->
+  <h2 id="s08"><span class="step-num">08</span> Can measurement error improve the ranking?</h2>
+
+  <p>Each pEC50 comes with the standard error of its dose-response fit, <code>s<sub>i</sub></code> (<a href="#s06">section 06</a>). If <code>σ<sub>i</sub></code> describes the model's error and <code>s<sub>i</sub></code> the measurement's noise, the two normal distributions convolve, and a measurement should land around the prediction with variance <code>σ<sub>i</sub>² + s<sub>i</sub>²</code> (<code data-eq="eq-conv">y<sub>i</sub> ~ N(ŷ<sub>i</sub>, σ<sub>i</sub>² + s<sub>i</sub>²)</code>). We score that combined spread against the measurements, next to <code>σ<sub>i</sub></code> and <code>σ<sub>i</sub></code> rescaled by a constant to the right average size.</p>
+
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Predicted spread</th><th>NLL, all 260</th><th><code>ρ</code>, all 260</th><th>NLL, pEC50 ≥ 4 (215)</th><th><code>ρ</code>, pEC50 ≥ 4 (215)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>σ<sub>i</sub></code></td><td>0.935</td><td>0.262</td><td>0.572</td><td>0.135</td></tr>
+      <tr><td><code>σ<sub>i</sub></code> rescaled</td><td>0.908</td><td>0.262</td><td>0.559</td><td>0.135</td></tr>
+      <tr><td><code>√(σ<sub>i</sub>² + s<sub>i</sub>²)</code></td><td>0.805</td><td>0.288</td><td>0.585</td><td>0.123</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>On all 260 compounds, the combined spread improves NLL and <code>ρ</code>. The 45 compounds measured below a pEC50 of 4 account for all of the NLL gain. Their values lie at the assay floor, where the measurement is censored and the curve fit is poor (median <code>s<sub>i</sub></code> 0.28, against 0.10 for the rest). Without them, the combined spread scores slightly worse than <code>σ<sub>i</sub></code> on NLL and <code>ρ</code>.</p>
+
+  <p>The model flags those compounds without help. Their mean <code>σ</code> is 0.77, against 0.49 for the rest, and <code>σ</code> separates them from the other compounds with an AUC of 0.89, while their median prediction is at the floor (4.02). A calibrated model trained on values recorded below the floor should behave this way, because those labels scatter widely. Restricted to the measurable compounds, <code>ρ</code> for <code>σ</code> is 0.135, inside the range a correct <code>σ</code> produces for them (0.10 to 0.35).</p>
+
+  <div class="callout result">
+    <div class="callout-label">Verdict</div>
+    <p>The curve-fit standard error improves the scores only on censored measurements below the assay floor, and the model's <code>σ</code> already flags those compounds. On the measurable compounds, it adds nothing to the ranking.</p>
+  </div>
+
+  <hr>
+
+  <!-- ===== STEP 9: SO WHAT ===== -->
+  <h2 id="s09"><span class="step-num">09</span> What this means in practice</h2>
 
   <p>The calibration plot (Figure 6 right in the blog post) already told us the intervals are the right width. The σ distribution tells us the model differentiates between compounds. Together, those two facts mean the uncertainty estimates <em>are</em> useful.</p>
 
@@ -630,7 +659,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <hr>
 
-  <h2 id="s08a"><span class="step-num">08a</span> Quintile binning</h2>
+  <h2 id="s09a"><span class="step-num">09a</span> Quintile binning</h2>
 
   <p>The simplest approach: sort the 260 compounds by predicted <code>σ</code>, split them into five equal groups (Q1 to Q5, ~52 each), and compute the mean absolute residual in each bin. Pooling 52 compounds per group averages out the single-draw noise that makes the raw scatter plot so cloudy. If the ranking is real, mean error should increase across the bins.</p>
 
@@ -644,7 +673,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <hr>
 
-  <h2 id="s08b"><span class="step-num">08b</span> Continuous ranked probability score (CRPS)</h2>
+  <h2 id="s09b"><span class="step-num">09b</span> Continuous ranked probability score (CRPS)</h2>
 
   <p>CRPS evaluates the full predicted distribution against each observed value. It measures the area between the predicted cumulative distribution function (CDF) <code>F</code> and a step function at the observed value: <code data-eq="eq-crps">CRPS = ∫ (F<sub>i</sub>(u) − 𝟙[u ≥ y<sub>i</sub>])² du</code>. A prediction that concentrates probability near the true value scores well; one that spreads probability away from it scores poorly. Lower is better.</p>
 
@@ -679,7 +708,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <hr>
 
-  <h2 id="s08c"><span class="step-num">08c</span> Negative log-likelihood (NLL)</h2>
+  <h2 id="s09c"><span class="step-num">09c</span> Negative log-likelihood (NLL)</h2>
 
   <p>NLL answers a different question from the first two tools. Where quintile binning and CRPS ask "can the model rank which compounds are hard?", NLL asks "how good is the model's probabilistic prediction in aggregate?" It is a model-comparison metric, not a compound-level triage tool.</p>
 
@@ -717,13 +746,14 @@ h2[id] { scroll-margin-top: 1.5rem; }
       <li><strong><code>ρ</code> = 0.26 is what a correct <code>σ</code> scores here.</strong> It falls at the 34th percentile of the values a perfectly calibrated <code>σ</code> produces with this model's <code>σ</code> distribution (<a href="#s05">section 05</a>).</li>
       <li><strong>The limit is a single realized error per compound.</strong> A correct <code>σ</code> describes the spread of possible errors, not the error a compound actually has, and for this model most of that error is model error rather than assay noise (<a href="#s04">sections 04</a> and <a href="#s06">06</a>).</li>
       <li><strong>Better data does not remove it.</strong> Replicates help only with the measurement share, even perfect measurements leave <code>ρ</code> near 0.28 when the error is model error, and treating the measurements as the true values changes nothing, because <code>ρ</code> is already computed that way (<a href="#s06">sections 06</a> and <a href="#s07">07</a>).</li>
-      <li><strong>The ranking shows in aggregate.</strong> Calibration, quintile bins and proper scoring rules average over compounds, and they show that <code>σ</code> tracks difficulty (<a href="#s01">section 01</a> and <a href="#s08a">sections 08a to 08c</a>).</li>
+      <li><strong>Measurement error does not sharpen the ranking.</strong> Combining <code>σ</code> with the curve-fit standard error helps only on compounds measured below the assay floor, which <code>σ</code> already flags (<a href="#s08">section 08</a>).</li>
+      <li><strong>The ranking shows in aggregate.</strong> Calibration, quintile bins and proper scoring rules average over compounds, and they show that <code>σ</code> tracks difficulty (<a href="#s01">section 01</a> and <a href="#s09a">sections 09a to 09c</a>).</li>
     </ul>
   </div>
 
   <hr>
 
-  <h2 id="reproducibility"><span class="step-num">09</span> Reproducibility</h2>
+  <h2 id="reproducibility"><span class="step-num">10</span> Reproducibility</h2>
 
   <div class="repro">
   <p>The code and data are in the <a href="https://github.com/OpenADMET/pxr-challenge-tabicl">pxr-challenge-tabicl repository</a>. Install the environment with <code>uv sync</code>, then run the scripts below from the repository root, in order. Steps 00 to 05 train every configuration and select the model this page analyzes, TabICL on 256-dimensional CheMeleon embeddings. Steps 07, 09 and 10 write the four files the data on this page comes from, in <code>results/uncertainty/emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabicl__cal-none/</code>.</p>
@@ -742,7 +772,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
       <tr><td><code>run/05_aggregate.py</code></td><td>Collects the results and confirms the featureset and regressor each stage selected, in <code>results/gates/</code></td></tr>
       <tr><td><code>run/07_uncertainty.py</code></td><td>Writes the predicted <code>σ</code> and <code>|residual|</code> of each test compound (<code>points.csv</code>) and the coverage curve (<code>coverage.csv</code>) for the selected model</td></tr>
       <tr><td><code>run/09_replicates.py</code></td><td>Simulates a correct <code>σ</code> from the predicted <code>σ</code> in <code>points.csv</code>, under five fixed shares of measurement noise and the two realistic noise levels, 500 times for each value of <code>R</code>, and writes the replicate curve in <a href="#s06">section 06</a> (<code>replicates.csv</code>)</td></tr>
-      <tr><td><code>run/10_label_noise.py</code></td><td>Joins the curve-fit standard error of each compound from the challenge files in <code>data/raw/</code> and writes their summary for the standard-error histogram in <a href="#s06">section 06</a> (<code>label_noise.json</code>), along with resampling analyses this page does not show</td></tr>
+      <tr><td><code>run/10_label_noise.py</code></td><td>Joins the curve-fit standard error of each compound from the challenge files in <code>data/raw/</code>, summarizes them for the histogram in <a href="#s06">section 06</a>, and scores the combined spread with and without the censored compounds for <a href="#s08">section 08</a> (<code>label_noise.json</code>)</td></tr>
     </tbody>
   </table>
   </div>
@@ -752,7 +782,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <hr>
 
-  <h2 id="reference"><span class="step-num">10</span> Equations and symbols</h2>
+  <h2 id="reference"><span class="step-num">11</span> Equations and symbols</h2>
 
   <p>The equations the argument depends on, and every symbol they contain, with where each value comes from.</p>
 
@@ -769,6 +799,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <tr data-eq="eq-sim"><td class="lbl">Residual simulated under perfect calibration</td><td class="lhs"><span class="sym" data-key="e_i">e<sub>i</sub></span></td><td class="op">=</td><td class="rhs">|<span class="sym" data-key="z_i">z<sub>i</sub></span>| · <span class="sym" data-key="σ_i">σ<sub>i</sub></span>,&ensp;<span class="sym" data-key="z_i">z<sub>i</sub></span> ~ <span class="sym" data-key="N">N</span>(0, 1)</td></tr>
     <tr data-eq="eq-rep"><td class="lbl">Mean residual over <code>R</code> replicates</td><td class="lhs"><span class="sym" data-key="m_i">m<sub>i</sub></span></td><td class="op">=</td><td class="rhs">(1/<span class="sym" data-key="R">R</span>) · Σ<sub>k</sub> <span class="sym" data-key="e_ik">e<sub>ik</sub></span></td></tr>
     <tr data-eq="eq-split"><td class="lbl">Residual as model error plus measurement noise</td><td class="lhs"><span class="sym" data-key="y_i">y<sub>i</sub></span> − <span class="sym" data-key="ŷ_i">ŷ<sub>i</sub></span></td><td class="op">=</td><td class="rhs">(<span class="sym" data-key="t_i">t<sub>i</sub></span> − <span class="sym" data-key="ŷ_i">ŷ<sub>i</sub></span>) + (<span class="sym" data-key="y_i">y<sub>i</sub></span> − <span class="sym" data-key="t_i">t<sub>i</sub></span>)</td></tr>
+    <tr data-eq="eq-conv"><td class="lbl">Measurement under the model and the curve fit</td><td class="lhs"><span class="sym" data-key="y_i">y<sub>i</sub></span></td><td class="op">~</td><td class="rhs">N(<span class="sym" data-key="ŷ_i">ŷ<sub>i</sub></span>, <span class="sym" data-key="σ_i">σ<sub>i</sub></span>² + <span class="sym" data-key="s_i">s<sub>i</sub></span>²)</td></tr>
     <tr class="grp"><td colspan="4">Scoring rules</td></tr>
     <tr data-eq="eq-crps"><td class="lbl">CRPS, general definition</td><td class="lhs"><span class="sym" data-key="CRPS">CRPS</span></td><td class="op">=</td><td class="rhs">∫ (<span class="sym" data-key="F_i">F<sub>i</sub></span>(<span class="sym" data-key="u">u</span>) − <span class="sym" data-key="𝟙">𝟙</span>[<span class="sym" data-key="u">u</span> ≥ <span class="sym" data-key="y_i">y<sub>i</sub></span>])² d<span class="sym" data-key="u">u</span></td></tr>
     <tr data-eq="eq-nll"><td class="lbl">NLL for a Gaussian prediction</td><td class="lhs"><span class="sym" data-key="NLL">NLL</span></td><td class="op">=</td><td class="rhs">0.5 · log(2π<span class="sym" data-key="σ_i">σ<sub>i</sub></span>²) + <span class="frac"><span>(<span class="sym" data-key="y_i">y<sub>i</sub></span> − <span class="sym" data-key="ŷ_i">ŷ<sub>i</sub></span>)²</span><span>2<span class="sym" data-key="σ_i">σ<sub>i</sub></span>²</span></span></td></tr>
