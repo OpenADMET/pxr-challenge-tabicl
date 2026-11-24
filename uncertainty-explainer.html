@@ -499,11 +499,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p>A compound with a wide predicted distribution (high <code>σ</code>) <em>will, on average</em>, produce larger residuals, but on any single occasion it might land close to the predicted mean and show a small error. Wide distributions still produce values near their center.</p>
 
-  <p>So we're trying to correlate a property of a <strong>distribution</strong> (its width) with a property of a <strong>single sample from that distribution</strong> (how far that one sample landed from the center). With one sample per distribution, the rank correlation is weak, even when the uncertainty estimates are correct.</p>
-
-  <p>Each part of the residual is a single draw. The measurement is one draw from the purple distribution, and a repeat experiment would land somewhere else. The true residual is one draw too: <code>σ</code> describes how large the errors of compounds like this one tend to be, and this compound's model error is one realization of that spread. Repeat experiments can average away the measurement draw, but the compound has one true value and the model makes one prediction for it, so nothing redraws the model error. The one-flip problem therefore applies however <code>σ</code> splits between assay noise and model error; the split matters only for what can reduce it.</p>
-
-  <p>The model-error draw by itself limits <code>ρ</code>. Suppose the true values were known exactly, and two compounds had correct <code>σ</code> values of 0.6 and 0.4. Each compound's error is still one draw from that compound's distribution, and the compound with the larger <code>σ</code> has the larger error only 63% of the time. The odds improve as the ratio of the two <code>σ</code> values grows, to 70% at a ratio of 2, 84% at 4 and 94% at 10. Our <code>σ</code> values are close together: the median ratio between two compounds is 1.28, and 69% of pairs differ by less than 1.5 times, so a correct <code>σ</code> orders a random pair correctly only 60% of the time. So even a correct <code>σ</code> produces a weak per-compound <code>ρ</code>.</p>
+  <p>So we're trying to correlate a property of a <strong>distribution</strong> (its width) with a property of a <strong>single sample from that distribution</strong> (how far that one sample landed from the center). With one sample per distribution, the rank correlation is weak, even when the uncertainty estimates are correct. That sample comes from the experiment and the prediction together: the residual is the gap between one measurement and one prediction, so assay noise and model error each contribute to it.</p>
 
   <hr>
 
@@ -541,7 +537,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p>Two kinds of better data might seem to raise <code>ρ</code>: the exact true values, and repeated measurements of each compound.</p>
 
-  <p>With exact true values, only the model-error draw from <a href="#s04">section 04</a> remains. Across the test set, a correct <code>σ</code> then gives a <code>ρ</code> against exact true values of about 0.28 (95% of simulated datasets between 0.17 and 0.39), the same as with one measurement per compound.</p>
+  <p>With exact true values, only the model error remains. Across the test set, a correct <code>σ</code> then gives a <code>ρ</code> against exact true values of about 0.28 (95% of simulated datasets between 0.17 and 0.39), the same as with one measurement per compound.</p>
 
   <p>Replicate measurements remove only the measurement draw (<code data-eq="eq-split">y<sub>i</sub> − ŷ<sub>i</sub> = (t<sub>i</sub> − ŷ<sub>i</sub>) + (y<sub>i</sub> − t<sub>i</sub>)</code>), so how much they help depends on how much of <code>σ</code> is measurement noise. If <code>σ</code> is calibrated, whatever part of it the measurement noise does not account for is model error. A toy simulation shows the range. Using our actual 260 predicted <code>σ</code> values, we simulate a perfectly calibrated model in which a fixed share of each compound's <code>σ</code>² is measurement noise and the rest is model error, measure each compound <code>R</code> times, and average the absolute residuals over replicates (<code data-eq="eq-rep">m<sub>i</sub> = (1/R) · Σ<sub>k</sub> e<sub>ik</sub></code>). We also run two realistic noise levels: the standard error of each dose-response fit, <code>s<sub>i</sub></code>, which the challenge data reports (median 0.12 log units against a mean <code>σ</code> of 0.54, about 11% of <code>σ</code>² on average), and a constant 0.3 log units (about 28%).</p>
 
@@ -582,11 +578,15 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p>A natural follow-up is to ask whether error information we already have can help. Each pEC50 comes from a dose-response fit, and the challenge data reports the standard error of that fit, <code>s<sub>i</sub></code>, for every compound. The idea is to treat each measured value as the center of a normal distribution with width <code>s<sub>i</sub></code>, draw a new value for every compound (<code data-eq="eq-resample">y*<sub>i</sub> = y<sub>i</sub> + s<sub>i</sub> · z<sub>i</sub></code>), recompute <code>ρ</code>, and repeat, which gives a distribution of <code>ρ</code> that accounts for the uncertainty in each measurement.</p>
 
-  <p>The idea rests on a common convention: the measured value is the center of its distribution, and the curve-fit standard error is the width. The convention can be read three ways, and we return to each after the results.</p>
+  <p>The idea rests on a common convention: the measured value is the center of its distribution, and the curve-fit standard error is the width. The convention can be read three ways:</p>
+
+  <ul class="findings">
+    <li><strong>The measurement is the true value plus noise.</strong> Resampling adds a second noise draw on top of the one already in the measurement. It cannot remove the first draw, so the resampled residuals lie further from the true residuals than the observed ones do, and the change in <code>ρ</code> reflects the noise we added.</li>
+    <li><strong>The measurement is the true value.</strong> The observed 0.26 is then exact, and resampling can only move <code>ρ</code> away from it.</li>
+    <li><strong>The measurement locates the true value to within its standard error.</strong> With one measurement and nothing else to go on, the plausible true values follow <code>N(y<sub>i</sub>, s<sub>i</sub>²)</code>, the posterior under a flat prior, and the resampled values are draws of them. The draws scatter in every direction around the measurement, so on average they land further from the prediction than the true values do, most of all where <code>s<sub>i</sub></code> is largest. A prior that placed the true values closer to the predictions would have to come from <code>σ</code> itself, which would assume the calibration that <code>ρ</code> is meant to test.</li>
+  </ul>
 
   <p>The resampled values scatter around the measurement, not the true value. However many we draw, they give back the measurement with an error bar of width <code>s<sub>i</sub></code>, and they tell us nothing new about where the true value <code>t<sub>i</sub></code> lies. Resampling does change <code>ρ</code>. Each resampled residual is the observed residual plus a fresh draw of width <code>s<sub>i</sub></code>, so the compounds with the largest <code>s<sub>i</sub></code> receive the most added scatter.</p>
-
-  <p>The standard errors also correlate with the model's <code>σ</code>, with a Spearman correlation of 0.54. Weakly active compounds have flat dose-response curves whose pEC50 is poorly determined (the Spearman correlation between <code>s<sub>i</sub></code> and pEC50 is −0.83), and the model also gives weakly active compounds a higher <code>σ</code> (the Spearman correlation between <code>σ<sub>i</sub></code> and pEC50 is −0.53). A good predictive <code>σ</code> should behave this way: some of the error it predicts comes from the assay, and compounds with poorly determined curves are harder to predict.</p>
 
   <h3>Resampling the real measurements</h3>
 
@@ -601,24 +601,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <div class="chart-caption">Each histogram contains 2,000 resamples for one noise model, in bins of 0.01. Each resample draws a new value around every measured pEC50 and recomputes Spearman <code>ρ</code> between <code>σ</code> and the absolute residual.</div>
   </div>
 
-  <p>Resampling with <code>s<sub>i</sub></code> gives a mean <code>ρ</code> of 0.28 (95% of resamples between 0.22 and 0.35), above the observed 0.26. Resampling with a constant 0.3 gives 0.22 (0.13 to 0.30), below it. The constant noise is unrelated to <code>σ</code>, so it only scrambles the ranking. The curve-fit noise is largest for compounds with a large <code>s<sub>i</sub></code>, which tend to have a large <code>σ</code>, so it inflates their residuals and builds in a correlation with <code>σ</code>. The resampled values are no better than the observed value as estimates of how well <code>σ</code> ranks the compounds, because the noise we chose to add determined the size and direction of the change.</p>
-
-  <h3>What resampling means under each reading</h3>
-
-  <ul class="findings">
-    <li><strong>The measurement is the true value plus noise.</strong> Resampling adds a second noise draw on top of the one already in the measurement. It cannot remove the first draw, so the resampled residuals lie further from the true residuals than the observed ones do, and the change in <code>ρ</code> reflects the noise we added.</li>
-    <li><strong>The measurement is the true value.</strong> The observed 0.26 is then exact, and resampling only moves <code>ρ</code> away from it, to 0.28 with <code>s<sub>i</sub></code> or 0.22 with a constant noise.</li>
-    <li><strong>The measurement locates the true value to within its standard error.</strong> With one measurement and nothing else to go on, the plausible true values follow <code>N(y<sub>i</sub>, s<sub>i</sub>²)</code>, the posterior under a flat prior, and the resampled values are draws of them. The draws scatter in every direction around the measurement, so on average they land further from the prediction than the true values do, most of all where <code>s<sub>i</sub></code> is largest. A prior that placed the true values closer to the predictions would have to come from <code>σ</code> itself, which would assume the calibration that <code>ρ</code> is meant to test.</li>
-  </ul>
-
-  <p>Under each reading, resampling fails to sharpen the ranking.</p>
-
-  <h3>What the curve-fit standard errors are good for</h3>
-
-  <ul class="findings">
-    <li><strong>They show that <code>σ</code> tracks real assay uncertainty.</strong> Most of the overlap runs through potency: with pEC50 accounted for (a partial rank correlation), the correlation falls to 0.20, so the shared signal is largely that weakly active compounds have flat, poorly determined curves. This part of <code>σ</code> predicts error that a repeat experiment would redraw, not error that more training data could reduce.</li>
-    <li><strong>They let us test whether poorly fitted curves explain the weak ranking.</strong> In the better-fitted half of the test set (<code>s<sub>i</sub></code> at or below the median, 130 compounds), <code>ρ</code> = 0.19, inside the range of 0.04 to 0.36 that a correct <code>σ</code> would produce. In the worse-fitted half, <code>ρ</code> = 0.30, inside 0.15 to 0.46. Each half scores what a correct <code>σ</code> would, so poorly fitted curves do not explain the low <code>ρ</code>.</li>
-  </ul>
+  <p>Resampling with <code>s<sub>i</sub></code> gives a mean <code>ρ</code> of 0.28 (95% of resamples between 0.22 and 0.35), above the observed 0.26. Resampling with a constant 0.3 gives 0.22 (0.13 to 0.30), below it. The constant noise is unrelated to <code>σ</code>, so it only scrambles the ranking. The curve-fit noise is largest for compounds with a large <code>s<sub>i</sub></code>, which tend to have a large <code>σ</code> (Spearman correlation 0.54), so it inflates their residuals and builds in a correlation with <code>σ</code>. The resampled values are no better than the observed value as estimates of how well <code>σ</code> ranks the compounds, because the noise we chose to add determined the size and direction of the change. Under each reading, resampling fails to sharpen the ranking.</p>
 
   <div class="callout result">
     <div class="callout-label">Takeaway</div>
