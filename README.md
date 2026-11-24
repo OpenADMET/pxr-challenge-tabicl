@@ -78,8 +78,8 @@ only way to overwrite completed work.
 | `run/06_calibrate.py` | an out-of-fold calibration map for one configuration, applied post hoc | minutes |
 | `run/07_uncertainty.py` | the uncertainty artifacts figure 6 is drawn from | seconds |
 | `run/08_figures.py` | the manifest's figures, each measured as its own family | a minute, mostly bootstrap |
-| `run/09_replicates.py` | the replicate curve of the uncertainty walkthrough: Spearman ρ under a correct σ at each replicate count, for three levels of measurement noise, in `results/uncertainty/` | seconds |
-| `run/10_label_noise.py` | the walkthrough's test of resampling each measurement around its curve-fit standard error, read from `data/raw/`, in `results/uncertainty/` | seconds |
+| `run/09_replicates.py` | the replicate curve of the uncertainty walkthrough: Spearman ρ under a correct σ at each replicate count, for fixed shares of σ² as measurement noise and for the curve-fit and constant noise levels, in `results/uncertainty/` | seconds |
+| `run/10_label_noise.py` | the walkthrough's curve-fit standard errors and its test of a predicted spread that adds them to σ, with and without the censored compounds, read from `data/raw/`, in `results/uncertainty/` | seconds |
 
 `run/02_featurize.py` and `run/04_sweep.py` both take `--seeds`, which is how a
 run is spread across processes. Split by seed and never by block or cell: seeds
