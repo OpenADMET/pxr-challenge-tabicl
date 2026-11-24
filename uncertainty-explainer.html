@@ -567,20 +567,14 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <hr>
 
-  <!-- ===== STEP 7: RESAMPLING ===== -->
-  <h2 id="s07"><span class="step-num">07</span> Resampling each measurement with its curve-fit standard error</h2>
+  <!-- ===== STEP 7: MEASUREMENTS AS TRUE VALUES ===== -->
+  <h2 id="s07"><span class="step-num">07</span> Would treating the measurements as true fix the ranking?</h2>
 
-  <p>A natural follow-up is to ask whether error information we already have can help. Each pEC50 comes from a dose-response fit, and the challenge data reports the standard error of that fit, <code>s<sub>i</sub></code>, for every compound. The idea is to treat each measured value as the center of a normal distribution with width <code>s<sub>i</sub></code>, draw a new value for every compound (<code data-eq="eq-resample">y*<sub>i</sub> = y<sub>i</sub> + s<sub>i</sub> · z<sub>i</sub></code>), recompute <code>ρ</code>, and repeat, which gives a distribution of <code>ρ</code> that accounts for the uncertainty in each measurement.</p>
+  <p><a href="#s04">Section 04</a> explains the one-flip problem with a true value for each compound that differs from its measurement. That framing invites an objection: if the gap between the true value and the measurement causes the weak ranking, treating each measurement as the true value should remove it.</p>
 
-  <p>The idea rests on a common convention: the measured value is the center of its distribution, and the curve-fit standard error is the width. The convention can be read three ways:</p>
+  <p>The calculation of <code>ρ</code> already does this. Spearman <code>ρ</code> compares <code>σ<sub>i</sub></code> with <code>|y<sub>i</sub> − ŷ<sub>i</sub>|</code>, the distance from the prediction to the measurement, and no true value enters it. Each measurement is the target, so the observed <code>ρ</code> = 0.26 is the result of treating every measurement as the true value. The true value in <a href="#s04">section 04</a> shows where a residual comes from, and the calculation does not use it.</p>
 
-  <ul class="findings">
-    <li><strong>The measurement is the true value plus noise.</strong> Resampling adds a second noise draw on top of the one already in the measurement. It cannot remove the first draw, so the resampled residuals lie further from the true residuals than the observed ones do, and the change in <code>ρ</code> reflects the noise we added.</li>
-    <li><strong>The measurement is the true value.</strong> The observed 0.26 is then exact, and resampling can only move <code>ρ</code> away from it.</li>
-    <li><strong>The measurement locates the true value to within its standard error.</strong> With one measurement and nothing else to go on, the plausible true values follow <code>N(y<sub>i</sub>, s<sub>i</sub>²)</code>, the posterior under a flat prior, and the resampled values are draws of them. The draws scatter in every direction around the measurement, so on average they land further from the prediction than the true values do, most of all where <code>s<sub>i</sub></code> is largest. A prior that placed the true values closer to the predictions would have to come from <code>σ</code> itself, which would assume the calibration that <code>ρ</code> is meant to test.</li>
-  </ul>
-
-  <p>The second reading is already how <code>ρ</code> is computed. Spearman <code>ρ</code> compares <code>σ</code> with <code>|y<sub>i</sub> − ŷ<sub>i</sub>|</code>, the distance from the prediction to the measurement, and uses no true value. <a href="#s04">Section 04</a> separated the true value from the measurement to show where a residual comes from; the calculation itself treats each measurement as the true value. The chart below drops the true value and draws the one-flip problem the way <code>ρ</code> sees it. Two compounds have correct <code>σ</code> values of 0.6 and 0.4, and each residual is one draw from the distribution its <code>σ</code> describes. Click <strong>Random draw</strong> a few times, then <strong>Draw 100</strong>. The compound with the smaller <code>σ</code> often lands the larger residual, which misranks the pair, and across many draws this happens about 37% of the time. No true value appears anywhere in the chart. Treating the measurement as the true value leaves the one-flip problem in place, because that is the setting in which the problem was measured.</p>
+  <p>The chart below draws the one-flip problem without a true value. Two compounds have correct <code>σ</code> values of 0.6 and 0.4, and each residual, measurement minus prediction, is one draw from the distribution its <code>σ</code> describes. Click <strong>Random draw</strong> a few times, then <strong>Draw 100</strong>. The compound with the smaller <code>σ</code> often lands the larger residual, which misranks the pair, and across many draws this happens about 37% of the time.</p>
 
   <div class="chart-panel">
     <div class="chart-title">With the measurement as the target, one draw per compound still misranks pairs</div>
@@ -612,42 +606,11 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <div class="chart-caption">Each row is one compound. The curve is the distribution of residuals its <code>σ</code> describes, centered on the prediction at 0, and the orange marker is the one measured residual. The pair is misranked when the compound with <code>σ</code> = 0.4 lands the larger |residual|. The tally counts draws since the page loaded, and its share approaches 37%, because the larger-<code>σ</code> compound has the larger |residual| with probability (2/π)·arctan(0.6/0.4) = 0.63.</div>
   </div>
 
-  <p>That leaves the curve-fit error bars as the one new ingredient. Applied to the 260 test measurements as proposed, with one resampled value per compound and <code>ρ</code> recomputed 2,000 times, the procedure gives the histograms below.</p>
-
-  <div class="chart-panel">
-    <div class="chart-title">Spearman ρ after resampling the 260 real measurements</div>
-    <canvas id="realresample-chart" height="280" role="img" aria-label="Histograms of rho after resampling the real test measurements with the curve-fit standard errors and with a constant 0.3, with the observed rho marked"></canvas>
-    <div class="legend-row" style="flex-wrap:wrap">
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--green)"></span> Resampled with <code>s<sub>i</sub></code></span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--orange)"></span> Resampled with 0.3</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> Observed <code>ρ</code> = 0.26</span>
-    </div>
-    <div class="chart-caption">Each histogram contains 2,000 resamples for one noise model, in bins of 0.01. Each resample draws a new value around every measured pEC50 and recomputes Spearman <code>ρ</code> between <code>σ</code> and the absolute residual.</div>
-  </div>
-
-  <p>With a constant width of 0.3, <code>ρ</code> averages 0.22 (95% of resamples between 0.13 and 0.30), below the observed 0.26. With <code>s<sub>i</sub></code>, it averages 0.28 (0.22 to 0.35), slightly above. Averaging several resampled values per compound before computing <code>ρ</code> shows where those numbers come from. As more values are averaged, each average returns to its measurement, and <code>ρ</code> returns to 0.26 under each width.</p>
-
-  <div class="chart-panel">
-    <div class="chart-title">Averaging more resampled values returns ρ to the single-measurement value</div>
-    <canvas id="average-chart" height="280" role="img" aria-label="Mean Spearman rho against the number of resampled values averaged per compound, on a log scale, for a constant width of 0.3 and for the curve-fit standard errors, converging on the observed 0.26"></canvas>
-    <div class="legend-row" style="flex-wrap:wrap">
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--orange)"></span> Width 0.3</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--green)"></span> Width <code>s<sub>i</sub></code></span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> Observed <code>ρ</code> = 0.26</span>
-    </div>
-    <div class="chart-caption">Each point is the mean Spearman <code>ρ</code> across 500 repeats, with the number of resampled values averaged per compound on a log scale. One value per compound is the procedure in the histograms above. Hovering shows the central 95% of repeats.</div>
-  </div>
-
-  <ul class="findings">
-    <li><strong>Resampling returns to the measurement treated as true.</strong> A single resample with a constant width scores 0.22 because the added noise is unrelated to <code>σ</code> and blurs the ranking. Averaging removes the blur and gives back 0.26, and no number of draws goes past it, because the measurement is the center of every draw. That 0.26 is <code>ρ</code> with each measurement treated as the true value, the calculation in the pair chart above, and <a href="#s05">section 05</a> shows it is what a correct <code>σ</code> scores when each compound contributes one residual (0.17 to 0.40).</li>
-    <li><strong>The rise with <code>s<sub>i</sub></code> comes from the added noise.</strong> A single resample with <code>s<sub>i</sub></code> scores 0.28 because the added noise is largest where <code>s<sub>i</sub></code> is largest, and <code>s<sub>i</sub></code> tracks <code>σ</code> (Spearman correlation 0.54), so the noise enlarges residuals in a pattern that already matches <code>σ</code>. Averaging removes that noise, and <code>ρ</code> falls back to 0.26. Information about the model's ranking would not fade as more draws are averaged, so the rise was not information about the ranking. Even at its peak, 0.28 matches the 0.285 a correct <code>σ</code> is expected to score with one measurement per compound (<a href="#s05">section 05</a>).</li>
-  </ul>
-
-  <p>Under each reading, resampling fails to sharpen the ranking.</p>
+  <p>The misranking comes from <code>σ</code> describing a spread of possible residuals while each compound shows one. A residual drawn from a wide distribution can land near its center, and one drawn from a narrow distribution can land in its tail, whether the residual is measured against a true value or against a measurement treated as one. <a href="#s05">Section 05</a> simulates this across all 260 compounds, drawing one residual per compound from <code>N(0, σ<sub>i</sub>²)</code> with no true value, and a correct <code>σ</code> scores <code>ρ</code> ≈ 0.285.</p>
 
   <div class="callout result">
-    <div class="callout-label">Takeaway</div>
-    <p>Resampling a measurement around itself propagates our uncertainty about that measurement but cannot reduce it. One measurement and one prediction per compound limit the ranking information in the test set. Replicates could remove the measurement part of that limit, which the curve-fit standard errors suggest is small, and the model-error part would remain.</p>
+    <div class="callout-label">Verdict</div>
+    <p>Treating the measurements as the true values does not change <code>ρ</code>, because <code>ρ</code> is already computed that way. The weak per-compound ranking comes from having one residual per compound, and it would be the same if every measurement equaled its true value.</p>
   </div>
 
   <hr>
@@ -753,7 +716,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <ul class="findings">
       <li><strong><code>ρ</code> = 0.26 is what a correct <code>σ</code> scores here.</strong> It falls at the 34th percentile of the values a perfectly calibrated <code>σ</code> produces with this model's <code>σ</code> distribution (<a href="#s05">section 05</a>).</li>
       <li><strong>The limit is a single realized error per compound.</strong> A correct <code>σ</code> describes the spread of possible errors, not the error a compound actually has, and for this model most of that error is model error rather than assay noise (<a href="#s04">sections 04</a> and <a href="#s06">06</a>).</li>
-      <li><strong>Better data and resampling do not remove it.</strong> Replicates help only with the measurement share, and even perfect measurements leave <code>ρ</code> near 0.28 when the error is model error, and resampling each measurement around its curve-fit standard error moves <code>ρ</code> without sharpening the ranking (<a href="#s06">sections 06</a> and <a href="#s07">07</a>).</li>
+      <li><strong>Better data does not remove it.</strong> Replicates help only with the measurement share, even perfect measurements leave <code>ρ</code> near 0.28 when the error is model error, and treating the measurements as the true values changes nothing, because <code>ρ</code> is already computed that way (<a href="#s06">sections 06</a> and <a href="#s07">07</a>).</li>
       <li><strong>The ranking shows in aggregate.</strong> Calibration, quintile bins and proper scoring rules average over compounds, and they show that <code>σ</code> tracks difficulty (<a href="#s01">section 01</a> and <a href="#s08a">sections 08a to 08c</a>).</li>
     </ul>
   </div>
@@ -779,7 +742,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
       <tr><td><code>run/05_aggregate.py</code></td><td>Collects the results and confirms the featureset and regressor each stage selected, in <code>results/gates/</code></td></tr>
       <tr><td><code>run/07_uncertainty.py</code></td><td>Writes the predicted <code>σ</code> and <code>|residual|</code> of each test compound (<code>points.csv</code>) and the coverage curve (<code>coverage.csv</code>) for the selected model</td></tr>
       <tr><td><code>run/09_replicates.py</code></td><td>Simulates a correct <code>σ</code> from the predicted <code>σ</code> in <code>points.csv</code>, under five fixed shares of measurement noise and the two realistic noise levels, 500 times for each value of <code>R</code>, and writes the replicate curve in <a href="#s06">section 06</a> (<code>replicates.csv</code>)</td></tr>
-      <tr><td><code>run/10_label_noise.py</code></td><td>Joins the curve-fit standard error of each compound from the challenge files in <code>data/raw/</code>, resamples the measurements, averages several resampled values per compound, runs the known-truth simulation, splits the test set by fit quality, and writes the results for <a href="#s07">section 07</a> (<code>label_noise.json</code>)</td></tr>
+      <tr><td><code>run/10_label_noise.py</code></td><td>Joins the curve-fit standard error of each compound from the challenge files in <code>data/raw/</code> and writes their summary for the standard-error histogram in <a href="#s06">section 06</a> (<code>label_noise.json</code>), along with resampling analyses this page does not show</td></tr>
     </tbody>
   </table>
   </div>
@@ -806,7 +769,6 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <tr data-eq="eq-sim"><td class="lbl">Residual simulated under perfect calibration</td><td class="lhs"><span class="sym" data-key="e_i">e<sub>i</sub></span></td><td class="op">=</td><td class="rhs">|<span class="sym" data-key="z_i">z<sub>i</sub></span>| · <span class="sym" data-key="σ_i">σ<sub>i</sub></span>,&ensp;<span class="sym" data-key="z_i">z<sub>i</sub></span> ~ <span class="sym" data-key="N">N</span>(0, 1)</td></tr>
     <tr data-eq="eq-rep"><td class="lbl">Mean residual over <code>R</code> replicates</td><td class="lhs"><span class="sym" data-key="m_i">m<sub>i</sub></span></td><td class="op">=</td><td class="rhs">(1/<span class="sym" data-key="R">R</span>) · Σ<sub>k</sub> <span class="sym" data-key="e_ik">e<sub>ik</sub></span></td></tr>
     <tr data-eq="eq-split"><td class="lbl">Residual as model error plus measurement noise</td><td class="lhs"><span class="sym" data-key="y_i">y<sub>i</sub></span> − <span class="sym" data-key="ŷ_i">ŷ<sub>i</sub></span></td><td class="op">=</td><td class="rhs">(<span class="sym" data-key="t_i">t<sub>i</sub></span> − <span class="sym" data-key="ŷ_i">ŷ<sub>i</sub></span>) + (<span class="sym" data-key="y_i">y<sub>i</sub></span> − <span class="sym" data-key="t_i">t<sub>i</sub></span>)</td></tr>
-    <tr data-eq="eq-resample"><td class="lbl">Resampled measurement, centered on the measured value</td><td class="lhs"><span class="sym" data-key="y*_i">y*<sub>i</sub></span></td><td class="op">=</td><td class="rhs"><span class="sym" data-key="y_i">y<sub>i</sub></span> + <span class="sym" data-key="s_i">s<sub>i</sub></span> · <span class="sym" data-key="z_i">z<sub>i</sub></span></td></tr>
     <tr class="grp"><td colspan="4">Scoring rules</td></tr>
     <tr data-eq="eq-crps"><td class="lbl">CRPS, general definition</td><td class="lhs"><span class="sym" data-key="CRPS">CRPS</span></td><td class="op">=</td><td class="rhs">∫ (<span class="sym" data-key="F_i">F<sub>i</sub></span>(<span class="sym" data-key="u">u</span>) − <span class="sym" data-key="𝟙">𝟙</span>[<span class="sym" data-key="u">u</span> ≥ <span class="sym" data-key="y_i">y<sub>i</sub></span>])² d<span class="sym" data-key="u">u</span></td></tr>
     <tr data-eq="eq-nll"><td class="lbl">NLL for a Gaussian prediction</td><td class="lhs"><span class="sym" data-key="NLL">NLL</span></td><td class="op">=</td><td class="rhs">0.5 · log(2π<span class="sym" data-key="σ_i">σ<sub>i</sub></span>²) + <span class="frac"><span>(<span class="sym" data-key="y_i">y<sub>i</sub></span> − <span class="sym" data-key="ŷ_i">ŷ<sub>i</sub></span>)²</span><span>2<span class="sym" data-key="σ_i">σ<sub>i</sub></span>²</span></span></td></tr>
@@ -827,7 +789,6 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <tr data-sym="e_i,e,e_ik" data-src="Computed"><td><code>e<sub>i</sub></code></td><td>Absolute residual of compound <code>i</code>, written |residual| in text; <code>e<sub>ik</sub></code> is replicate <code>k</code> in the replicate simulation</td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
     <tr data-sym="t_i,t" data-src="Notation"><td><code>t<sub>i</sub></code></td><td>True value of compound <code>i</code>, the value that the mean of repeat measurements approaches, which is unknown for real data</td><td><span class="src src-notation">Notation</span></td><td class="num"></td></tr>
     <tr data-sym="s_i,s" data-src="Measured"><td><code>s<sub>i</sub></code></td><td>Standard error of the dose-response fit that produced the measured pEC50 of compound <code>i</code>, from the challenge files: median 0.12, 5th to 95th percentile 0.06 to 0.32</td><td><span class="src src-measured">Measured</span></td><td class="num"></td></tr>
-    <tr data-sym="y*_i,y*" data-src="Simulated"><td><code>y*<sub>i</sub></code></td><td>Resampled value of compound <code>i</code>, drawn from a normal distribution centered on the measured value with width <code>s<sub>i</sub></code></td><td><span class="src src-simulated">Simulated</span></td><td class="num"></td></tr>
     <tr data-sym="z_i,z" data-src="Simulated"><td><code>z<sub>i</sub></code></td><td>A standard normal draw</td><td><span class="src src-simulated">Simulated</span></td><td class="num"></td></tr>
     <tr class="grp"><td colspan="4">Calibration</td></tr>
     <tr data-sym="p" data-src="Notation"><td><code>p</code></td><td>Nominal coverage level of a central interval, from 0 to 1</td><td><span class="src src-notation">Notation</span></td><td class="num"></td></tr>
@@ -863,7 +824,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 const DATA = [{"s":0.4282,"e":0.1418},{"s":0.5183,"e":0.4535},{"s":0.4895,"e":0.0767},{"s":0.498,"e":0.1101},{"s":0.5355,"e":0.7866},{"s":0.9476,"e":0.6937},{"s":0.7395,"e":0.1598},{"s":0.5101,"e":0.2591},{"s":0.4826,"e":0.2081},{"s":0.4713,"e":0.2143},{"s":0.4977,"e":0.265},{"s":0.5174,"e":0.0675},{"s":0.4615,"e":0.1428},{"s":0.4331,"e":0.1715},{"s":0.6752,"e":1.1512},{"s":0.3553,"e":0.3754},{"s":0.4593,"e":3.1177},{"s":0.3731,"e":0.1235},{"s":0.3257,"e":0.1445},{"s":0.3672,"e":0.1154},{"s":0.3918,"e":0.2165},{"s":0.586,"e":0.1695},{"s":0.4459,"e":0.2186},{"s":0.541,"e":1.492},{"s":0.4966,"e":0.3642},{"s":0.3696,"e":0.3601},{"s":0.5222,"e":0.1678},{"s":0.6735,"e":0.4899},{"s":0.4658,"e":0.081},{"s":0.4023,"e":0.5648},{"s":0.5974,"e":0.211},{"s":0.4096,"e":0.2134},{"s":0.4705,"e":0.8856},{"s":0.4068,"e":0.308},{"s":0.4018,"e":0.0532},{"s":0.8424,"e":0.0114},{"s":0.4431,"e":0.1426},{"s":0.573,"e":0.1023},{"s":0.4978,"e":0.0073},{"s":0.7902,"e":0.9984},{"s":0.6531,"e":0.2543},{"s":1.0536,"e":0.869},{"s":0.5779,"e":0.2159},{"s":1.2787,"e":2.0199},{"s":0.3911,"e":0.057},{"s":0.4549,"e":0.2755},{"s":0.4326,"e":0.0433},{"s":0.7647,"e":1.0326},{"s":1.052,"e":0.7016},{"s":0.8822,"e":0.2673},{"s":0.4371,"e":0.4353},{"s":0.4172,"e":0.5673},{"s":0.7431,"e":2.1354},{"s":0.3837,"e":0.3594},{"s":0.4781,"e":0.1185},{"s":0.4805,"e":0.5633},{"s":0.4874,"e":0.4708},{"s":0.6233,"e":0.5272},{"s":0.4392,"e":0.3009},{"s":0.9256,"e":0.5458},{"s":0.4818,"e":1.2775},{"s":0.658,"e":0.1839},{"s":0.5505,"e":0.4047},{"s":0.4351,"e":3.4054},{"s":0.6074,"e":1.1972},{"s":0.4515,"e":0.2348},{"s":0.5265,"e":0.0663},{"s":0.4231,"e":0.1421},{"s":0.3978,"e":0.1131},{"s":0.5082,"e":0.2513},{"s":0.5674,"e":0.1738},{"s":0.4076,"e":0.41},{"s":0.3815,"e":0.2034},{"s":0.4132,"e":0.2178},{"s":0.3945,"e":0.3925},{"s":0.3892,"e":0.0863},{"s":0.4197,"e":0.1431},{"s":0.361,"e":0.3288},{"s":0.4607,"e":0.0514},{"s":0.564,"e":0.0979},{"s":0.5359,"e":0.5479},{"s":0.4795,"e":0.6974},{"s":0.4173,"e":1.048},{"s":0.5204,"e":0.6722},{"s":0.5491,"e":0.4302},{"s":0.4593,"e":0.3209},{"s":0.3544,"e":0.1658},{"s":0.3626,"e":0.8183},{"s":0.5339,"e":0.063},{"s":0.4788,"e":0.6298},{"s":0.6969,"e":1.3391},{"s":0.4782,"e":0.1424},{"s":0.9013,"e":1.1471},{"s":0.4168,"e":0.4153},{"s":0.67,"e":0.1012},{"s":0.5233,"e":0.3603},{"s":0.5879,"e":0.0641},{"s":0.4672,"e":1.1641},{"s":0.5526,"e":0.5267},{"s":0.3869,"e":0.0511},{"s":0.7889,"e":0.4765},{"s":0.4273,"e":0.3288},{"s":0.3655,"e":0.143},{"s":0.4016,"e":0.0845},{"s":0.3981,"e":0.1387},{"s":0.4128,"e":0.6182},{"s":0.4611,"e":0.1409},{"s":0.336,"e":0.6181},{"s":0.4488,"e":0.1703},{"s":0.3557,"e":0.1645},{"s":0.3286,"e":0.1293},{"s":0.8456,"e":1.3285},{"s":0.3682,"e":0.1811},{"s":0.3376,"e":0.2431},{"s":0.364,"e":0.6841},{"s":0.3581,"e":0.216},{"s":0.3697,"e":0.2555},{"s":0.6767,"e":0.6158},{"s":0.7315,"e":0.0114},{"s":0.3505,"e":0.2508},{"s":0.5977,"e":0.3173},{"s":0.4554,"e":0.0222},{"s":0.4302,"e":0.6272},{"s":0.5284,"e":0.5149},{"s":0.402,"e":0.4216},{"s":0.547,"e":0.0473},{"s":0.4258,"e":0.07},{"s":0.4561,"e":0.2226},{"s":0.4492,"e":0.0416},{"s":0.562,"e":0.3928},{"s":0.396,"e":0.4457},{"s":0.4689,"e":0.1777},{"s":0.8282,"e":0.7191},{"s":0.5015,"e":0.437},{"s":0.3961,"e":0.1554},{"s":0.5623,"e":0.1955},{"s":0.3487,"e":0.4096},{"s":1.0351,"e":0.2505},{"s":0.4715,"e":0.0054},{"s":0.4432,"e":0.6685},{"s":0.6143,"e":0.2953},{"s":0.4321,"e":1.627},{"s":0.4071,"e":0.3347},{"s":0.4245,"e":0.1411},{"s":0.7055,"e":0.7015},{"s":0.6215,"e":0.1319},{"s":0.4617,"e":0.0188},{"s":0.8033,"e":0.1479},{"s":0.5229,"e":0.1255},{"s":0.481,"e":0.0273},{"s":0.471,"e":0.0496},{"s":0.7612,"e":0.1481},{"s":0.7094,"e":0.9288},{"s":0.6657,"e":0.2558},{"s":0.4072,"e":0.3874},{"s":0.4025,"e":0.9001},{"s":0.6273,"e":1.2591},{"s":0.6034,"e":0.28},{"s":0.676,"e":0.1442},{"s":0.4086,"e":0.2617},{"s":0.708,"e":0.4397},{"s":0.5194,"e":0.0904},{"s":0.4178,"e":0.2377},{"s":0.4718,"e":0.7021},{"s":0.4538,"e":0.1879},{"s":0.4593,"e":0.1293},{"s":0.4603,"e":0.8794},{"s":0.4501,"e":0.1382},{"s":0.4332,"e":0.0285},{"s":0.4667,"e":0.4497},{"s":0.386,"e":0.0906},{"s":0.8028,"e":0.7811},{"s":0.4535,"e":0.1994},{"s":0.3773,"e":0.493},{"s":0.5173,"e":0.1644},{"s":0.5048,"e":0.3448},{"s":0.7263,"e":0.1344},{"s":0.684,"e":0.0533},{"s":0.7122,"e":0.0049},{"s":0.4797,"e":0.9531},{"s":0.6747,"e":0.9291},{"s":0.7202,"e":0.2985},{"s":0.4258,"e":0.1948},{"s":0.6107,"e":0.6271},{"s":1.0741,"e":0.9374},{"s":0.5534,"e":0.1254},{"s":0.5235,"e":0.0972},{"s":0.4309,"e":0.214},{"s":0.9209,"e":0.2213},{"s":0.491,"e":0.0737},{"s":0.9266,"e":0.4759},{"s":0.4707,"e":0.9052},{"s":0.4317,"e":0.0454},{"s":0.4036,"e":0.2998},{"s":0.4313,"e":0.0329},{"s":0.42,"e":0.1871},{"s":0.4695,"e":1.0585},{"s":0.7933,"e":0.444},{"s":0.5324,"e":0.3159},{"s":0.4398,"e":0.3526},{"s":0.3173,"e":0.387},{"s":0.3251,"e":0.2217},{"s":0.3205,"e":0.0619},{"s":0.353,"e":0.0916},{"s":0.5208,"e":0.7003},{"s":0.5003,"e":0.5145},{"s":1.2646,"e":0.9646},{"s":0.7641,"e":1.4593},{"s":0.8671,"e":0.5434},{"s":0.3817,"e":0.0906},{"s":0.4293,"e":0.1461},{"s":0.5438,"e":0.4789},{"s":0.4347,"e":0.0935},{"s":0.6634,"e":2.1803},{"s":0.5609,"e":0.1479},{"s":0.5344,"e":0.3751},{"s":0.4486,"e":0.6789},{"s":1.0727,"e":0.1451},{"s":0.4312,"e":0.2285},{"s":0.3598,"e":0.2873},{"s":0.3733,"e":0.3254},{"s":0.4207,"e":0.2916},{"s":0.4521,"e":0.0685},{"s":0.876,"e":0.7171},{"s":0.3716,"e":0.1906},{"s":0.4484,"e":0.0593},{"s":0.4716,"e":0.2361},{"s":0.688,"e":0.9502},{"s":0.6217,"e":0.3972},{"s":0.6664,"e":0.4194},{"s":0.649,"e":0.156},{"s":0.951,"e":0.1923},{"s":1.2289,"e":0.9407},{"s":0.474,"e":0.5383},{"s":0.4454,"e":0.3107},{"s":0.9653,"e":1.2049},{"s":1.0499,"e":0.0542},{"s":0.7063,"e":0.7083},{"s":0.6744,"e":0.843},{"s":0.4792,"e":0.0314},{"s":0.4056,"e":0.251},{"s":0.4374,"e":1.0117},{"s":0.5652,"e":1.4561},{"s":0.3889,"e":0.2549},{"s":0.3799,"e":0.0376},{"s":0.4117,"e":0.1054},{"s":1.0219,"e":0.5948},{"s":0.5954,"e":0.319},{"s":0.4158,"e":0.1507},{"s":0.449,"e":0.5551},{"s":0.3778,"e":0.2693},{"s":0.4315,"e":0.0919},{"s":0.4045,"e":0.3198},{"s":0.4183,"e":0.794},{"s":0.4046,"e":0.1148},{"s":0.4023,"e":0.2874},{"s":0.4242,"e":0.1118},{"s":0.4098,"e":0.3827},{"s":0.7282,"e":0.6705},{"s":0.4841,"e":0.6159}];
 
 const SIGMAS = DATA.map(d => d.s);
-const LABEL_NOISE = {"se_hist": {"counts": [2, 54, 47, 36, 21, 19, 6, 14, 16, 17, 7, 8, 4, 1, 0, 2, 1, 0, 1, 0, 0, 1, 1, 1, 1], "edges": [0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25, 0.275, 0.3, 0.325, 0.35, 0.375, 0.4, 0.425, 0.45, 0.475, 0.5, 0.525, 0.55, 0.575, 0.6, 0.625, 0.65]}, "se_median": 0.12139999999999995, "mean_sigma": 0.5371908042489943, "literature": 0.3, "known_truth": {"curve_fit": {"oracle": {"hi": 0.3788338434968671, "lo": 0.1675781106647216, "mean": 0.27464878633539347}, "resampled": {"hi": 0.37844086194948257, "lo": 0.19826783196610778, "mean": 0.28761405811647184}, "single": {"hi": 0.38922529008735895, "lo": 0.16533579809441876, "mean": 0.28227062598786734}}, "literature": {"oracle": {"hi": 0.5246565720703651, "lo": 0.3117048670496946, "mean": 0.42279715699026044}, "resampled": {"hi": 0.300063287520184, "lo": 0.14100382259865013, "mean": 0.22188018072638757}, "single": {"hi": 0.3899689003137278, "lo": 0.17187089704331082, "mean": 0.2840810954190264}}}, "resampled_real": {"curve_fit": {"hist": {"counts": [1, 2, 4, 8, 17, 28, 53, 91, 131, 155, 178, 231, 242, 237, 187, 177, 88, 72, 53, 21, 16, 2, 3, 2, 1], "edges": [0.16, 0.17, 0.18, 0.19, 0.2, 0.21, 0.22, 0.23, 0.24, 0.25, 0.26, 0.27, 0.28, 0.29, 0.3, 0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38, 0.39, 0.4, 0.41]}, "mean": 0.2833436047642944}, "literature": {"hist": {"counts": [1, 0, 3, 6, 18, 23, 22, 33, 55, 83, 92, 142, 169, 163, 176, 178, 167, 167, 146, 116, 72, 50, 47, 33, 16, 8, 6, 3, 1, 2, 2], "edges": [0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.2, 0.21, 0.22, 0.23, 0.24, 0.25, 0.26, 0.27, 0.28, 0.29, 0.3, 0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38]}, "mean": 0.22059375821444785}}, "resampled_average": {"curve_fit": [{"k": 1, "mean": 0.2858, "lo": 0.2201, "hi": 0.3555}, {"k": 2, "mean": 0.2778, "lo": 0.2256, "hi": 0.328}, {"k": 3, "mean": 0.2705, "lo": 0.2229, "hi": 0.3153}, {"k": 5, "mean": 0.2691, "lo": 0.225, "hi": 0.31}, {"k": 10, "mean": 0.2645, "lo": 0.2326, "hi": 0.2952}, {"k": 20, "mean": 0.2612, "lo": 0.2387, "hi": 0.2835}, {"k": 50, "mean": 0.2605, "lo": 0.2455, "hi": 0.2731}, {"k": 100, "mean": 0.2608, "lo": 0.2516, "hi": 0.271}, {"k": 1000, "mean": 0.2612, "lo": 0.2571, "hi": 0.2653}], "literature": [{"k": 1, "mean": 0.218, "lo": 0.1378, "hi": 0.3014}, {"k": 2, "mean": 0.2489, "lo": 0.1702, "hi": 0.3239}, {"k": 3, "mean": 0.2572, "lo": 0.1883, "hi": 0.3206}, {"k": 5, "mean": 0.2613, "lo": 0.2045, "hi": 0.317}, {"k": 10, "mean": 0.2642, "lo": 0.2193, "hi": 0.3099}, {"k": 20, "mean": 0.262, "lo": 0.2276, "hi": 0.2978}, {"k": 50, "mean": 0.2608, "lo": 0.2366, "hi": 0.2824}, {"k": 100, "mean": 0.2608, "lo": 0.2441, "hi": 0.2772}, {"k": 1000, "mean": 0.2608, "lo": 0.2547, "hi": 0.2665}]}};
+const LABEL_NOISE = {"se_hist": {"counts": [2, 54, 47, 36, 21, 19, 6, 14, 16, 17, 7, 8, 4, 1, 0, 2, 1, 0, 1, 0, 0, 1, 1, 1, 1], "edges": [0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25, 0.275, 0.3, 0.325, 0.35, 0.375, 0.4, 0.425, 0.45, 0.475, 0.5, 0.525, 0.55, 0.575, 0.6, 0.625, 0.65]}, "se_median": 0.12139999999999995, "mean_sigma": 0.5371908042489943, "literature": 0.3};
 const OBS_RHO = 0.2616;
 
 // ===== UTILITIES =====
@@ -2108,139 +2069,6 @@ const LN = {
   render();
 })();
 
-// ===== LABEL NOISE: AVERAGING RESAMPLED VALUES =====
-(function() {
-  const canvas = document.getElementById('average-chart');
-  const { W, H } = LN.size(canvas, 280);
-  const pad = { t: 14, r: 44, b: 44, l: 52 };
-  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
-  const ctx = hiDpiCanvas(canvas, W, H);
-  const SERIES = [
-    { key: 'literature', color: C.orange, label: '0.3' },
-    { key: 'curve_fit', color: C.green, label: 'sᵢ' },
-  ];
-  const TICKS = [1, 2, 3, 5, 10, 20, 50, 100, 1000];
-  const yMin = 0.18, yMax = 0.32;
-  const xScale = v => pad.l + Math.log10(v) / 3 * pw;
-  const yScale = v => pad.t + ph - (v - yMin) / (yMax - yMin) * ph;
-  const rows = k => LABEL_NOISE.resampled_average[k];
-
-  // Grid
-  ctx.strokeStyle = C.current; ctx.lineWidth = 1;
-  for (let y = 0.2; y <= yMax + 1e-9; y += 0.02) {
-    ctx.beginPath(); ctx.moveTo(pad.l, yScale(y)); ctx.lineTo(pad.l + pw, yScale(y)); ctx.stroke();
-  }
-  TICKS.forEach(x => {
-    ctx.beginPath(); ctx.moveTo(xScale(x), pad.t); ctx.lineTo(xScale(x), pad.t + ph); ctx.stroke();
-  });
-
-  // Observed rho as a horizontal reference
-  ctx.strokeStyle = C.pink; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
-  ctx.beginPath(); ctx.moveTo(pad.l, yScale(OBS_RHO)); ctx.lineTo(pad.l + pw, yScale(OBS_RHO)); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = C.pink; ctx.font = '10px "SF Mono", "Fira Code", monospace'; ctx.textAlign = 'right';
-  ctx.fillText('observed 0.26', pad.l + pw - 4, yScale(OBS_RHO) - 6);
-
-  // Mean lines with points, labeled at the left where they separate
-  SERIES.forEach(s => {
-    const d = rows(s.key);
-    ctx.strokeStyle = s.color; ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    d.forEach((p, i) => (i === 0 ? ctx.moveTo : ctx.lineTo).call(ctx, xScale(p.k), yScale(p.mean)));
-    ctx.stroke();
-    ctx.fillStyle = s.color;
-    d.forEach(p => { ctx.beginPath(); ctx.arc(xScale(p.k), yScale(p.mean), 3, 0, 2 * Math.PI); ctx.fill(); });
-    ctx.font = LN.mono; ctx.textAlign = 'left';
-    ctx.fillText(s.label, xScale(1) + 8, yScale(d[0].mean) + 4);
-  });
-
-  // Ticks and axes
-  ctx.fillStyle = C.comment; ctx.font = LN.mono; ctx.textAlign = 'center';
-  TICKS.forEach(x => ctx.fillText(x, xScale(x), pad.t + ph + 18));
-  ctx.textAlign = 'right';
-  for (let y = 0.2; y <= yMax + 1e-9; y += 0.02) ctx.fillText(y.toFixed(2), pad.l - 8, yScale(y) + 4);
-  LN.axes(ctx, pad, pw, ph, 'Resampled values averaged per compound', 'Spearman ρ', H);
-
-  // Hover: both series at the nearest averaging count
-  canvas.addEventListener('mousemove', ev => {
-    const r = canvas.getBoundingClientRect();
-    const mx = (ev.clientX - r.left) * (W / r.width);
-    let hit = -1, best = Infinity;
-    rows('literature').forEach((p, i) => {
-      const dist = Math.abs(xScale(p.k) - mx);
-      if (dist < best) { best = dist; hit = i; }
-    });
-    if (hit < 0 || best > 30) { hideChartTip(); return; }
-    const lines = SERIES.map(s => {
-      const p = rows(s.key)[hit];
-      return `<span style="color:${s.color}">Width ${s.label}</span>&emsp;ρ = ${p.mean.toFixed(3)} [${p.lo.toFixed(3)}, ${p.hi.toFixed(3)}]`;
-    });
-    showChartTip(`${rows('literature')[hit].k} averaged per compound<br>` + lines.join('<br>'), ev);
-  });
-  canvas.addEventListener('mouseleave', hideChartTip);
-})();
-
-// ===== LABEL NOISE: RESAMPLING THE REAL MEASUREMENTS =====
-(function() {
-  const canvas = document.getElementById('realresample-chart');
-  const { W, H } = LN.size(canvas, 280);
-  const pad = { t: 14, r: 20, b: 44, l: 52 };
-  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
-  const ctx = hiDpiCanvas(canvas, W, H);
-  const SERIES = [
-    { key: 'literature', color: C.orange, label: 'Resampled with 0.3' },
-    { key: 'curve_fit', color: C.green, label: 'Resampled with sᵢ' },
-  ];
-
-  const xMin = 0.05, xMax = 0.45;
-  const yMax = Math.max(...SERIES.flatMap(s => LABEL_NOISE.resampled_real[s.key].hist.counts)) * 1.12;
-  const xScale = v => pad.l + (v - xMin) / (xMax - xMin) * pw;
-  const yScale = v => pad.t + ph - v / yMax * ph;
-
-  // Grid
-  ctx.strokeStyle = C.current; ctx.lineWidth = 1;
-  for (let x = 0.1; x <= xMax + 1e-9; x += 0.05) {
-    ctx.beginPath(); ctx.moveTo(xScale(x), pad.t); ctx.lineTo(xScale(x), pad.t + ph); ctx.stroke();
-  }
-
-  // Overlapping histograms, then the observed rho
-  SERIES.forEach(s => {
-    const { edges, counts } = LABEL_NOISE.resampled_real[s.key].hist;
-    LN.bars(ctx, edges, counts, xScale, yScale, s.color + '33');
-    ctx.strokeStyle = s.color;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    counts.forEach((c, i) => {
-      const x0 = xScale(edges[i]), x1 = xScale(edges[i + 1]), y = yScale(c);
-      if (i === 0) ctx.moveTo(x0, yScale(0));
-      ctx.lineTo(x0, y); ctx.lineTo(x1, y);
-    });
-    ctx.lineTo(xScale(edges[counts.length]), yScale(0));
-    ctx.stroke();
-  });
-  LN.vline(ctx, xScale(OBS_RHO), pad.t, pad.t + ph, C.pink, 'observed 0.26', pad.t + 12);
-
-  // Ticks and axes
-  ctx.fillStyle = C.comment; ctx.font = LN.mono; ctx.textAlign = 'center';
-  for (let x = 0.1; x <= xMax + 1e-9; x += 0.05) ctx.fillText(x.toFixed(2), xScale(x), pad.t + ph + 18);
-  ctx.textAlign = 'right';
-  const yStep = Math.ceil(yMax / 5 / 10) * 10;
-  for (let y = 0; y <= yMax; y += yStep) ctx.fillText(y, pad.l - 8, yScale(y) + 4);
-  LN.axes(ctx, pad, pw, ph, 'Spearman ρ', 'Resamples', H);
-
-  // Hover: both series' counts in the bin under the pointer
-  canvas.addEventListener('mousemove', ev => {
-    const r = canvas.getBoundingClientRect();
-    const v = xMin + ((ev.clientX - r.left) * (W / r.width) - pad.l) / pw * (xMax - xMin);
-    const lines = SERIES.map(s => {
-      const { edges, counts } = LABEL_NOISE.resampled_real[s.key].hist;
-      const i = edges.findIndex((e, k) => k < counts.length && v >= e && v < edges[k + 1]);
-      return i < 0 ? null : `<span style="color:${s.color}">${s.label}</span>&emsp;${counts[i]} at ρ ${edges[i].toFixed(2)} to ${edges[i + 1].toFixed(2)}`;
-    }).filter(Boolean);
-    if (lines.length) showChartTip(lines.join('<br>'), ev); else hideChartTip();
-  });
-  canvas.addEventListener('mouseleave', hideChartTip);
-})();
 // ===== SYMBOL REFERENCE TOOLTIPS =====
 (function() {
   // Collect definitions and their reference rows from the symbol table
