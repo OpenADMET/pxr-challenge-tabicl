@@ -580,7 +580,37 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <li><strong>The measurement locates the true value to within its standard error.</strong> With one measurement and nothing else to go on, the plausible true values follow <code>N(y<sub>i</sub>, s<sub>i</sub>²)</code>, the posterior under a flat prior, and the resampled values are draws of them. The draws scatter in every direction around the measurement, so on average they land further from the prediction than the true values do, most of all where <code>s<sub>i</sub></code> is largest. A prior that placed the true values closer to the predictions would have to come from <code>σ</code> itself, which would assume the calibration that <code>ρ</code> is meant to test.</li>
   </ul>
 
-  <p>The resampled values scatter around the measurement, not the true value. However many we draw, they give back the measurement with an error bar of width <code>s<sub>i</sub></code>, and they tell us nothing new about where the true value <code>t<sub>i</sub></code> lies. Resampling does change <code>ρ</code>. Each resampled residual is the observed signed residual plus a fresh draw of width <code>s<sub>i</sub></code>, so its size can grow or shrink, and the compounds with the largest <code>s<sub>i</sub></code> receive the most added scatter.</p>
+  <p>Under every reading, the resampled values are built from the measurement. The chart below follows one compound through the procedure. Its true value <code>t<sub>i</sub></code> is unknown in practice; the chart shows it because this compound is simulated. The measurement <code>y<sub>i</sub></code> lands somewhere around <code>t<sub>i</sub></code>, one draw of the measurement noise, and resampling draws new values <code>y*<sub>i</sub></code> around <code>y<sub>i</sub></code>. Click <strong>New measurement</strong> several times. Wherever the measurement lands, the resampled values follow it, and their average falls on the measurement, however far the measurement is from the true value. Calling the measurement the center of its distribution does not move it to the true value. It only makes the resampled values agree with the measurement, error included.</p>
+
+  <div class="chart-panel">
+    <div class="chart-title">Resampled values follow the measurement, not the true value</div>
+    <div class="sim-controls">
+      <button class="sim-btn" id="center-new">New measurement</button>
+    </div>
+    <canvas id="center-chart" height="240" role="img" aria-label="One simulated compound: the distribution of possible measurements around the true value, one measurement, and resampled values drawn around that measurement"></canvas>
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="stat-label">Measurement − true value</div>
+        <div class="stat-value" style="color:var(--orange)" id="center-meas">&mdash;</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Resampled average − measurement</div>
+        <div class="stat-value" style="color:var(--green)" id="center-avg-meas">&mdash;</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Resampled average − true value</div>
+        <div class="stat-value" style="color:var(--purple)" id="center-avg-true">&mdash;</div>
+      </div>
+    </div>
+    <div class="legend-row" style="flex-wrap:wrap">
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--purple);opacity:0.4"></span> Where a measurement can land</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--orange)"></span> The one measurement</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--green)"></span> Resampled values and their average</span>
+    </div>
+    <div class="chart-caption">One simulated compound with its true value at 0 and a measurement noise of 0.3 log units, wide enough to see (the median curve-fit standard error is 0.12). The purple curve is centered on the true value; the green curve and the 40 green dots are centered on the measurement, and the green diamond is their average. The gap between the resampled average and the true value matches the gap between the measurement and the true value, because no step of the resampling uses the true value.</div>
+  </div>
+
+  <p>Applied to the 260 test measurements as proposed, with one resampled value per compound and <code>ρ</code> recomputed 2,000 times, the procedure gives the histograms below.</p>
 
   <div class="chart-panel">
     <div class="chart-title">Spearman ρ after resampling the 260 real measurements</div>
@@ -593,7 +623,25 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <div class="chart-caption">Each histogram contains 2,000 resamples for one noise model, in bins of 0.01. Each resample draws a new value around every measured pEC50 and recomputes Spearman <code>ρ</code> between <code>σ</code> and the absolute residual.</div>
   </div>
 
-  <p>Resampling with <code>s<sub>i</sub></code> gives a mean <code>ρ</code> of 0.28 (95% of resamples between 0.22 and 0.35), above the observed 0.26. Resampling with a constant 0.3 gives 0.22 (0.13 to 0.30), below it. The constant noise is unrelated to <code>σ</code>, so it only scrambles the ranking. The curve-fit noise is largest for compounds with a large <code>s<sub>i</sub></code>, which tend to have a large <code>σ</code> (Spearman correlation 0.54), so it inflates their residuals and builds in a correlation with <code>σ</code>. The resampled values are no better than the observed value as estimates of how well <code>σ</code> ranks the compounds, because the noise we chose to add determined the size and direction of the change. Under each reading, resampling fails to sharpen the ranking.</p>
+  <p>With a constant width of 0.3, <code>ρ</code> averages 0.22 (95% of resamples between 0.13 and 0.30), below the observed 0.26. With <code>s<sub>i</sub></code>, it averages 0.28 (0.22 to 0.35), slightly above. Averaging several resampled values per compound before computing <code>ρ</code> shows where those numbers come from. As more values are averaged, each average returns to its measurement, and <code>ρ</code> returns to 0.26 under each width.</p>
+
+  <div class="chart-panel">
+    <div class="chart-title">Averaging more resampled values returns ρ to the single-measurement value</div>
+    <canvas id="average-chart" height="280" role="img" aria-label="Mean Spearman rho against the number of resampled values averaged per compound, on a log scale, for a constant width of 0.3 and for the curve-fit standard errors, converging on the observed 0.26"></canvas>
+    <div class="legend-row" style="flex-wrap:wrap">
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--orange)"></span> Width 0.3</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--green)"></span> Width <code>s<sub>i</sub></code></span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--pink)"></span> Observed <code>ρ</code> = 0.26</span>
+    </div>
+    <div class="chart-caption">Each point is the mean Spearman <code>ρ</code> across 500 repeats, with the number of resampled values averaged per compound on a log scale. One value per compound is the procedure in the histograms above. Hovering shows the central 95% of repeats.</div>
+  </div>
+
+  <ul class="findings">
+    <li><strong>Resampling returns to the measurement, and the measurement is not the truth.</strong> A single resample with a constant width scores 0.22 because the added noise is unrelated to <code>σ</code> and blurs the ranking. Averaging removes the blur and gives back 0.26, and no number of draws goes past it, because the measurement is the center of every draw. That 0.26 is <code>ρ</code> against the measurements, measurement error included, and not <code>ρ</code> against the true values. <a href="#s05">Section 05</a> shows it is one draw from the range a correct <code>σ</code> produces (0.17 to 0.40). Calling the measurement the truth does not remove that draw.</li>
+    <li><strong>The rise with <code>s<sub>i</sub></code> comes from the added noise.</strong> A single resample with <code>s<sub>i</sub></code> scores 0.28 because the added noise is largest where <code>s<sub>i</sub></code> is largest, and <code>s<sub>i</sub></code> tracks <code>σ</code> (Spearman correlation 0.54), so the noise enlarges residuals in a pattern that already matches <code>σ</code>. Averaging removes that noise, and <code>ρ</code> falls back to 0.26. Information about the model's ranking would not fade as more draws are averaged, so the rise was not information about the ranking. Even at its peak, 0.28 matches the 0.285 a correct <code>σ</code> is expected to score with one measurement per compound (<a href="#s05">section 05</a>).</li>
+  </ul>
+
+  <p>Under each reading, resampling fails to sharpen the ranking.</p>
 
   <div class="callout result">
     <div class="callout-label">Takeaway</div>
@@ -729,7 +777,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
       <tr><td><code>run/05_aggregate.py</code></td><td>Collects the results and confirms the featureset and regressor each stage selected, in <code>results/gates/</code></td></tr>
       <tr><td><code>run/07_uncertainty.py</code></td><td>Writes the predicted <code>σ</code> and <code>|residual|</code> of each test compound (<code>points.csv</code>) and the coverage curve (<code>coverage.csv</code>) for the selected model</td></tr>
       <tr><td><code>run/09_replicates.py</code></td><td>Simulates a correct <code>σ</code> from the predicted <code>σ</code> in <code>points.csv</code>, under five fixed shares of measurement noise and the two realistic noise levels, 500 times for each value of <code>R</code>, and writes the replicate curve in <a href="#s06">section 06</a> (<code>replicates.csv</code>)</td></tr>
-      <tr><td><code>run/10_label_noise.py</code></td><td>Joins the curve-fit standard error of each compound from the challenge files in <code>data/raw/</code>, resamples the measurements, runs the known-truth simulation, splits the test set by fit quality, and writes the results for <a href="#s07">section 07</a> (<code>label_noise.json</code>)</td></tr>
+      <tr><td><code>run/10_label_noise.py</code></td><td>Joins the curve-fit standard error of each compound from the challenge files in <code>data/raw/</code>, resamples the measurements, averages several resampled values per compound, runs the known-truth simulation, splits the test set by fit quality, and writes the results for <a href="#s07">section 07</a> (<code>label_noise.json</code>)</td></tr>
     </tbody>
   </table>
   </div>
@@ -813,7 +861,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 const DATA = [{"s":0.4282,"e":0.1418},{"s":0.5183,"e":0.4535},{"s":0.4895,"e":0.0767},{"s":0.498,"e":0.1101},{"s":0.5355,"e":0.7866},{"s":0.9476,"e":0.6937},{"s":0.7395,"e":0.1598},{"s":0.5101,"e":0.2591},{"s":0.4826,"e":0.2081},{"s":0.4713,"e":0.2143},{"s":0.4977,"e":0.265},{"s":0.5174,"e":0.0675},{"s":0.4615,"e":0.1428},{"s":0.4331,"e":0.1715},{"s":0.6752,"e":1.1512},{"s":0.3553,"e":0.3754},{"s":0.4593,"e":3.1177},{"s":0.3731,"e":0.1235},{"s":0.3257,"e":0.1445},{"s":0.3672,"e":0.1154},{"s":0.3918,"e":0.2165},{"s":0.586,"e":0.1695},{"s":0.4459,"e":0.2186},{"s":0.541,"e":1.492},{"s":0.4966,"e":0.3642},{"s":0.3696,"e":0.3601},{"s":0.5222,"e":0.1678},{"s":0.6735,"e":0.4899},{"s":0.4658,"e":0.081},{"s":0.4023,"e":0.5648},{"s":0.5974,"e":0.211},{"s":0.4096,"e":0.2134},{"s":0.4705,"e":0.8856},{"s":0.4068,"e":0.308},{"s":0.4018,"e":0.0532},{"s":0.8424,"e":0.0114},{"s":0.4431,"e":0.1426},{"s":0.573,"e":0.1023},{"s":0.4978,"e":0.0073},{"s":0.7902,"e":0.9984},{"s":0.6531,"e":0.2543},{"s":1.0536,"e":0.869},{"s":0.5779,"e":0.2159},{"s":1.2787,"e":2.0199},{"s":0.3911,"e":0.057},{"s":0.4549,"e":0.2755},{"s":0.4326,"e":0.0433},{"s":0.7647,"e":1.0326},{"s":1.052,"e":0.7016},{"s":0.8822,"e":0.2673},{"s":0.4371,"e":0.4353},{"s":0.4172,"e":0.5673},{"s":0.7431,"e":2.1354},{"s":0.3837,"e":0.3594},{"s":0.4781,"e":0.1185},{"s":0.4805,"e":0.5633},{"s":0.4874,"e":0.4708},{"s":0.6233,"e":0.5272},{"s":0.4392,"e":0.3009},{"s":0.9256,"e":0.5458},{"s":0.4818,"e":1.2775},{"s":0.658,"e":0.1839},{"s":0.5505,"e":0.4047},{"s":0.4351,"e":3.4054},{"s":0.6074,"e":1.1972},{"s":0.4515,"e":0.2348},{"s":0.5265,"e":0.0663},{"s":0.4231,"e":0.1421},{"s":0.3978,"e":0.1131},{"s":0.5082,"e":0.2513},{"s":0.5674,"e":0.1738},{"s":0.4076,"e":0.41},{"s":0.3815,"e":0.2034},{"s":0.4132,"e":0.2178},{"s":0.3945,"e":0.3925},{"s":0.3892,"e":0.0863},{"s":0.4197,"e":0.1431},{"s":0.361,"e":0.3288},{"s":0.4607,"e":0.0514},{"s":0.564,"e":0.0979},{"s":0.5359,"e":0.5479},{"s":0.4795,"e":0.6974},{"s":0.4173,"e":1.048},{"s":0.5204,"e":0.6722},{"s":0.5491,"e":0.4302},{"s":0.4593,"e":0.3209},{"s":0.3544,"e":0.1658},{"s":0.3626,"e":0.8183},{"s":0.5339,"e":0.063},{"s":0.4788,"e":0.6298},{"s":0.6969,"e":1.3391},{"s":0.4782,"e":0.1424},{"s":0.9013,"e":1.1471},{"s":0.4168,"e":0.4153},{"s":0.67,"e":0.1012},{"s":0.5233,"e":0.3603},{"s":0.5879,"e":0.0641},{"s":0.4672,"e":1.1641},{"s":0.5526,"e":0.5267},{"s":0.3869,"e":0.0511},{"s":0.7889,"e":0.4765},{"s":0.4273,"e":0.3288},{"s":0.3655,"e":0.143},{"s":0.4016,"e":0.0845},{"s":0.3981,"e":0.1387},{"s":0.4128,"e":0.6182},{"s":0.4611,"e":0.1409},{"s":0.336,"e":0.6181},{"s":0.4488,"e":0.1703},{"s":0.3557,"e":0.1645},{"s":0.3286,"e":0.1293},{"s":0.8456,"e":1.3285},{"s":0.3682,"e":0.1811},{"s":0.3376,"e":0.2431},{"s":0.364,"e":0.6841},{"s":0.3581,"e":0.216},{"s":0.3697,"e":0.2555},{"s":0.6767,"e":0.6158},{"s":0.7315,"e":0.0114},{"s":0.3505,"e":0.2508},{"s":0.5977,"e":0.3173},{"s":0.4554,"e":0.0222},{"s":0.4302,"e":0.6272},{"s":0.5284,"e":0.5149},{"s":0.402,"e":0.4216},{"s":0.547,"e":0.0473},{"s":0.4258,"e":0.07},{"s":0.4561,"e":0.2226},{"s":0.4492,"e":0.0416},{"s":0.562,"e":0.3928},{"s":0.396,"e":0.4457},{"s":0.4689,"e":0.1777},{"s":0.8282,"e":0.7191},{"s":0.5015,"e":0.437},{"s":0.3961,"e":0.1554},{"s":0.5623,"e":0.1955},{"s":0.3487,"e":0.4096},{"s":1.0351,"e":0.2505},{"s":0.4715,"e":0.0054},{"s":0.4432,"e":0.6685},{"s":0.6143,"e":0.2953},{"s":0.4321,"e":1.627},{"s":0.4071,"e":0.3347},{"s":0.4245,"e":0.1411},{"s":0.7055,"e":0.7015},{"s":0.6215,"e":0.1319},{"s":0.4617,"e":0.0188},{"s":0.8033,"e":0.1479},{"s":0.5229,"e":0.1255},{"s":0.481,"e":0.0273},{"s":0.471,"e":0.0496},{"s":0.7612,"e":0.1481},{"s":0.7094,"e":0.9288},{"s":0.6657,"e":0.2558},{"s":0.4072,"e":0.3874},{"s":0.4025,"e":0.9001},{"s":0.6273,"e":1.2591},{"s":0.6034,"e":0.28},{"s":0.676,"e":0.1442},{"s":0.4086,"e":0.2617},{"s":0.708,"e":0.4397},{"s":0.5194,"e":0.0904},{"s":0.4178,"e":0.2377},{"s":0.4718,"e":0.7021},{"s":0.4538,"e":0.1879},{"s":0.4593,"e":0.1293},{"s":0.4603,"e":0.8794},{"s":0.4501,"e":0.1382},{"s":0.4332,"e":0.0285},{"s":0.4667,"e":0.4497},{"s":0.386,"e":0.0906},{"s":0.8028,"e":0.7811},{"s":0.4535,"e":0.1994},{"s":0.3773,"e":0.493},{"s":0.5173,"e":0.1644},{"s":0.5048,"e":0.3448},{"s":0.7263,"e":0.1344},{"s":0.684,"e":0.0533},{"s":0.7122,"e":0.0049},{"s":0.4797,"e":0.9531},{"s":0.6747,"e":0.9291},{"s":0.7202,"e":0.2985},{"s":0.4258,"e":0.1948},{"s":0.6107,"e":0.6271},{"s":1.0741,"e":0.9374},{"s":0.5534,"e":0.1254},{"s":0.5235,"e":0.0972},{"s":0.4309,"e":0.214},{"s":0.9209,"e":0.2213},{"s":0.491,"e":0.0737},{"s":0.9266,"e":0.4759},{"s":0.4707,"e":0.9052},{"s":0.4317,"e":0.0454},{"s":0.4036,"e":0.2998},{"s":0.4313,"e":0.0329},{"s":0.42,"e":0.1871},{"s":0.4695,"e":1.0585},{"s":0.7933,"e":0.444},{"s":0.5324,"e":0.3159},{"s":0.4398,"e":0.3526},{"s":0.3173,"e":0.387},{"s":0.3251,"e":0.2217},{"s":0.3205,"e":0.0619},{"s":0.353,"e":0.0916},{"s":0.5208,"e":0.7003},{"s":0.5003,"e":0.5145},{"s":1.2646,"e":0.9646},{"s":0.7641,"e":1.4593},{"s":0.8671,"e":0.5434},{"s":0.3817,"e":0.0906},{"s":0.4293,"e":0.1461},{"s":0.5438,"e":0.4789},{"s":0.4347,"e":0.0935},{"s":0.6634,"e":2.1803},{"s":0.5609,"e":0.1479},{"s":0.5344,"e":0.3751},{"s":0.4486,"e":0.6789},{"s":1.0727,"e":0.1451},{"s":0.4312,"e":0.2285},{"s":0.3598,"e":0.2873},{"s":0.3733,"e":0.3254},{"s":0.4207,"e":0.2916},{"s":0.4521,"e":0.0685},{"s":0.876,"e":0.7171},{"s":0.3716,"e":0.1906},{"s":0.4484,"e":0.0593},{"s":0.4716,"e":0.2361},{"s":0.688,"e":0.9502},{"s":0.6217,"e":0.3972},{"s":0.6664,"e":0.4194},{"s":0.649,"e":0.156},{"s":0.951,"e":0.1923},{"s":1.2289,"e":0.9407},{"s":0.474,"e":0.5383},{"s":0.4454,"e":0.3107},{"s":0.9653,"e":1.2049},{"s":1.0499,"e":0.0542},{"s":0.7063,"e":0.7083},{"s":0.6744,"e":0.843},{"s":0.4792,"e":0.0314},{"s":0.4056,"e":0.251},{"s":0.4374,"e":1.0117},{"s":0.5652,"e":1.4561},{"s":0.3889,"e":0.2549},{"s":0.3799,"e":0.0376},{"s":0.4117,"e":0.1054},{"s":1.0219,"e":0.5948},{"s":0.5954,"e":0.319},{"s":0.4158,"e":0.1507},{"s":0.449,"e":0.5551},{"s":0.3778,"e":0.2693},{"s":0.4315,"e":0.0919},{"s":0.4045,"e":0.3198},{"s":0.4183,"e":0.794},{"s":0.4046,"e":0.1148},{"s":0.4023,"e":0.2874},{"s":0.4242,"e":0.1118},{"s":0.4098,"e":0.3827},{"s":0.7282,"e":0.6705},{"s":0.4841,"e":0.6159}];
 
 const SIGMAS = DATA.map(d => d.s);
-const LABEL_NOISE = {"se_hist": {"counts": [2, 54, 47, 36, 21, 19, 6, 14, 16, 17, 7, 8, 4, 1, 0, 2, 1, 0, 1, 0, 0, 1, 1, 1, 1], "edges": [0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25, 0.275, 0.3, 0.325, 0.35, 0.375, 0.4, 0.425, 0.45, 0.475, 0.5, 0.525, 0.55, 0.575, 0.6, 0.625, 0.65]}, "se_median": 0.12139999999999995, "mean_sigma": 0.5371908042489943, "literature": 0.3, "known_truth": {"curve_fit": {"oracle": {"hi": 0.3788338434968671, "lo": 0.1675781106647216, "mean": 0.27464878633539347}, "resampled": {"hi": 0.37844086194948257, "lo": 0.19826783196610778, "mean": 0.28761405811647184}, "single": {"hi": 0.38922529008735895, "lo": 0.16533579809441876, "mean": 0.28227062598786734}}, "literature": {"oracle": {"hi": 0.5246565720703651, "lo": 0.3117048670496946, "mean": 0.42279715699026044}, "resampled": {"hi": 0.300063287520184, "lo": 0.14100382259865013, "mean": 0.22188018072638757}, "single": {"hi": 0.3899689003137278, "lo": 0.17187089704331082, "mean": 0.2840810954190264}}}, "resampled_real": {"curve_fit": {"hist": {"counts": [1, 2, 4, 8, 17, 28, 53, 91, 131, 155, 178, 231, 242, 237, 187, 177, 88, 72, 53, 21, 16, 2, 3, 2, 1], "edges": [0.16, 0.17, 0.18, 0.19, 0.2, 0.21, 0.22, 0.23, 0.24, 0.25, 0.26, 0.27, 0.28, 0.29, 0.3, 0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38, 0.39, 0.4, 0.41]}, "mean": 0.2833436047642944}, "literature": {"hist": {"counts": [1, 0, 3, 6, 18, 23, 22, 33, 55, 83, 92, 142, 169, 163, 176, 178, 167, 167, 146, 116, 72, 50, 47, 33, 16, 8, 6, 3, 1, 2, 2], "edges": [0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.2, 0.21, 0.22, 0.23, 0.24, 0.25, 0.26, 0.27, 0.28, 0.29, 0.3, 0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38]}, "mean": 0.22059375821444785}}};
+const LABEL_NOISE = {"se_hist": {"counts": [2, 54, 47, 36, 21, 19, 6, 14, 16, 17, 7, 8, 4, 1, 0, 2, 1, 0, 1, 0, 0, 1, 1, 1, 1], "edges": [0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2, 0.225, 0.25, 0.275, 0.3, 0.325, 0.35, 0.375, 0.4, 0.425, 0.45, 0.475, 0.5, 0.525, 0.55, 0.575, 0.6, 0.625, 0.65]}, "se_median": 0.12139999999999995, "mean_sigma": 0.5371908042489943, "literature": 0.3, "known_truth": {"curve_fit": {"oracle": {"hi": 0.3788338434968671, "lo": 0.1675781106647216, "mean": 0.27464878633539347}, "resampled": {"hi": 0.37844086194948257, "lo": 0.19826783196610778, "mean": 0.28761405811647184}, "single": {"hi": 0.38922529008735895, "lo": 0.16533579809441876, "mean": 0.28227062598786734}}, "literature": {"oracle": {"hi": 0.5246565720703651, "lo": 0.3117048670496946, "mean": 0.42279715699026044}, "resampled": {"hi": 0.300063287520184, "lo": 0.14100382259865013, "mean": 0.22188018072638757}, "single": {"hi": 0.3899689003137278, "lo": 0.17187089704331082, "mean": 0.2840810954190264}}}, "resampled_real": {"curve_fit": {"hist": {"counts": [1, 2, 4, 8, 17, 28, 53, 91, 131, 155, 178, 231, 242, 237, 187, 177, 88, 72, 53, 21, 16, 2, 3, 2, 1], "edges": [0.16, 0.17, 0.18, 0.19, 0.2, 0.21, 0.22, 0.23, 0.24, 0.25, 0.26, 0.27, 0.28, 0.29, 0.3, 0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38, 0.39, 0.4, 0.41]}, "mean": 0.2833436047642944}, "literature": {"hist": {"counts": [1, 0, 3, 6, 18, 23, 22, 33, 55, 83, 92, 142, 169, 163, 176, 178, 167, 167, 146, 116, 72, 50, 47, 33, 16, 8, 6, 3, 1, 2, 2], "edges": [0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.2, 0.21, 0.22, 0.23, 0.24, 0.25, 0.26, 0.27, 0.28, 0.29, 0.3, 0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38]}, "mean": 0.22059375821444785}}, "resampled_average": {"curve_fit": [{"k": 1, "mean": 0.2858, "lo": 0.2201, "hi": 0.3555}, {"k": 2, "mean": 0.2778, "lo": 0.2256, "hi": 0.328}, {"k": 3, "mean": 0.2705, "lo": 0.2229, "hi": 0.3153}, {"k": 5, "mean": 0.2691, "lo": 0.225, "hi": 0.31}, {"k": 10, "mean": 0.2645, "lo": 0.2326, "hi": 0.2952}, {"k": 20, "mean": 0.2612, "lo": 0.2387, "hi": 0.2835}, {"k": 50, "mean": 0.2605, "lo": 0.2455, "hi": 0.2731}, {"k": 100, "mean": 0.2608, "lo": 0.2516, "hi": 0.271}, {"k": 1000, "mean": 0.2612, "lo": 0.2571, "hi": 0.2653}], "literature": [{"k": 1, "mean": 0.218, "lo": 0.1378, "hi": 0.3014}, {"k": 2, "mean": 0.2489, "lo": 0.1702, "hi": 0.3239}, {"k": 3, "mean": 0.2572, "lo": 0.1883, "hi": 0.3206}, {"k": 5, "mean": 0.2613, "lo": 0.2045, "hi": 0.317}, {"k": 10, "mean": 0.2642, "lo": 0.2193, "hi": 0.3099}, {"k": 20, "mean": 0.262, "lo": 0.2276, "hi": 0.2978}, {"k": 50, "mean": 0.2608, "lo": 0.2366, "hi": 0.2824}, {"k": 100, "mean": 0.2608, "lo": 0.2441, "hi": 0.2772}, {"k": 1000, "mean": 0.2608, "lo": 0.2547, "hi": 0.2665}]}};
 const OBS_RHO = 0.2616;
 
 // ===== UTILITIES =====
@@ -1962,6 +2010,171 @@ const LN = {
     const i = edges.findIndex((e, k) => k < counts.length && v >= e && v < edges[k + 1]);
     if (i < 0) { hideChartTip(); return; }
     showChartTip(`sᵢ ${edges[i].toFixed(3)} to ${edges[i + 1].toFixed(3)}&emsp;${counts[i]} compounds`, ev);
+  });
+  canvas.addEventListener('mouseleave', hideChartTip);
+})();
+
+// ===== LABEL NOISE: ONE COMPOUND RESAMPLED AROUND ITS MEASUREMENT =====
+(function() {
+  const canvas = document.getElementById('center-chart');
+  const { W, H } = LN.size(canvas, 240);
+  const pad = { t: 22, r: 16, b: 40, l: 16 };
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const ctx = hiDpiCanvas(canvas, W, H);
+  const NOISE = 0.3, N_DRAWS = 40, XMIN = -1.3, XMAX = 1.3;
+  const rng = mulberry32(7);
+  const xScale = v => pad.l + (v - XMIN) / (XMAX - XMIN) * pw;
+  const axisY = pad.t + ph;
+  const stripY = axisY - 16;
+  const curveBase = stripY - 14;
+  const pdfMax = LN.pdf(0, 0, NOISE) * 1.08;
+  const yScale = v => curveBase - v / pdfMax * (curveBase - pad.t);
+  const jitter = Array.from({ length: N_DRAWS }, (_, i) => ((i * 37) % 11 - 5) * 1.1);
+  let meas = 0.35;
+  let draws = [];
+
+  const fmt = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+
+  function resample() {
+    draws = Array.from({ length: N_DRAWS }, () => meas + NOISE * randn(rng));
+  }
+
+  function curve(mu, stroke, fill) {
+    ctx.beginPath();
+    for (let x = XMIN; x <= XMAX + 1e-9; x += 0.01) {
+      const px = xScale(x), py = yScale(LN.pdf(x, mu, NOISE));
+      if (x === XMIN) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    if (fill) {
+      ctx.lineTo(xScale(XMAX), curveBase); ctx.lineTo(xScale(XMIN), curveBase); ctx.closePath();
+      ctx.fillStyle = fill; ctx.fill();
+    }
+    ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    const avg = draws.reduce((s, v) => s + v, 0) / draws.length;
+
+    // Measurement distribution around the true value, resampling distribution around the measurement
+    curve(0, C.purple, C.purple + '33');
+    curve(meas, C.green + 'cc', null);
+
+    // True value and measurement markers, labels on opposite sides
+    const right = meas >= 0;
+    LN.vline(ctx, xScale(0), pad.t, axisY, C.purple);
+    ctx.strokeStyle = C.orange; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(xScale(meas), pad.t); ctx.lineTo(xScale(meas), axisY); ctx.stroke();
+    ctx.font = LN.mono;
+    ctx.fillStyle = C.purple; ctx.textAlign = right ? 'right' : 'left';
+    ctx.fillText('True value', xScale(0) + (right ? -5 : 5), pad.t - 8);
+    ctx.fillStyle = C.orange; ctx.textAlign = right ? 'left' : 'right';
+    ctx.fillText('Measurement', xScale(meas) + (right ? 5 : -5), pad.t - 8);
+
+    // Resampled values as a strip, and their average as a diamond
+    ctx.fillStyle = C.green + 'aa';
+    draws.forEach((v, i) => {
+      if (v < XMIN || v > XMAX) return;
+      ctx.beginPath(); ctx.arc(xScale(v), stripY + jitter[i] * 0.5, 2.5, 0, 2 * Math.PI); ctx.fill();
+    });
+    const ax = xScale(avg);
+    ctx.fillStyle = C.green; ctx.strokeStyle = C.bg; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(ax, stripY - 8); ctx.lineTo(ax + 7, stripY); ctx.lineTo(ax, stripY + 8); ctx.lineTo(ax - 7, stripY);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+    // Axis
+    ctx.strokeStyle = C.comment; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.l, axisY); ctx.lineTo(pad.l + pw, axisY); ctx.stroke();
+    ctx.fillStyle = C.comment; ctx.textAlign = 'center';
+    for (let x = -1; x <= 1; x += 0.5) ctx.fillText(x.toFixed(1), xScale(x), axisY + 14);
+    ctx.font = LN.sans;
+    ctx.fillText('pEC50 relative to the true value', pad.l + pw / 2, H - 4);
+
+    // Gaps in the stat boxes
+    document.getElementById('center-meas').textContent = fmt(meas);
+    document.getElementById('center-avg-meas').textContent = fmt(avg - meas);
+    document.getElementById('center-avg-true').textContent = fmt(avg);
+  }
+
+  document.getElementById('center-new').addEventListener('click', () => {
+    do { meas = NOISE * randn(rng); } while (Math.abs(meas) > 0.8);
+    resample();
+    render();
+  });
+
+  resample();
+  render();
+})();
+
+// ===== LABEL NOISE: AVERAGING RESAMPLED VALUES =====
+(function() {
+  const canvas = document.getElementById('average-chart');
+  const { W, H } = LN.size(canvas, 280);
+  const pad = { t: 14, r: 44, b: 44, l: 52 };
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const ctx = hiDpiCanvas(canvas, W, H);
+  const SERIES = [
+    { key: 'literature', color: C.orange, label: '0.3' },
+    { key: 'curve_fit', color: C.green, label: 'sᵢ' },
+  ];
+  const TICKS = [1, 2, 3, 5, 10, 20, 50, 100, 1000];
+  const yMin = 0.18, yMax = 0.32;
+  const xScale = v => pad.l + Math.log10(v) / 3 * pw;
+  const yScale = v => pad.t + ph - (v - yMin) / (yMax - yMin) * ph;
+  const rows = k => LABEL_NOISE.resampled_average[k];
+
+  // Grid
+  ctx.strokeStyle = C.current; ctx.lineWidth = 1;
+  for (let y = 0.2; y <= yMax + 1e-9; y += 0.02) {
+    ctx.beginPath(); ctx.moveTo(pad.l, yScale(y)); ctx.lineTo(pad.l + pw, yScale(y)); ctx.stroke();
+  }
+  TICKS.forEach(x => {
+    ctx.beginPath(); ctx.moveTo(xScale(x), pad.t); ctx.lineTo(xScale(x), pad.t + ph); ctx.stroke();
+  });
+
+  // Observed rho as a horizontal reference
+  ctx.strokeStyle = C.pink; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+  ctx.beginPath(); ctx.moveTo(pad.l, yScale(OBS_RHO)); ctx.lineTo(pad.l + pw, yScale(OBS_RHO)); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = C.pink; ctx.font = '10px "SF Mono", "Fira Code", monospace'; ctx.textAlign = 'right';
+  ctx.fillText('observed 0.26', pad.l + pw - 4, yScale(OBS_RHO) - 6);
+
+  // Mean lines with points, labeled at the left where they separate
+  SERIES.forEach(s => {
+    const d = rows(s.key);
+    ctx.strokeStyle = s.color; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    d.forEach((p, i) => (i === 0 ? ctx.moveTo : ctx.lineTo).call(ctx, xScale(p.k), yScale(p.mean)));
+    ctx.stroke();
+    ctx.fillStyle = s.color;
+    d.forEach(p => { ctx.beginPath(); ctx.arc(xScale(p.k), yScale(p.mean), 3, 0, 2 * Math.PI); ctx.fill(); });
+    ctx.font = LN.mono; ctx.textAlign = 'left';
+    ctx.fillText(s.label, xScale(1) + 8, yScale(d[0].mean) + 4);
+  });
+
+  // Ticks and axes
+  ctx.fillStyle = C.comment; ctx.font = LN.mono; ctx.textAlign = 'center';
+  TICKS.forEach(x => ctx.fillText(x, xScale(x), pad.t + ph + 18));
+  ctx.textAlign = 'right';
+  for (let y = 0.2; y <= yMax + 1e-9; y += 0.02) ctx.fillText(y.toFixed(2), pad.l - 8, yScale(y) + 4);
+  LN.axes(ctx, pad, pw, ph, 'Resampled values averaged per compound', 'Spearman ρ', H);
+
+  // Hover: both series at the nearest averaging count
+  canvas.addEventListener('mousemove', ev => {
+    const r = canvas.getBoundingClientRect();
+    const mx = (ev.clientX - r.left) * (W / r.width);
+    let hit = -1, best = Infinity;
+    rows('literature').forEach((p, i) => {
+      const dist = Math.abs(xScale(p.k) - mx);
+      if (dist < best) { best = dist; hit = i; }
+    });
+    if (hit < 0 || best > 30) { hideChartTip(); return; }
+    const lines = SERIES.map(s => {
+      const p = rows(s.key)[hit];
+      return `<span style="color:${s.color}">Width ${s.label}</span>&emsp;ρ = ${p.mean.toFixed(3)} [${p.lo.toFixed(3)}, ${p.hi.toFixed(3)}]`;
+    });
+    showChartTip(`${rows('literature')[hit].k} averaged per compound<br>` + lines.join('<br>'), ev);
   });
   canvas.addEventListener('mouseleave', hideChartTip);
 })();
