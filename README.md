@@ -15,7 +15,10 @@ produced here is comparable to what participants reported on the leaderboard.
 Imputation and PCA are fitted on the fit partition alone and then applied to
 every molecule, test set included. That is the one place in the pipeline where a
 leak could enter, so it is the one place the fit rows are passed explicitly
-rather than inferred. No run is calibrated.
+rather than inferred. Calibration is post-hoc and never part of a sweep: every
+run carries none, and `run/06_calibrate.py` fits a map afterwards on
+out-of-fold predictions, so nothing is calibrated on predictions the model was
+trained on.
 
 Compounds are matched across every stage by a canonical SMILES computed once, so
 a block joined to another block is joined on structure rather than on the string
@@ -72,9 +75,11 @@ only way to overwrite completed work.
 | `run/03_reduce.py` | reductions in `data/reduced/`, each fitted on the fit partition | minutes, and optional: the sweep builds any reduction it needs on demand |
 | `run/04_sweep.py` | a run directory per configuration and seed under `results/`, each holding predictions, metrics and a provenance record | the bulk of the compute |
 | `run/05_aggregate.py` | `results/results.parquet`, a coverage report, and any gate the completed stage settles | seconds |
-| `run/06_uncertainty.py` | the per-compound predictions, residuals and predicted σ (`points.csv`) and the coverage curve (`coverage.csv`) of the gated configuration, in `results/uncertainty/` | seconds |
-| `run/07_replicates.py` | the replicate curve of the uncertainty walkthrough: Spearman ρ under a correct σ at each replicate count, for fixed shares of σ² as measurement noise and for the curve-fit and constant noise levels, in `results/uncertainty/` | seconds |
-| `run/08_label_noise.py` | the walkthrough's curve-fit standard errors and its test of a predicted spread that adds them to σ, with and without the censored compounds, read from `data/raw/`, in `results/uncertainty/` | seconds |
+| `run/06_calibrate.py` | an out-of-fold calibration map for one configuration, applied post hoc | minutes |
+| `run/07_uncertainty.py` | the uncertainty artifacts figure 6 is drawn from | seconds |
+| `run/08_figures.py` | the manifest's figures, each measured as its own family | a minute, mostly bootstrap |
+| `run/09_replicates.py` | the replicate curve of the uncertainty walkthrough: Spearman ρ under a correct σ at each replicate count, for fixed shares of σ² as measurement noise and for the curve-fit and constant noise levels, in `results/uncertainty/` | seconds |
+| `run/10_label_noise.py` | the walkthrough's curve-fit standard errors and its test of a predicted spread that adds them to σ, with and without the censored compounds, read from `data/raw/`, in `results/uncertainty/` | seconds |
 
 `run/02_featurize.py` and `run/04_sweep.py` both take `--seeds`, which is how a
 run is spread across processes. Split by seed and never by block or cell: seeds
@@ -124,7 +129,8 @@ cannot be reviewed without them.
 | `uncertainty` | nothing; reads runs already written | 0 | |
 | `gnn` | graph-network cells | 95 | no gate |
 
-The two width probes run first because they need no trained encoder.
+Run order is not figure order. The two width probes run first because they need
+no trained encoder, and they are reported late.
 
 ```bash
 python run/04_sweep.py --stage ingredients --dry-run   # print the plan
@@ -149,6 +155,18 @@ on the mean over seeds, since the subject is a single model and the seeds are
 replicates rather than a way to build a better predictor. Cost is reported as
 three facts, blocks joined, encoders to train and columns carried, and never as
 an ordering.
+
+The figures are tested differently, and the two can disagree. A panel's
+verdicts and its comparison intervals are Tukey HSD over the five seeds,
+blocked on seed, computed in `src/tukey.py`. That is what makes overlap the
+test: the panel is balanced, so one critical distance covers every pair and
+halves between the two intervals it joins. A gate holds the fitted models fixed
+and resamples compounds; a panel holds the compounds fixed and asks what
+another seed would do. Neither answers the other's question, so a caption has
+to say which is on the page. `run/08_figures.py --no-block-by-seed` pools the
+seed block back into the error term, which is what
+`statsmodels.stats.multicomp.pairwise_tukeyhsd` computes, and `--bootstrap`
+draws the Benjamini-Hochberg verdicts instead.
 
 ## Reading the results
 
@@ -180,8 +198,8 @@ data/encoders/     trained encoders and body checkpoints (ignored)
 results/gates/     gate decisions (tracked)
 results/           run directories and results.parquet (ignored), apart from
                    each run's predictions.csv, the uncertainty tables and
-                   block_dims.json, tracked so the uncertainty tables can
-                   be rebuilt without rerunning the sweep
+                   block_dims.json, tracked so the figures can be drawn
+                   without rerunning the sweep
 experiments/       the manifest, the prior summary, open questions
 src/               modules, resolved without an installed package
 run/               numbered entry points, in the order they run

@@ -14,7 +14,7 @@ curve-fit standard error the challenge reports and a constant
 literature-style value. Every model gives the same rho at R = 1; only the
 share that is measurement noise lets rho rise with R.
 
-Reads the per-compound table run/06_uncertainty.py writes, joins the curve-fit
+Reads the per-compound table run/07_uncertainty.py writes, joins the curve-fit
 standard errors from data/raw, and writes replicates.csv beside the table, one
 row per noise model and replicate count, which the walkthrough's replicate
 curve plots.

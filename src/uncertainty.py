@@ -20,6 +20,12 @@ should be p for every p, and the area between the observed curve and that
 diagonal is how far off it is. Zero is perfect; a model that is uniformly
 overconfident and one that is uniformly underconfident both score above zero,
 and the signed gap says which.
+
+An affine calibration rescales predictions, so it rescales the spread with
+them: under ``calibrated = slope * raw + intercept`` the predictive standard
+deviation becomes ``|slope| * sigma``. Applying the map to the mean while
+leaving the spread alone would report a different distribution from the one
+the calibration implies, so the scaling is applied here and recorded.
 """
 
 from __future__ import annotations
@@ -212,3 +218,14 @@ def ensemble_spread(stacked: NDArray[np.float64]) -> NDArray[np.float64]:
     if rows.ndim != 2 or rows.shape[0] < 2:
         raise UncertaintyError(f"need at least two seeds to have a spread, got {rows.shape}")
     return rows.std(axis=0, ddof=1)
+
+
+def rescale_sigma(sigma: NDArray[np.float64], slope: float) -> NDArray[np.float64]:
+    """Return the predictive spread under an affine calibration.
+
+    ``calibrated = slope * raw + intercept`` maps the whole predictive
+    distribution, not only its mean, so the standard deviation scales by the
+    absolute slope. Leaving it unscaled would report a distribution the
+    calibration does not imply.
+    """
+    return np.abs(float(slope)) * np.asarray(sigma, dtype=np.float64)

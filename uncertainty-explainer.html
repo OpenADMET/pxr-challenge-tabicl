@@ -745,7 +745,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
   <h2 id="reproducibility"><span class="step-num">11</span> Reproducibility</h2>
 
   <div class="repro">
-  <p>The code and data are in the <a href="https://github.com/OpenADMET/pxr-challenge-tabicl">pxr-challenge-tabicl repository</a>. Install the environment with <code>uv sync</code>, then run the scripts below from the repository root, in order. Steps 00 to 05 train every configuration and select the model this page analyzes, TabICL on 256-dimensional CheMeleon embeddings. Steps 06 to 08 write the four files the data on this page comes from, in <code>results/uncertainty/emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabicl__cal-none/</code>.</p>
+  <p>The code and data are in the <a href="https://github.com/OpenADMET/pxr-challenge-tabicl">pxr-challenge-tabicl repository</a>. Install the environment with <code>uv sync</code>, then run the scripts below from the repository root, in order. Steps 00 to 05 train every configuration and select the model this page analyzes, TabICL on 256-dimensional CheMeleon embeddings. Steps 07, 09 and 10 write the four files the data on this page comes from, in <code>results/uncertainty/emb-chemeleon256__ro-chemprop_log2fc__desc-none__reg-tabicl__cal-none/</code>.</p>
 
   <div class="table-wrap">
   <table>
@@ -759,13 +759,14 @@ h2[id] { scroll-margin-top: 1.5rem; }
       <tr><td><code>run/03_reduce.py</code></td><td>Reduces the embeddings by PCA (optional, since the sweep builds any reduction it needs)</td></tr>
       <tr><td><code>run/04_sweep.py</code></td><td>Trains every configuration in <code>experiments/manifest.yaml</code>, one stage at a time, for five seeds (most of the compute)</td></tr>
       <tr><td><code>run/05_aggregate.py</code></td><td>Collects the results and confirms the featureset and regressor each stage selected, in <code>results/gates/</code></td></tr>
-      <tr><td><code>run/06_uncertainty.py</code></td><td>Writes the predicted <code>σ</code> and <code>|residual|</code> of each test compound (<code>points.csv</code>) and the coverage curve (<code>coverage.csv</code>) for the selected model. The page draws its scatter plot, reliability diagram and quintile charts from these, and simulates the <code>ρ<sub>null</sub></code> distribution in <a href="#s05">section 05</a> in the browser from the same <code>σ</code> values</td></tr>
-      <tr><td><code>run/07_replicates.py</code></td><td>Simulates a correct <code>σ</code> from the predicted <code>σ</code> in <code>points.csv</code>, under five fixed shares of measurement noise and the two realistic noise levels, 500 times for each value of <code>R</code>, and writes the replicate curve in <a href="#s06">section 06</a> (<code>replicates.csv</code>)</td></tr>
-      <tr><td><code>run/08_label_noise.py</code></td><td>Joins the curve-fit standard error of each compound from the challenge files in <code>data/raw/</code>, summarizes them for the histogram in <a href="#s06">section 06</a>, and scores the combined spread with and without the censored compounds for <a href="#s08">section 08</a> (<code>label_noise.json</code>)</td></tr>
+      <tr><td><code>run/07_uncertainty.py</code></td><td>Writes the predicted <code>σ</code> and <code>|residual|</code> of each test compound (<code>points.csv</code>) and the coverage curve (<code>coverage.csv</code>) for the selected model</td></tr>
+      <tr><td><code>run/09_replicates.py</code></td><td>Simulates a correct <code>σ</code> from the predicted <code>σ</code> in <code>points.csv</code>, under five fixed shares of measurement noise and the two realistic noise levels, 500 times for each value of <code>R</code>, and writes the replicate curve in <a href="#s06">section 06</a> (<code>replicates.csv</code>)</td></tr>
+      <tr><td><code>run/10_label_noise.py</code></td><td>Joins the curve-fit standard error of each compound from the challenge files in <code>data/raw/</code>, summarizes them for the histogram in <a href="#s06">section 06</a>, and scores the combined spread with and without the censored compounds for <a href="#s08">section 08</a> (<code>label_noise.json</code>)</td></tr>
     </tbody>
   </table>
   </div>
 
+  <p>Steps 06 and 08 (post hoc calibration and the blog post figures) are not needed for this page. The page draws its other figures from these files. The scatter plot and the three quintile charts use the <code>model_sigma</code> and <code>abs_residual</code> columns of <code>points.csv</code> for the 260 test compounds, and the reliability curve plots <code>coverage.csv</code>. The simulated distribution of <code>ρ<sub>null</sub></code> in <a href="#s05">section 05</a> is computed in the browser from the same <code>σ</code> values, with a seeded random number generator.</p>
   </div>
 
   <hr>

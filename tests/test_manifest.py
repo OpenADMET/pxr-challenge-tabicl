@@ -182,7 +182,8 @@ def test_a_restricted_axis_needs_the_gate_it_points_at(spec):
 
 
 def test_calibration_is_not_a_stage_and_not_an_axis_with_arms(spec):
-    # nothing sweeps it, and every run carries none
+    # it is post-hoc, applied by run/06_calibrate.py over a configuration that
+    # has already run, so nothing sweeps it and every run carries none
     assert "calibration" not in [stage.id for stage in spec.stages]
     assert spec.axes["calibration"] == ["none"]
 
