@@ -47,7 +47,7 @@ def load_points(points_path: Path, raw_dir: Path = RAW_DIR) -> pd.DataFrame:
     Parameters
     ----------
     points_path : path-like
-        The ``points.csv`` run/07_uncertainty.py writes.
+        The ``points.csv`` run/06_uncertainty.py writes.
     raw_dir : path-like, optional
         Directory holding the raw challenge files. Defaults to ``data/raw``.
 
@@ -65,7 +65,7 @@ def load_points(points_path: Path, raw_dir: Path = RAW_DIR) -> pd.DataFrame:
         curve-fit standard error.
     """
     if not points_path.exists():
-        raise FileNotFoundError(f"no {points_path}; run run/07_uncertainty.py first")
+        raise FileNotFoundError(f"no {points_path}; run run/06_uncertainty.py first")
     points = pd.read_csv(points_path)
     if "model_sigma" not in points:
         raise ValueError(f"{points_path}: the regressor reports no spread of its own")

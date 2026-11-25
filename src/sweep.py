@@ -11,13 +11,9 @@ left alone; a run whose inputs have changed has a different specification and is
 redone. So a sweep can be interrupted and restarted at any point, and changing
 an upstream block does not silently leave stale results behind.
 
-A run is never calibrated here. Calibration is post-hoc, fitted over a
-completed configuration by run/06_calibrate.py, which reproduces the challenge
-report's method: an affine map over out-of-fold predictions spanning the whole
-fit set, weighted by a train-versus-test density ratio. What used to sit here
-was a monotone map on a single held-out slice, which is a different experiment
-and was never run. The record's ``calibrated`` field stays, always False, so a
-record written before that change is distinguishable from one written after.
+A run is never calibrated. The record's ``calibrated`` field stays, always
+False, so a record written when a run could carry a calibration is
+distinguishable from one written after.
 """
 
 from __future__ import annotations
@@ -313,8 +309,7 @@ def run_one(
             ],
             "n_features": int(x_fit.shape[1]),
             "n_fit": int(x_fit.shape[0]),
-            # calibration is post-hoc now, applied by run/06_calibrate.py over a
-            # completed configuration rather than inside a fit
+            # no run is calibrated; the field marks records written after that
             "calibrated": False,
             # what the library said about this fit, such as adapting its own
             # memory settings, which means it did not run under the pinned ones

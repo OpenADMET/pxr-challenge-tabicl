@@ -118,9 +118,8 @@ def test_a_changed_input_makes_the_run_incomplete(spec, tiny):
 
 
 def test_a_run_is_never_calibrated_in_the_sweep(spec, tiny):
-    # calibration is post-hoc now, fitted by run/06_calibrate.py over a
-    # configuration that has already run. The field stays so that a record
-    # written before that change is distinguishable from one written after
+    # the field stays so that a record written when a run could carry a
+    # calibration is distinguishable from one written after
     partitions, tmp_path = tiny
     run_dir = _run(_config(), spec, partitions, tmp_path)
     record = json.loads((run_dir / "run.json").read_text())

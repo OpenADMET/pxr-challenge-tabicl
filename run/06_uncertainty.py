@@ -12,11 +12,6 @@ training seeds, which every configuration has. A graph-network cell is
 therefore scored on the ensemble spread alone, and says so in its record rather
 than reporting a missing number as zero.
 
-Where a calibration exists for the configuration, both spreads are scored again
-after it. The affine map rescales the predictive distribution rather than only
-its mean, so the spread is multiplied by the absolute slope; see
-src/uncertainty.py.
-
 Writes the per-compound table and the coverage curve alongside the summary, so
 the miscalibration-area figure is drawn from a file rather than recomputed.
 """
@@ -50,8 +45,7 @@ from data import CANONICAL_COL  # noqa: E402
 DESCRIPTION = "Score a configuration's predicted spread against its actual errors."
 
 UNCERTAINTY_DIR = Path("results/uncertainty")
-CALIBRATION_DIR = Path("results/calibration")
-VERSION = 1
+VERSION = 2
 
 logger = logging.getLogger(__name__)
 
@@ -63,11 +57,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cell", help="graph-network cell, scored on its ensemble spread alone")
     parser.add_argument(
         "--results", type=Path, default=sweep.RESULTS_DIR, help="root holding the run directories"
-    )
-    parser.add_argument(
-        "--no-calibrated",
-        action="store_true",
-        help="skip the post-calibration diagnostics even where a calibration exists",
     )
     parser.add_argument("--force", action="store_true", help="recompute a diagnostic on disk")
     return parser.parse_args(argv)
@@ -95,14 +84,6 @@ def _stack_with_spread(
     if not np.any(np.isfinite(spread) & (spread > 0)):
         return stacked, observed, smiles, None
     return stacked, observed, smiles, spread.mean(axis=0)
-
-
-def _load_calibration(slug: str) -> dict[str, Any] | None:
-    """Return the fitted affine map for a configuration, if one has been written."""
-    path = CALIBRATION_DIR / slug / "calibration.json"
-    if not path.exists():
-        return None
-    return json.loads(path.read_text())["calibration"]
 
 
 def main() -> None:
@@ -154,51 +135,7 @@ def main() -> None:
     curves = []
     for name, s in spreads.items():
         expected, fraction = uncertainty.coverage_curve(observed, predicted, s)
-        curves.append(
-            pd.DataFrame(
-                {"source": name, "stage": "raw", "expected": expected, "observed": fraction}
-            )
-        )
-
-    calibrated_block: dict[str, Any] | None = None
-    fitted = None if args.no_calibrated else _load_calibration(label)
-    if fitted is not None and "slope" not in fitted:
-        # a monotone map is affine only locally, and where it is flat the
-        # spread it implies is zero. Coverage under a spread of zero is a
-        # statement about the map rather than about the model, so it is not
-        # drawn here: the affine calibrations are the ones with a spread to
-        # rescale
-        logger.warning(
-            "%s: calibration is %s, which implies no single factor on the spread; "
-            "reporting the raw diagnostics only",
-            label,
-            fitted.get("method", "not affine"),
-        )
-        fitted = None
-    if fitted is not None:
-        slope, intercept = float(fitted["slope"]), float(fitted["intercept"])
-        cal_pred = slope * predicted + intercept
-        cal_spreads = {n: uncertainty.rescale_sigma(s, slope) for n, s in spreads.items()}
-        calibrated_block = {
-            "slope": slope,
-            "intercept": intercept,
-            "diagnostics": {
-                n: uncertainty.diagnose(observed, cal_pred, s, source=n).as_dict()
-                for n, s in cal_spreads.items()
-            },
-        }
-        for name, s in cal_spreads.items():
-            expected, fraction = uncertainty.coverage_curve(observed, cal_pred, s)
-            curves.append(
-                pd.DataFrame(
-                    {
-                        "source": name,
-                        "stage": "calibrated",
-                        "expected": expected,
-                        "observed": fraction,
-                    }
-                )
-            )
+        curves.append(pd.DataFrame({"source": name, "expected": expected, "observed": fraction}))
 
     record: dict[str, Any] = {
         "version": VERSION,
@@ -208,7 +145,6 @@ def main() -> None:
         "n_test": int(observed.size),
         "has_model_spread": model_sigma is not None,
         "diagnostics": diagnostics,
-        "calibrated": calibrated_block,
         "wall_clock_s": round(time.perf_counter() - started, 3),
         "environment": provenance.environment(),
         "written_at": datetime.now(tz=UTC).isoformat(timespec="seconds"),

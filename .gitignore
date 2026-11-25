@@ -20,10 +20,10 @@ data/*
 results/*
 !results/gates/
 
-# the per-compound predictions of every run, so a figure can be rebuilt on a
-# machine that never ran the sweep. run/08_figures.py draws on these and the
-# gates and on nothing else under results/, so the rest of a run directory
-# stays out
+# the per-compound predictions of every run, so the uncertainty tables can be
+# rebuilt on a machine that never ran the sweep. run/06_uncertainty.py reads
+# these and the gates and nothing else under results/, so the rest of a run
+# directory stays out
 !results/tabular/
 !results/gnn/
 !results/uncertainty/

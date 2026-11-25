@@ -19,20 +19,11 @@ dependencies = [
     "pandas==2.3.3",
     "numpy==2.5.1",
     "scipy==1.17.0",
-    # Tukey HSD for the figure panels: the studentized range distribution and
-    # the block model behind the comparison intervals. Pinned like the rest of
-    # the stack to the version the figures were drawn under: the intervals are
-    # checked against this release's own pairwise_tukeyhsd, and 0.15 has not
-    # been run here
-    "statsmodels==0.14.6",
     "rdkit==2025.9.3",
     "mordredcommunity==2.0.6",
     "pyarrow==22.0.0",
     "huggingface-hub==1.3.2",
     "pyyaml==6.0.3",
-    # pinned like the modelling stack: the lock should describe an environment
-    # that has been run, and 7.0 has not been
-    "plotly==6.5.2",
     "scikit-learn==1.6.1",
     # the modelling stack, pinned to the versions this analysis was run under
     # rather than floored. These decide the numbers: a resolver free to take
