@@ -688,7 +688,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <div class="chart-caption"><code>CRPS</code> increases monotonically from Q1 (0.18) to Q5 (0.46). Higher predicted <code>σ</code> corresponds to worse distributional fit, as expected when the model's uncertainty estimates track real difficulty.</div>
   </div>
 
-  <p><strong>Strengths:</strong> Scores each compound's whole predicted distribution, <code>N(ŷ<sub>i</sub>, σ<sub>i</sub>²)</code>, against its measurement, where an error metric such as RMSE scores only the point prediction <code>ŷ<sub>i</sub></code>. Proper scoring rule (a model minimizes <code>CRPS</code> by reporting its true predicted distribution, so there is no incentive to distort the estimate). Works per-observation without binning. Produces a single comparable number across models. <strong>Weaknesses:</strong> Less intuitive than "did the true value land in the interval?" Requires the full predicted CDF (or a closed-form assumption, as with the Gaussian here). Can be dominated by a few large-error outliers.</p>
+  <p><strong>Strengths:</strong> Scores each compound's whole predicted distribution, <code>N(ŷ<sub>i</sub>, σ<sub>i</sub>²)</code>, against its measurement, where an error metric such as RMSE scores only the point prediction <code>ŷ<sub>i</sub></code>. Proper scoring rule (a model minimizes <code>CRPS</code> by reporting its true predicted distribution, so there is no incentive to distort the estimate). Works per-observation without binning. <strong>Weaknesses:</strong> Less intuitive than "did the true value land in the interval?" Requires the full predicted CDF (or a closed-form assumption, as with the Gaussian here). Can be dominated by a few large-error outliers.</p>
 
   <hr>
 
