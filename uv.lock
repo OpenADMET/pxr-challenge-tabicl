@@ -614,6 +614,19 @@ wheels = [
 ]
 
 [[package]]
+name = "loguru"
+version = "0.7.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "win32-setctime", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3a/05/a1dae3dffd1116099471c643b8924f5aa6524411dc6c63fdae648c4f1aca/loguru-0.7.3.tar.gz", hash = "sha256:19480589e77d47b8d85b2c827ad95d49bf31b0dcde16593892eb51dd18706eb6", size = 63559, upload-time = "2024-12-06T11:20:56.608Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0c/29/0348de65b8cc732daa3e33e67806420b2ae89bdce2b04af740289c5c6c8c/loguru-0.7.3-py3-none-any.whl", hash = "sha256:31a33c10c8e1e10422bfd431aeb5d351c7cf7fa671e3c4df004162264b28220c", size = 61595, upload-time = "2024-12-06T11:20:54.538Z" },
+]
+
+[[package]]
 name = "markdown-it-py"
 version = "4.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1145,6 +1158,18 @@ wheels = [
 ]
 
 [[package]]
+name = "phx-class-registry"
+version = "6.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/17/bf/3e6172307841ade6403000e11a58f9deca1480f04c45be2134177173de69/phx_class_registry-6.0.0.tar.gz", hash = "sha256:7253cc4598bb84dbd83bb83e75b6cb121bfdfba8aaa899f9d975ebefeedd35c2", size = 323118, upload-time = "2026-11-07T19:59:45.119Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3d/e5/6da6d558f27752eb1672e79ce3a9675220b098221dc15086e8a2e9d51c6f/phx_class_registry-6.0.0-py3-none-any.whl", hash = "sha256:9aaac6c595d3c920a7a8ef866c0c8e912ae53bd9bfbf2cc41c2d6ef015898d95", size = 17091, upload-time = "2026-11-07T19:59:43.109Z" },
+]
+
+[[package]]
 name = "pillow"
 version = "12.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1355,10 +1380,12 @@ dependencies = [
     { name = "huggingface-hub" },
     { name = "lightgbm" },
     { name = "lightning" },
+    { name = "loguru" },
     { name = "mordredcommunity" },
     { name = "numpy" },
     { name = "openadmet-models" },
     { name = "pandas" },
+    { name = "phx-class-registry" },
     { name = "pyarrow" },
     { name = "pyyaml" },
     { name = "rdkit" },
@@ -1384,10 +1411,12 @@ requires-dist = [
     { name = "huggingface-hub", specifier = "==1.3.2" },
     { name = "lightgbm", specifier = "==4.6.0" },
     { name = "lightning", specifier = "==2.6.0" },
+    { name = "loguru", specifier = "==0.7.3" },
     { name = "mordredcommunity", specifier = "==2.0.6" },
     { name = "numpy", specifier = "==2.5.1" },
     { name = "openadmet-models", git = "https://github.com/OpenADMET/openadmet-models.git?rev=4a8df806d12a7385edb6365074ce218af19002a5" },
     { name = "pandas", specifier = "==2.3.3" },
+    { name = "phx-class-registry", specifier = "==6.0.0" },
     { name = "pyarrow", specifier = "==22.0.0" },
     { name = "pyyaml", specifier = "==6.0.3" },
     { name = "rdkit", specifier = "==2025.9.3" },
@@ -2131,6 +2160,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/1e/67/cbae4bf7683a64755c2c1778c418fea96d00e34395bb91743f08bd951571/wadler_lindig-0.1.7.tar.gz", hash = "sha256:81d14d3fe77d441acf3ebd7f4aefac20c74128bf460e84b512806dccf7b2cd55", size = 15842, upload-time = "2025-06-18T07:00:42.843Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8d/96/04e7b441807b26b794da5b11e59ed7f83b2cf8af202bd7eba8ad2fa6046e/wadler_lindig-0.1.7-py3-none-any.whl", hash = "sha256:e3ec83835570fd0a9509f969162aeb9c65618f998b1f42918cfc8d45122fe953", size = 20516, upload-time = "2025-06-18T07:00:41.684Z" },
+]
+
+[[package]]
+name = "win32-setctime"
+version = "1.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1a/e4/f0f252c65f9bf7c4042b1f707ef338d49f799da582234e1d3e6e2cfca291/win32_setctime-1.2.1.tar.gz", hash = "sha256:077b35471bf1ff1d71e165c919ddc0cecf51b8e1802f5d820d33a96e2f6717dd", size = 4983, upload-time = "2026-10-25T18:21:32.318Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/df/5593480bc1e932eeae28e4fa182ab68174edd0d77409ced3b6491d02d1d5/win32_setctime-1.2.1-py3-none-any.whl", hash = "sha256:a9edc685b35414bec69392c866ed82456ad125ac4a6a4b703ec1d8b462d4f477", size = 4215, upload-time = "2026-10-25T18:21:30.939Z" },
 ]
 
 [[package]]

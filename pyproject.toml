@@ -16,6 +16,9 @@ requires-python = ">=3.12"
 # against it. A clone that syncs this lock gets stock 2.5.1 and no GPU.
 dependencies = [
     "openadmet-models",
+    # openadmet-models imports these without declaring them
+    "loguru==0.7.3",
+    "phx-class-registry==6.0.0",
     "pandas==2.3.3",
     "numpy==2.5.1",
     "scipy==1.17.0",
