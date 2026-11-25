@@ -656,7 +656,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p>Several evaluation tools may handle the ranking question better than Spearman <code>ρ</code> on individual residuals, though each comes with its own assumptions and limitations. The first two (quintile binning and <code>CRPS</code>) address compound-level enrichment directly. The third (<code>NLL</code>) is an aggregate model-comparison metric that does not support enrichment.</p>
 
-  <p>The one-flip problem limits every evaluation tool that follows. Each method works around it (by aggregating, by scoring the full distribution, by testing calibration globally), but none eliminates it. Averaging across compounds is the main way around it. Replicate measurements would also sharpen all of them: more observations per compound would reduce the noise in per-compound error estimates, tighten the quintile bins, widen the gap between per-compound <code>σ</code> and constant <code>σ<sub>const</sub></code> in <code>CRPS</code> and <code>NLL</code>, and raise Spearman <code>ρ</code> along the replicate curves in <a href="#s06">section 06</a>, up to a plateau that depends on how much of <code>σ</code> is measurement noise. The evaluation tools below are the best we can do with one measurement per compound.</p>
+  <p>The one-flip problem limits every evaluation tool that follows. Each method works around it (by aggregating, by scoring the full distribution, by testing calibration globally), but none eliminates it. Averaging across compounds is the main way around it. Replicate measurements would also sharpen all of them: more observations per compound would reduce the noise in per-compound error estimates, tighten the quintile bins, smooth the <code>CRPS</code> and <code>NLL</code> quintile curves, and raise Spearman <code>ρ</code> along the replicate curves in <a href="#s06">section 06</a>, up to a plateau that depends on how much of <code>σ</code> is measurement noise. The evaluation tools below are the best we can do with one measurement per compound.</p>
 
   <hr>
 
@@ -680,24 +680,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p><code>CRPS</code> is a <em>proper scoring rule</em>, meaning a model scores best by reporting its true beliefs. It jointly rewards calibration (intervals the right width) and sharpness (intervals as narrow as possible while remaining calibrated). A model that predicts wide intervals for every compound will be calibrated but not sharp; <code>CRPS</code> penalizes the unnecessary width.</p>
 
-  <p>The decisive test: does the model's per-compound <code>σ</code> variation help, compared to assigning every compound the same global <code>σ<sub>const</sub></code> (the mean of <code>σ</code>, 0.54)?</p>
-
-  <div class="stats-row">
-    <div class="stat-box">
-      <div class="stat-label"><code>CRPS</code> (per-compound <code>σ</code>)</div>
-      <div class="stat-value" style="color:var(--green)">0.312</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-label"><code>CRPS</code> (constant <code>σ<sub>const</sub></code>)</div>
-      <div class="stat-value" style="color:var(--orange)">0.319</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-label">Improvement</div>
-      <div class="stat-value" style="color:var(--green)">2.4%</div>
-    </div>
-  </div>
-
-  <p>Per-compound <code>σ</code> beats constant <code>σ<sub>const</sub></code> by 2.4%. The improvement is modest, consistent with the narrow <code>σ</code> distribution (coefficient of variation <code>CV</code> = 0.34) and the well-calibrated intervals. Breaking <code>CRPS</code> down by quintile shows a monotonic increase, confirming that the model assigns higher uncertainty to compounds that genuinely score worse.</p>
+  <p>Breaking <code>CRPS</code> down by predicted <code>σ</code> quintile, as in <a href="#s09a">section 09a</a>, shows a monotonic increase, confirming that the model assigns higher uncertainty to compounds that genuinely score worse.</p>
 
   <div class="chart-panel">
     <div class="chart-title">Mean CRPS by predicted σ quintile</div>
@@ -715,22 +698,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
 
   <p>Under a Gaussian prediction with mean <code>ŷ</code> and standard deviation <code>σ</code>, <code data-eq="eq-nll">NLL = 0.5 × log(2πσ<sub>i</sub>²) + (y<sub>i</sub> − ŷ<sub>i</sub>)² / (2σ<sub>i</sub>²)</code>. The first term penalizes wide intervals (wasted probability); the second penalizes narrow intervals that miss the true value. Lower is better. <code>NLL</code> is a proper scoring rule, and compared to <code>CRPS</code>, it penalizes overconfidence more harshly: a single observation far outside a narrow interval produces a very large <code>NLL</code>, because the squared residual is divided by a small <code>σ²</code>.</p>
 
-  <div class="stats-row">
-    <div class="stat-box">
-      <div class="stat-label"><code>NLL</code> (per-compound <code>σ</code>)</div>
-      <div class="stat-value" style="color:var(--green)">0.935</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-label"><code>NLL</code> (constant <code>σ<sub>const</sub></code>)</div>
-      <div class="stat-value" style="color:var(--orange)">0.968</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-label">Improvement</div>
-      <div class="stat-value" style="color:var(--green)">3.4%</div>
-    </div>
-  </div>
-
-  <p>Per-compound <code>σ</code> beats constant <code>σ<sub>const</sub></code> by 3.4%, a slightly larger margin than <code>CRPS</code>, confirming that the variable uncertainty adds value as a whole. Unlike <code>CRPS</code>, <code>NLL</code> per quintile is <em>not</em> monotonic: Q1 scores best (0.32), but Q2 and Q3 score worse than Q4. This happens because <code>NLL</code> penalizes both directions. A moderate-<code>σ</code> compound with one large residual (a bad single draw) gets hammered by the <code data-eq="eq-nll">(y<sub>i</sub> − ŷ<sub>i</sub>)² / σ<sub>i</sub>²</code> term, while a high-<code>σ</code> compound with the same residual absorbs it more gracefully. This non-monotonicity means <code>NLL</code> cannot be used for enrichment: sorting compounds by <code>NLL</code> would not reliably separate easy from hard predictions.</p>
+  <p>Unlike <code>CRPS</code>, <code>NLL</code> per predicted <code>σ</code> quintile is <em>not</em> monotonic: Q1 scores best (0.32), but Q2 and Q3 score worse than Q4. This happens because <code>NLL</code> penalizes both directions. A moderate-<code>σ</code> compound with one large residual (a bad single draw) gets hammered by the <code data-eq="eq-nll">(y<sub>i</sub> − ŷ<sub>i</sub>)² / σ<sub>i</sub>²</code> term, while a high-<code>σ</code> compound with the same residual absorbs it more gracefully. This non-monotonicity means <code>NLL</code> cannot be used for enrichment: sorting compounds by <code>NLL</code> would not reliably separate easy from hard predictions.</p>
 
   <div class="chart-panel">
     <div class="chart-title">Mean NLL by predicted σ quintile</div>
@@ -766,7 +734,7 @@ h2[id] { scroll-margin-top: 1.5rem; }
   </table>
   </div>
 
-  <p>Steps 06 and 08 (post hoc calibration and the blog post figures) are not needed for this page. The page draws its other figures from these files. The scatter plot, the quintile bars and the CRPS and NLL values use the <code>model_sigma</code> and <code>abs_residual</code> columns of <code>points.csv</code> for the 260 test compounds, and the reliability curve plots <code>coverage.csv</code>. The simulated distribution of <code>ρ<sub>null</sub></code> in <a href="#s05">section 05</a> is computed in the browser from the same <code>σ</code> values, with a seeded random number generator.</p>
+  <p>Steps 06 and 08 (post hoc calibration and the blog post figures) are not needed for this page. The page draws its other figures from these files. The scatter plot and the three quintile charts use the <code>model_sigma</code> and <code>abs_residual</code> columns of <code>points.csv</code> for the 260 test compounds, and the reliability curve plots <code>coverage.csv</code>. The simulated distribution of <code>ρ<sub>null</sub></code> in <a href="#s05">section 05</a> is computed in the browser from the same <code>σ</code> values, with a seeded random number generator.</p>
   </div>
 
   <hr>
@@ -816,7 +784,6 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <tr data-sym="p_obs" data-src="Computed"><td><code>p<sub>obs</sub></code></td><td>Observed coverage: the share of test compounds whose measured value falls inside the central interval at level <code>p</code></td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
     <tr data-sym="A_mis" data-src="Computed"><td><code>A<sub>mis</sub></code></td><td>Miscalibration area between the observed coverage curve and the diagonal</td><td><span class="src src-computed">Computed</span></td><td class="num">0.04</td></tr>
     <tr class="grp"><td colspan="4">Spread and ranking</td></tr>
-    <tr data-sym="σ_const" data-src="Computed"><td><code>σ<sub>const</sub></code></td><td>Mean of σ<sub>i</sub> over the test set, assigned to every compound in the constant baseline</td><td><span class="src src-computed">Computed</span></td><td class="num">0.54</td></tr>
     <tr data-sym="CV" data-src="Computed"><td><code>CV</code></td><td>Coefficient of variation of σ across the test set, SD(σ<sub>i</sub>) / mean(σ<sub>i</sub>)</td><td><span class="src src-computed">Computed</span></td><td class="num">0.34</td></tr>
     <tr data-sym="ρ" data-src="Computed"><td><code>ρ</code></td><td>Spearman rank correlation between σ and |residual| (or <code>m<sub>i</sub></code> with replicates) over the test set</td><td><span class="src src-computed">Computed</span></td><td class="num">0.26</td></tr>
     <tr data-sym="ρ_null" data-src="Simulated"><td><code>ρ<sub>null</sub></code></td><td>ρ for one simulated dataset in which every residual is drawn under perfect calibration; 2,000 datasets give the null distribution in <a href="#s05">section 05</a>, and 500 give each point on the replicate curve</td><td><span class="src src-simulated">Simulated</span></td><td class="num"></td></tr>
@@ -824,8 +791,8 @@ h2[id] { scroll-margin-top: 1.5rem; }
     <tr data-sym="R" data-src="Toy setting"><td><code>R</code></td><td>Replicate measurements per compound in the replicate simulation; 1 matches the real data</td><td><span class="src src-toy">Toy setting</span></td><td class="num">1</td></tr>
     <tr data-sym="AUC" data-src="Computed"><td><code>AUC</code></td><td>Area under the receiver operating characteristic curve: the probability that a compound measured below a pEC50 of 4 has a larger σ than a compound measured at or above it; 0.5 is chance</td><td><span class="src src-computed">Computed</span></td><td class="num">0.89</td></tr>
     <tr class="grp"><td colspan="4">Scoring rules</td></tr>
-    <tr data-sym="CRPS" data-src="Computed"><td><code>CRPS</code></td><td>Continuous ranked probability score of one prediction; lower is better. Mean over the test set: 0.312 with σ<sub>i</sub>, 0.319 with σ<sub>const</sub></td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
-    <tr data-sym="NLL" data-src="Computed"><td><code>NLL</code></td><td>Negative log-likelihood of one prediction; lower is better. Mean over the test set: 0.935 with σ<sub>i</sub>, 0.968 with σ<sub>const</sub></td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
+    <tr data-sym="CRPS" data-src="Computed"><td><code>CRPS</code></td><td>Continuous ranked probability score of one prediction; lower is better</td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
+    <tr data-sym="NLL" data-src="Computed"><td><code>NLL</code></td><td>Negative log-likelihood of one prediction; lower is better</td><td><span class="src src-computed">Computed</span></td><td class="num"></td></tr>
     <tr class="grp"><td colspan="4">Other notation</td></tr>
     <tr data-sym="u" data-src="Notation"><td><code>u</code></td><td>Integration variable over possible measured values</td><td><span class="src src-notation">Notation</span></td><td class="num"></td></tr>
     <tr data-sym="Φ" data-src="Notation"><td><code>Φ</code></td><td>Standard normal cumulative distribution function; Φ<sup>−1</sup> is its inverse</td><td><span class="src src-notation">Notation</span></td><td class="num"></td></tr>
